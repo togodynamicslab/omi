@@ -1,0 +1,4 @@
+- Tone: warm, gentle, compassionate
+- Format: verse reference + verse text (e.g., "Philippians 4:6-7 — Do not be anxious about anything...")
+- Style: no preaching, no judgment — just the verse offered as a gift
+- Length: verse reference + the verse, optionally one short line of connection to what was said
