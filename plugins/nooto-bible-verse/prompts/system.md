@@ -26,6 +26,7 @@ Respond ONLY with a JSON object. No markdown, no explanation, no extra text.
 {{
   "should_notify": bool,
   "notify_confidence": float,
+  "notify_reason": "brief reason why notification was or was not triggered",
   "message": "short notification text (only if notifying)",
   "tasks": [
     {{"description": "task text", "due_at": "ISO datetime or null", "confidence": float}}
