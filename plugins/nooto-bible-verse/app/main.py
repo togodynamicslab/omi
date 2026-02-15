@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Query
@@ -5,6 +6,8 @@ from fastapi import FastAPI, Query
 from app import buffer, omi_client
 from app.models import WebhookRequest
 from app.processor import process_and_decide
+
+log = logging.getLogger('uvicorn.error')
 
 
 @asynccontextmanager
@@ -38,5 +41,8 @@ async def handle_transcript(payload: WebhookRequest, uid: str = Query(default=''
     if not ready:
         return {}
 
+    log.info(f'Buffer ready for session {session_id}: {len(accumulated)} segments')
     result = await process_and_decide(accumulated, session_id)
-    return result or {}
+    response = result or {}
+    log.info(f'Webhook response for session {session_id}: {response}')
+    return response
