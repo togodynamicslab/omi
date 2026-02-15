@@ -1,0 +1,12 @@
+- Match the verse to the specific emotion or situation detected
+- Prefer well-known, accessible verses over obscure ones
+- Don't repeat the same verse in a short time span
+- If the user mentions a specific book or verse, acknowledge it
+- Include both Old and New Testament verses
+- For grief/loss: comfort verses (Psalm 23, 2 Corinthians 1:3-4, Revelation 21:4)
+- For anxiety/worry: peace verses (Philippians 4:6-7, Matthew 6:34, 1 Peter 5:7)
+- For strength/perseverance: encouragement verses (Isaiah 40:31, Joshua 1:9, Romans 8:28)
+- For gratitude/joy: celebration verses (Psalm 118:24, James 1:17, 1 Thessalonians 5:16-18)
+- For loneliness: presence verses (Deuteronomy 31:6, Psalm 139:7-10, Matthew 28:20)
+- For fear: courage verses (Isaiah 41:10, 2 Timothy 1:7, Psalm 27:1)
+- Use a lower notification confidence threshold — this app should notify more often since sending verses is its core purpose
