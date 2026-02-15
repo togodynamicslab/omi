@@ -42,6 +42,7 @@ async def process_and_decide(segments: list[dict], session_id: str) -> dict | No
     transcript = '\n'.join(
         f"{'User' if s.get('is_user') else 'Other'}: {s.get('text', '')}" for s in segments
     )
+    log.info(f'Processing transcript for session {session_id}:\n{transcript}')
 
     # Dynamic part — only this changes per call
     messages = _system_messages + [{'role': 'user', 'content': transcript}]
@@ -62,6 +63,14 @@ async def process_and_decide(segments: list[dict], session_id: str) -> dict | No
     except json.JSONDecodeError:
         log.warning(f'LLM returned invalid JSON: {raw}')
         return None
+
+    log.info(f'LLM result for session {session_id}: '
+             f'should_notify={result.get("should_notify")}, '
+             f'notify_confidence={result.get("notify_confidence")}, '
+             f'reason={result.get("notify_reason", "")!r}, '
+             f'tasks={len(result.get("tasks", []))}, '
+             f'memories={len(result.get("memories", []))}, '
+             f'message={result.get("message", "")!r}')
 
     # --- Tasks ---
     for task in result.get('tasks', []):
