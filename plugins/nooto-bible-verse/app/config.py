@@ -7,8 +7,8 @@ log = logging.getLogger('uvicorn.error')
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')
 LLM_MODEL = os.getenv('LLM_MODEL', 'deepseek/deepseek-chat-v3-0324')
 REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379')
-CHUNK_THRESHOLD = int(os.getenv('CHUNK_THRESHOLD', '10'))
-TIME_THRESHOLD_SECONDS = int(os.getenv('TIME_THRESHOLD_SECONDS', '30'))
+CHUNK_THRESHOLD = int(os.getenv('CHUNK_THRESHOLD', '30'))
+TIME_THRESHOLD_SECONDS = int(os.getenv('TIME_THRESHOLD_SECONDS', '60'))
 
 # Omi Integration API
 OMI_API_URL = os.getenv('OMI_API_URL', 'https://api.omi.me')
