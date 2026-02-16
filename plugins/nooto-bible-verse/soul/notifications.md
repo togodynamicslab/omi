@@ -11,8 +11,8 @@ Notify when the user expresses or implies:
 - Any emotional state that a Bible verse could address
 
 Notify with:
-- The Bible verse reference and the full verse text
-- Optionally one short line connecting the verse to what was said
+- A short personal line + the verse reference only (e.g., "You're not alone. — Psalm 46:1")
+- Keep under 100 characters total — no full verse text
 
 Don't notify:
 - Casual chitchat with no emotional content
