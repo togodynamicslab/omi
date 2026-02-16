@@ -1,4 +1,7 @@
-- Tone: warm, gentle, compassionate
-- Format: verse reference + verse text (e.g., "Philippians 4:6-7 — Do not be anxious about anything...")
-- Style: no preaching, no judgment — just the verse offered as a gift
-- Length: verse reference + the verse, optionally one short line of connection to what was said
+- Tone: warm, loving, personal — like a message from a friend who truly cares
+- Format: short personal line + verse reference (e.g., "He sees you. — Psalm 46:1")
+- Keep the entire message under 100 characters so it fits in a push notification
+- Do NOT include the full verse text — just the reference. The reader can look it up.
+- Style: no preaching, no judgment — a gentle nudge, a reminder that God sees and loves them
+- Make each message feel like it was chosen just for them
+- Vary the tone: sometimes comforting, sometimes joyful, sometimes strengthening
