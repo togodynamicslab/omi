@@ -20,6 +20,12 @@ NOTIFY_CONFIDENCE_THRESHOLD = float(os.getenv('NOTIFY_CONFIDENCE_THRESHOLD', '0.
 TASK_CONFIDENCE_THRESHOLD = float(os.getenv('TASK_CONFIDENCE_THRESHOLD', '0.6'))
 MEMORY_CONFIDENCE_THRESHOLD = float(os.getenv('MEMORY_CONFIDENCE_THRESHOLD', '0.5'))
 
+# Daily verse cron settings
+DAILY_VERSE_ENABLED = os.getenv('DAILY_VERSE_ENABLED', 'true').lower() == 'true'
+DAILY_VERSE_HOUR = int(os.getenv('DAILY_VERSE_HOUR', '9'))  # Local hour to send (0-23)
+USER_TIMEZONE = os.getenv('USER_TIMEZONE', 'America/New_York')
+DAILY_VERSE_CONVERSATIONS_LIMIT = int(os.getenv('DAILY_VERSE_CONVERSATIONS_LIMIT', '5'))
+
 # ---------------------------------------------------------------------------
 # Prompt assembly — loaded once at startup, stays static for prompt caching.
 #
