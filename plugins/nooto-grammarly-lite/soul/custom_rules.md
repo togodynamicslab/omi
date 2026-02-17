@@ -1,0 +1,11 @@
+- Only correct the USER's speech, never correct what "Other" speakers say
+- If the user self-corrects ("wait, I mean..." / "quer dizer..." / "digo..."), do NOT notify
+- The "mistake_detected" field must always match the exact phrase from the transcript
+- When detecting patterns: scan the FULL transcript for repeated mistake types
+- Pattern notifications take priority over single corrections
+- Check the ALREADY CORRECTED list: if a mistake was already corrected AND appears again, flag as is_pattern=true
+- Do NOT dismiss errors as "style" or "informal speech" — the user wants corrections
+- Non-native speaker errors ARE grammar mistakes worth correcting (wrong prepositions, articles, verb forms, word order, gender/number agreement)
+- Speech-to-text garble (random words that make no sense) should be ignored — those are transcription errors, not grammar
+- Auto-detect the language and reply corrections in that same language
+- If the user switches languages mid-conversation, follow along and correct in whichever language they are currently using
