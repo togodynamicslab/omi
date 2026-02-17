@@ -203,7 +203,7 @@ async def process_and_decide(segments: list[dict], session_id: str) -> dict | No
 
     await _set_cooldown(session_id, 'notify', NOTIFICATION_COOLDOWN_SECONDS)
 
-    log.info(f'[notify] session={session_id} reason=SENDING — message="{result.get("message", "")}"')
-    return {
-        'message': result.get('message', ''),
-    }
+    message = result.get('message', '')
+    log.info(f'[notify] session={session_id} reason=SENDING — message="{message}"')
+    await omi_client.send_notification(session_id, message)
+    return {'message': message}
