@@ -87,8 +87,11 @@ async def process_and_decide(segments: list[dict], session_id: str) -> dict | No
         log.info(f'Skipping LLM call — notification on cooldown for session {session_id}')
         return None
 
+    # The Omi device's primary speaker (speaker_id 0) is the wearer (user).
+    # is_user defaults to False in the model, so also check speaker_id.
     transcript = '\n'.join(
-        f"{'User' if s.get('is_user') else 'Other'}: {s.get('text', '')}" for s in segments
+        f"{'User' if s.get('is_user') or s.get('speaker_id', 0) == 0 else 'Other'}: {s.get('text', '')}"
+        for s in segments
     )
     log.info(f'Processing transcript for session {session_id}:\n{transcript}')
 
@@ -130,13 +133,15 @@ async def process_and_decide(segments: list[dict], session_id: str) -> dict | No
         log.warning(f'LLM returned invalid JSON: {raw}')
         return None
 
-    log.info(f'LLM result for session {session_id}: '
-             f'should_notify={result.get("should_notify")}, '
-             f'notify_confidence={result.get("notify_confidence")}, '
-             f'reason={result.get("notify_reason", "")!r}, '
-             f'tasks={len(result.get("tasks", []))}, '
-             f'memories={len(result.get("memories", []))}, '
-             f'message={result.get("message", "")!r}')
+    log.info(
+        f'LLM result for session {session_id}: '
+        f'should_notify={result.get("should_notify")}, '
+        f'notify_confidence={result.get("notify_confidence")}, '
+        f'reason={result.get("notify_reason", "")!r}, '
+        f'tasks={len(result.get("tasks", []))}, '
+        f'memories={len(result.get("memories", []))}, '
+        f'message={result.get("message", "")!r}'
+    )
 
     # --- Tasks ---
     for task in result.get('tasks', []):
@@ -169,21 +174,26 @@ async def process_and_decide(segments: list[dict], session_id: str) -> dict | No
 
     # --- Notification ---
     notify_confidence = float(result.get('notify_confidence', 0))
-    if result.get('should_notify') and notify_confidence >= NOTIFY_CONFIDENCE_THRESHOLD:
-        message = result.get('message', '')
-        # Set cooldown and record verse
-        await _redis.set(noti_key, '1', ex=NOTIFY_COOLDOWN_SECONDS)
-        # Extract verse reference (e.g. "John 3:16") from the message
-        verse_ref = message.split('—')[0].strip() if '—' in message else message[:30]
-        await _record_verse(session_id, verse_ref)
+    should_notify = result.get('should_notify', False)
 
-        return {
-            'message': message,
-        }
-    elif result.get('should_notify'):
+    if not should_notify:
+        log.info(f'[notify] session={session_id} reason=llm_said_no — LLM did not find a relevant verse')
+        return None
+
+    if notify_confidence < NOTIFY_CONFIDENCE_THRESHOLD:
         log.info(
-            f'Notification skipped (confidence {notify_confidence:.2f} < {NOTIFY_CONFIDENCE_THRESHOLD}): '
-            f'{result.get("message", "")}'
+            f'[notify] session={session_id} reason=low_confidence — '
+            f'{notify_confidence:.2f} < {NOTIFY_CONFIDENCE_THRESHOLD} — message="{result.get("message", "")}"'
         )
+        return None
 
-    return None
+    message = result.get('message', '')
+    # Set cooldown and record verse
+    await _redis.set(noti_key, '1', ex=NOTIFY_COOLDOWN_SECONDS)
+    # Extract verse reference (e.g. "John 3:16") from the message
+    verse_ref = message.split('—')[0].strip() if '—' in message else message[:30]
+    await _record_verse(session_id, verse_ref)
+
+    log.info(f'[notify] session={session_id} reason=SENDING — message="{message}"')
+    await omi_client.send_notification(session_id, message)
+    return {'message': message}
