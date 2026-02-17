@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -54,8 +55,16 @@ async def handle_transcript(payload: WebhookRequest, uid: str = Query(default=''
     if not ready:
         return {}
 
-    log.info(f'Buffer ready for session {session_id}: {len(accumulated)} segments')
-    result = await process_and_decide(accumulated, session_id)
-    response = result or {}
-    log.info(f'Webhook response for session {session_id}: {response}')
-    return response
+    # Fire LLM processing in the background so the webhook returns immediately.
+    # The Omi backend has a 10s timeout — LLM calls can exceed that.
+    # Notifications are sent directly via the Omi API from the background task.
+    asyncio.create_task(_process_in_background(accumulated, session_id))
+    return {}
+
+
+async def _process_in_background(segments: list[dict], session_id: str):
+    try:
+        result = await process_and_decide(segments, session_id)
+        log.info(f'[webhook] uid={session_id} result={result}')
+    except Exception as e:
+        log.error(f'[webhook] uid={session_id} background processing failed: {e}')
