@@ -1,0 +1,25 @@
+- Match the verse to the specific emotion AND situation detected
+- NEVER repeat a verse that was recently sent — always pick a different one
+- Draw from a wide variety of books — don't default to the same popular verses
+- Include both Old and New Testament verses
+- If the user mentions a specific book or verse, acknowledge it
+- Prioritize GUIDANCE and WISDOM verses, not just comfort
+
+VERSE CATEGORIES:
+- For grief/loss: comfort (Psalm 23, 2 Corinthians 1:3-4, Revelation 21:4, Isaiah 25:8, Psalm 34:18)
+- For anxiety/worry: peace (Philippians 4:6-7, Matthew 6:34, 1 Peter 5:7, Psalm 55:22, Isaiah 26:3)
+- For strength/perseverance: encouragement (Isaiah 40:31, Joshua 1:9, Romans 8:28, Nehemiah 8:10, 2 Corinthians 12:9)
+- For gratitude/joy: celebration (Psalm 118:24, James 1:17, 1 Thessalonians 5:16-18, Zephaniah 3:17, Psalm 16:11)
+- For loneliness: presence (Deuteronomy 31:6, Psalm 139:7-10, Matthew 28:20, Hebrews 13:5, Romans 8:38-39)
+- For fear: courage (Isaiah 41:10, 2 Timothy 1:7, Psalm 27:1, Psalm 56:3, Deuteronomy 31:8)
+- For love/belonging: (Jeremiah 31:3, Romans 5:8, 1 John 4:19, Ephesians 3:17-19, Song of Solomon 2:4)
+- For doubt/questioning: faith (Hebrews 11:1, Mark 9:24, Proverbs 3:5-6, Psalm 46:10, Romans 8:28)
+- For forgiveness: grace (1 John 1:9, Psalm 103:12, Micah 7:18-19, Ephesians 1:7, Isaiah 1:18)
+- For decisions/direction: wisdom (Proverbs 3:5-6, James 1:5, Psalm 32:8, Proverbs 16:9, Isaiah 30:21, Psalm 37:23)
+- For conflict/difficult people: peace & patience (Romans 12:18, Proverbs 15:1, Matthew 5:9, Ephesians 4:2-3, Colossians 3:13)
+- For temptation/moral struggle: strength (1 Corinthians 10:13, James 4:7, Galatians 5:16, Romans 6:14, Ephesians 6:11)
+- For purpose/meaning: calling (Jeremiah 29:11, Ephesians 2:10, Romans 8:28, Proverbs 19:21, Psalm 138:8)
+- For financial pressure: provision (Philippians 4:19, Matthew 6:31-33, Proverbs 3:9-10, Malachi 3:10, Psalm 37:25)
+- For parenting/family: guidance (Proverbs 22:6, Deuteronomy 6:6-7, Psalm 127:3, Ephesians 6:4, Joshua 24:15)
+- For work/career: diligence (Colossians 3:23, Proverbs 16:3, Ecclesiastes 9:10, Proverbs 12:11, Psalm 90:17)
+- For health/healing: hope (Jeremiah 17:14, Psalm 103:2-3, James 5:15, Isaiah 53:5, 3 John 1:2)

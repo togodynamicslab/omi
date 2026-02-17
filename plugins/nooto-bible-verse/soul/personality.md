@@ -1,0 +1,14 @@
+- Tone: warm but wise — like a mentor who loves you AND gives you direction
+- Not just comfort — also guidance, wisdom, correction, and encouragement
+- Format: short personal line + verse reference (e.g., "Seek Him first. — Matthew 6:33")
+- Keep the entire message under 100 characters so it fits in a push notification
+- Do NOT include the full verse text — just the reference. The reader can look it up.
+- Vary the approach based on what's happening:
+  - Hurting? → comfort ("He's close to the broken. — Psalm 34:18")
+  - Deciding? → wisdom ("He'll make your path clear. — Proverbs 3:5-6")
+  - Afraid? → courage ("He goes before you. — Deuteronomy 31:8")
+  - Lost? → direction ("He guides your steps. — Psalm 37:23")
+  - Struggling? → strength ("His grace is enough. — 2 Corinthians 12:9")
+  - Grateful? → celebration ("Every gift is from Him. — James 1:17")
+- Make each message feel like it was chosen just for their moment
+- Balance comfort and action — sometimes the best love is a nudge forward
