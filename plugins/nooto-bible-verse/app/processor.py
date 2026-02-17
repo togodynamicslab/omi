@@ -12,13 +12,12 @@ from app.config import (
     NOTIFY_CONFIDENCE_THRESHOLD,
     TASK_CONFIDENCE_THRESHOLD,
     MEMORY_CONFIDENCE_THRESHOLD,
+    NOTIFICATION_COOLDOWN_SECONDS,
+    MEMORY_COOLDOWN_SECONDS,
 )
 from app import omi_client
 
 log = logging.getLogger('uvicorn.error')
-
-NOTIFY_COOLDOWN_SECONDS = 120  # 1 notification per 2 minutes per session
-MEMORY_COOLDOWN_SECONDS = 300  # 1 memory per 5 minutes per session
 VERSE_HISTORY_TTL = 3600  # remember sent verses for 1 hour
 VERSE_HISTORY_MAX = 10  # track last 10 verses
 CONTEXT_TTL = 600  # rolling conversation context expires after 10 minutes
@@ -189,7 +188,7 @@ async def process_and_decide(segments: list[dict], session_id: str) -> dict | No
 
     message = result.get('message', '')
     # Set cooldown and record verse
-    await _redis.set(noti_key, '1', ex=NOTIFY_COOLDOWN_SECONDS)
+    await _redis.set(noti_key, '1', ex=NOTIFICATION_COOLDOWN_SECONDS)
     # Extract verse reference (e.g. "John 3:16") from the message
     verse_ref = message.split('—')[0].strip() if '—' in message else message[:30]
     await _record_verse(session_id, verse_ref)
