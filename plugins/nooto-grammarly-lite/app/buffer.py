@@ -37,15 +37,21 @@ async def add_segments(session_id: str, segments: list[dict]) -> tuple[bool, lis
     count = await _redis.llen(buf_key)
     elapsed = now - started
 
-    log.info(f'[buffer] session={session_id} count={count}/{CHUNK_THRESHOLD} elapsed={elapsed:.1f}s/{TIME_THRESHOLD_SECONDS}s')
+    remaining_segments = max(0, CHUNK_THRESHOLD - count)
+    remaining_time = max(0, TIME_THRESHOLD_SECONDS - elapsed)
 
     if count >= CHUNK_THRESHOLD or elapsed >= TIME_THRESHOLD_SECONDS:
+        trigger = 'segments' if count >= CHUNK_THRESHOLD else 'time'
         raw = await _redis.lrange(buf_key, 0, -1)
         await _redis.delete(buf_key, meta_key)
-        log.info(f'[buffer] session={session_id} TRIGGERED — flushing {len(raw)} segments')
+        log.info(f'[buffer] session={session_id} TRIGGERED by {trigger} — flushing {len(raw)} segments')
         return True, [json.loads(r) for r in raw]
 
-    log.info(f'[buffer] session={session_id} buffering...')
+    log.info(
+        f'[buffer] session={session_id} buffering — '
+        f'{count}/{CHUNK_THRESHOLD} segments ({remaining_segments} left) | '
+        f'{elapsed:.0f}s/{TIME_THRESHOLD_SECONDS}s ({remaining_time:.0f}s left)'
+    )
     return False, []
 
 
