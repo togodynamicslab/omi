@@ -1,10 +1,12 @@
 import json
+import logging
 import time
 
 import redis.asyncio as aioredis
 
 from app.config import REDIS_URL, CHUNK_THRESHOLD, TIME_THRESHOLD_SECONDS
 
+log = logging.getLogger('uvicorn.error')
 
 _redis = aioredis.from_url(REDIS_URL, decode_responses=True)
 
@@ -14,6 +16,8 @@ BUFFER_TTL = 300  # 5 min expiry for stale buffers
 async def add_segments(session_id: str, segments: list[dict]) -> tuple[bool, list[dict]]:
     buf_key = f'sandbox:buf:{session_id}'
     meta_key = f'sandbox:meta:{session_id}'
+
+    log.info(f'[buffer] session={session_id} incoming_segments={len(segments)}')
 
     pipe = _redis.pipeline()
     for seg in segments:
@@ -32,12 +36,21 @@ async def add_segments(session_id: str, segments: list[dict]) -> tuple[bool, lis
 
     count = await _redis.llen(buf_key)
     elapsed = now - started
+    remaining_segments = max(0, CHUNK_THRESHOLD - count)
+    remaining_time = max(0, TIME_THRESHOLD_SECONDS - elapsed)
 
     if count >= CHUNK_THRESHOLD or elapsed >= TIME_THRESHOLD_SECONDS:
+        trigger = 'segments' if count >= CHUNK_THRESHOLD else 'time'
         raw = await _redis.lrange(buf_key, 0, -1)
         await _redis.delete(buf_key, meta_key)
+        log.info(f'[buffer] session={session_id} TRIGGERED by {trigger} — flushing {len(raw)} segments')
         return True, [json.loads(r) for r in raw]
 
+    log.info(
+        f'[buffer] session={session_id} buffering — '
+        f'{count}/{CHUNK_THRESHOLD} segments ({remaining_segments} left) | '
+        f'{elapsed:.0f}s/{TIME_THRESHOLD_SECONDS}s ({remaining_time:.0f}s left)'
+    )
     return False, []
 
 
