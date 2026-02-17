@@ -63,5 +63,45 @@ async def create_memory(uid: str, content: str, tags: list[str] | None = None) -
     return False
 
 
+async def get_conversations(uid: str, limit: int = 5) -> list[dict]:
+    if not OMI_APP_ID or not OMI_APP_API_KEY:
+        log.warning('Skipping conversation fetch (OMI_APP_ID/OMI_APP_API_KEY not set)')
+        return []
+
+    try:
+        resp = await _http.get(
+            f'/v2/integrations/{OMI_APP_ID}/conversations',
+            params={'uid': uid, 'limit': limit},
+            headers=_headers,
+        )
+        if resp.status_code < 300:
+            data = resp.json()
+            return data.get('conversations', [])
+        log.warning(f'Conversation fetch failed ({resp.status_code}): {resp.text}')
+    except Exception as e:
+        log.error(f'Conversation fetch error: {e}')
+    return []
+
+
+async def send_notification(uid: str, message: str) -> bool:
+    if not OMI_APP_ID or not OMI_APP_API_KEY:
+        log.warning(f'Skipping notification (OMI_APP_ID/OMI_APP_API_KEY not set): {message}')
+        return False
+
+    try:
+        resp = await _http.post(
+            f'/v2/integrations/{OMI_APP_ID}/notification',
+            params={'uid': uid, 'message': message},
+            headers=_headers,
+        )
+        if resp.status_code < 300:
+            log.info(f'Notification sent to {uid}: {message}')
+            return True
+        log.warning(f'Notification failed ({resp.status_code}): {resp.text}')
+    except Exception as e:
+        log.error(f'Notification error: {e}')
+    return False
+
+
 async def close():
     await _http.aclose()
