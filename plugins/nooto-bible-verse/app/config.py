@@ -7,8 +7,8 @@ log = logging.getLogger('uvicorn.error')
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')
 LLM_MODEL = os.getenv('LLM_MODEL', 'deepseek/deepseek-chat-v3-0324')
 REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379')
-CHUNK_THRESHOLD = int(os.getenv('CHUNK_THRESHOLD', '30'))
-TIME_THRESHOLD_SECONDS = int(os.getenv('TIME_THRESHOLD_SECONDS', '60'))
+CHUNK_THRESHOLD = int(os.getenv('CHUNK_THRESHOLD', '15'))
+TIME_THRESHOLD_SECONDS = int(os.getenv('TIME_THRESHOLD_SECONDS', '45'))
 
 # Omi Integration API
 OMI_API_URL = os.getenv('OMI_API_URL', 'https://api.omi.me')
@@ -16,9 +16,13 @@ OMI_APP_ID = os.getenv('OMI_APP_ID', '')
 OMI_APP_API_KEY = os.getenv('OMI_APP_API_KEY', '')
 
 # Confidence thresholds (0.0 to 1.0)
-NOTIFY_CONFIDENCE_THRESHOLD = float(os.getenv('NOTIFY_CONFIDENCE_THRESHOLD', '0.8'))
+NOTIFY_CONFIDENCE_THRESHOLD = float(os.getenv('NOTIFY_CONFIDENCE_THRESHOLD', '0.85'))
 TASK_CONFIDENCE_THRESHOLD = float(os.getenv('TASK_CONFIDENCE_THRESHOLD', '0.6'))
-MEMORY_CONFIDENCE_THRESHOLD = float(os.getenv('MEMORY_CONFIDENCE_THRESHOLD', '0.5'))
+MEMORY_CONFIDENCE_THRESHOLD = float(os.getenv('MEMORY_CONFIDENCE_THRESHOLD', '0.6'))
+
+# Anti-spam cooldowns (seconds)
+NOTIFICATION_COOLDOWN_SECONDS = int(os.getenv('NOTIFICATION_COOLDOWN_SECONDS', '300'))
+MEMORY_COOLDOWN_SECONDS = int(os.getenv('MEMORY_COOLDOWN_SECONDS', '600'))
 
 # Daily verse cron settings
 DAILY_VERSE_ENABLED = os.getenv('DAILY_VERSE_ENABLED', 'true').lower() == 'true'
