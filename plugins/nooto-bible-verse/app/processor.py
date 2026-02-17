@@ -178,10 +178,7 @@ async def process_and_decide(segments: list[dict], session_id: str) -> dict | No
         await _record_verse(session_id, verse_ref)
 
         return {
-            'notification': {
-                'prompt': f'Send this exact message to the user, word for word, with no additions or explanations: {message}',
-                'params': ['user_name'],
-            },
+            'message': message,
         }
     elif result.get('should_notify'):
         log.info(
