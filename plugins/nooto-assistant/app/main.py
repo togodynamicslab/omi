@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query
 
 from app import buffer, omi_client
+from app.config import TRIGGER_COLLECT_SECONDS
 from app.models import WebhookRequest
 from app.processor import process_and_decide, pop_pending_answer, thinking_message
 
@@ -24,7 +25,13 @@ def _has_trigger(segments) -> bool:
 
 def _notify_response(message: str) -> dict:
     """Build a webhook response that triggers an Omi notification."""
-    return {'message': message}
+    return {
+        'message': message,
+        'notification': {
+            'prompt': message,
+            'params': ['user_name'],
+        },
+    }
 
 
 @asynccontextmanager
@@ -63,25 +70,28 @@ async def handle_transcript(payload: WebhookRequest, uid: str = Query(default=''
         log.info(f'[webhook] uid={session_id} DELIVERING pending answer: "{pending}"')
         return _notify_response(pending)
 
-    # If trigger word detected, flush buffer and start processing in background
-    # Return a "thinking" message immediately via webhook response
+    # Always buffer incoming segments
+    await buffer.add_segments(session_id, segments_raw)
+
+    # On trigger word, return thinking message and schedule delayed flush
+    # Delay lets subsequent segments (with the actual question) arrive first
     if _has_trigger(payload.segments):
-        log.info(f'[webhook] uid={session_id} TRIGGER WORD detected — flushing immediately')
-        accumulated = await buffer.flush(session_id, segments_raw)
-        asyncio.create_task(_process_in_background(accumulated, session_id))
+        log.info(f'[webhook] uid={session_id} TRIGGER WORD detected — collecting for {TRIGGER_COLLECT_SECONDS}s')
+        asyncio.create_task(_delayed_flush_and_process(session_id))
         return _notify_response(thinking_message())
 
-    ready, accumulated = await buffer.add_segments(session_id, segments_raw)
-
-    if not ready:
-        return {}
-
-    asyncio.create_task(_process_in_background(accumulated, session_id))
     return {}
 
 
-async def _process_in_background(segments: list[dict], session_id: str):
+async def _delayed_flush_and_process(session_id: str):
+    """Wait for more segments to arrive (question may follow trigger), then flush and process."""
+    await asyncio.sleep(TRIGGER_COLLECT_SECONDS)
+    accumulated = await buffer.flush(session_id)
+    if not accumulated:
+        log.info(f'[webhook] uid={session_id} nothing to process after trigger')
+        return
+    log.info(f'[webhook] uid={session_id} flushing {len(accumulated)} segments after {TRIGGER_COLLECT_SECONDS}s collect')
     try:
-        await process_and_decide(segments, session_id)
+        await process_and_decide(accumulated, session_id)
     except Exception as e:
         log.error(f'[webhook] uid={session_id} background processing failed: {e}')
