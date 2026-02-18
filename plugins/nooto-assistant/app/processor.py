@@ -5,7 +5,7 @@ import random
 from datetime import datetime, timezone
 
 import redis.asyncio as aioredis
-from langchain_community.tools import DuckDuckGoSearchRun
+from ddgs import DDGS
 from langchain_openai import ChatOpenAI
 
 from app import omi_client
@@ -36,18 +36,20 @@ _llm_json = ChatOpenAI(
     model_kwargs={'response_format': {'type': 'json_object'}},
 )
 
-_search = DuckDuckGoSearchRun()
+_ddgs = DDGS()
 
 # Inspired by Claude Code's spinner verbs — localized per language
 _THINKING_MESSAGES = {
     'pt': [
-        'Opa! Pensando... 🧠', 'Peraí... Calculando... 🧠', 'Hmm, Processando... 🧠',
-        'Deixa eu ver... Cozinhando... 🧠', 'Buscando... 🧠', 'Conjurando... 🧠',
-        'Contemplando... 🧠', 'Decifrando... 🧠', 'Imaginando... 🧠',
-        'Forjando... 🧠', 'Germinando... 🧠', 'Marinando... 🧠',
-        'Ruminando... 🧠', 'Fermentando... 🧠', 'Sintetizando... 🧠',
-        'Destrinchando... 🧠', 'Peraí... Maquinando... 🧠', 'Elaborando... 🧠',
-        'Desvendando... 🧠', 'Hmm, Bolando... 🧠',
+        'Opa! Pensando... 🧠', 'Peraí... Calculando... 🧠', 'Hmm, deixa eu ver... 🧠',
+        'Calma aí que já vai! 🧠', 'Eita, buscando... 🧠', 'Opa! Já tô ligado... 🧠',
+        'Segura firme... 🧠', 'Tô correndo atrás! 🧠', 'Xiiii, deixa comigo... 🧠',
+        'Rapidinho, tá? 🧠', 'Ihhh, peraí... 🧠', 'Só um minutinho... 🧠',
+        'Tô bolando aqui... 🧠', 'Vixe, deixa eu pesquisar... 🧠', 'Hmm, interessante... 🧠',
+        'Boa pergunta! Buscando... 🧠', 'Valeu! Já tô vendo... 🧠', 'Oxe, peraí... 🧠',
+        'Tô fuçando aqui... 🧠', 'Opa! Tô nessa... 🧠', 'Pera que eu descubro! 🧠',
+        'Uai, deixa eu ver... 🧠', 'Massa! Buscando... 🧠', 'Tô de olho, calma... 🧠',
+        'Epa! Processando... 🧠', 'Bora ver isso... 🧠', 'Hmmm, cozinhando a resposta... 🧠',
     ],
     'es': [
         '¡Opa! Pensando... 🧠', 'Un momento... Calculando... 🧠', 'Hmm, Procesando... 🧠',
@@ -98,6 +100,38 @@ async def pop_pending_answer(session_id: str) -> str | None:
     return answer
 
 
+MEMORY_KEY = 'nooto:memory:{session_id}'
+MEMORY_TTL = 1800  # 30 min — short-term conversation memory
+MAX_MEMORY_PAIRS = 5
+
+
+async def _get_memory(session_id: str) -> list[dict]:
+    key = MEMORY_KEY.format(session_id=session_id)
+    raw = await _redis.lrange(key, 0, -1)
+    return [json.loads(r) for r in raw]
+
+
+async def _add_memory(session_id: str, query: str, answer: str) -> None:
+    key = MEMORY_KEY.format(session_id=session_id)
+    entry = json.dumps({'q': query, 'a': answer})
+    pipe = _redis.pipeline()
+    pipe.rpush(key, entry)
+    pipe.ltrim(key, -MAX_MEMORY_PAIRS, -1)  # keep only last N
+    pipe.expire(key, MEMORY_TTL)
+    await pipe.execute()
+    log.info(f'[memory] session={session_id} stored Q&A (total: {min(await _redis.llen(key), MAX_MEMORY_PAIRS)})')
+
+
+def _format_memory(memory: list[dict]) -> str:
+    if not memory:
+        return ''
+    lines = []
+    for m in memory:
+        lines.append(f'Q: {m["q"]}')
+        lines.append(f'A: {m["a"]}')
+    return '\n'.join(lines)
+
+
 def _cooldown_key(session_id: str) -> str:
     return f'nooto:cd:{session_id}'
 
@@ -110,9 +144,12 @@ async def _set_cooldown(session_id: str) -> None:
     await _redis.set(_cooldown_key(session_id), '1', ex=NOTIFICATION_COOLDOWN_SECONDS)
 
 
-async def _detect_question(transcript: str) -> dict:
+async def _detect_question(transcript: str, memory_context: str = '') -> dict:
     """Cheap LLM call to check if transcript contains a question for Opa."""
-    messages = [('system', DETECT_PROMPT), ('human', transcript)]
+    user_content = transcript
+    if memory_context:
+        user_content = f'RECENT CONVERSATION:\n{memory_context}\n\nCURRENT TRANSCRIPT:\n{transcript}'
+    messages = [('system', DETECT_PROMPT), ('human', user_content)]
 
     try:
         response = await _llm_json.ainvoke(messages)
@@ -135,11 +172,14 @@ async def _detect_question(transcript: str) -> dict:
         return {'has_question': False, 'query': ''}
 
 
-async def _format_answer(query: str, search_results: str, language: str = 'en') -> str:
+async def _format_answer(query: str, search_results: str, language: str = 'en', memory_context: str = '') -> str:
     """LLM call to format search results into a short push notification answer."""
     now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+    system_prompt = ANSWER_PROMPT.replace('{today}', now)
     user_content = f'TODAY: {now}\nLANGUAGE: {language}\nQUESTION: {query}\n\nSEARCH RESULTS:\n{search_results}'
-    messages = [('system', ANSWER_PROMPT), ('human', user_content)]
+    if memory_context:
+        user_content += f'\n\nRECENT CONVERSATION (for context):\n{memory_context}'
+    messages = [('system', system_prompt), ('human', user_content)]
 
     try:
         response = await _llm.ainvoke(messages)
@@ -163,8 +203,12 @@ async def process_and_decide(segments: list[dict], session_id: str) -> None:
         for s in segments
     )
 
-    # Step 1: Detect question
-    detection = await _detect_question(transcript)
+    # Load conversation memory for context
+    memory = await _get_memory(session_id)
+    memory_context = _format_memory(memory)
+
+    # Step 1: Detect question (with memory for follow-ups)
+    detection = await _detect_question(transcript, memory_context)
 
     if not detection.get('has_question'):
         log.info(f'[processor] session={session_id} reason=no_question')
@@ -177,24 +221,34 @@ async def process_and_decide(segments: list[dict], session_id: str) -> None:
 
     language = detection.get('language', 'en') or 'en'
 
-    # Step 2: Web search
-    today = datetime.now(timezone.utc).strftime('%B %Y')
-    search_query = f'{query} {today}'
-    log.info(f'[processor] session={session_id} searching: "{search_query}"')
+    # Step 2: Web search (DuckDuckGo with week filter for fresh results)
+    log.info(f'[processor] session={session_id} searching: "{query}"')
     try:
-        search_results = await asyncio.to_thread(_search.run, search_query)
+        results = await asyncio.to_thread(_ddgs.text, query, max_results=5, timelimit='w')
+        search_results = '\n'.join(f"- {r['title']}: {r['body']}" for r in results) if results else ''
     except Exception as e:
         log.error(f'[processor] session={session_id} search failed: {e}')
         search_results = ''
+
+    # Fallback: retry without time filter if weekly results are empty
+    if not search_results:
+        log.info(f'[processor] session={session_id} no weekly results, retrying without time filter')
+        try:
+            results = await asyncio.to_thread(_ddgs.text, query, max_results=5)
+            search_results = '\n'.join(f"- {r['title']}: {r['body']}" for r in results) if results else ''
+        except Exception as e:
+            log.error(f'[processor] session={session_id} fallback search failed: {e}')
+            search_results = ''
 
     if not search_results:
         log.info(f'[processor] session={session_id} reason=no_search_results')
         return
 
-    # Step 3: Format answer
-    answer = await _format_answer(query, search_results, language)
+    # Step 3: Format answer (with memory for context)
+    answer = await _format_answer(query, search_results, language, memory_context)
 
-    # Step 4: Store answer in Redis — next webhook call will deliver it
+    # Step 4: Store Q&A in memory and answer in Redis
+    await _add_memory(session_id, query, answer)
     await _set_cooldown(session_id)
     log.info(f'[processor] session={session_id} reason=READY — answer="{answer}"')
     await store_pending_answer(session_id, answer)
