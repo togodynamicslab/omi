@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')
-LLM_MODEL = os.getenv('LLM_MODEL', 'deepseek/deepseek-chat-v3-0324')
+LLM_MODEL = os.getenv('LLM_MODEL', 'qwen/qwen3-30b-a3b')
 REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379')
 CHUNK_THRESHOLD = int(os.getenv('CHUNK_THRESHOLD', '15'))
 TIME_THRESHOLD_SECONDS = int(os.getenv('TIME_THRESHOLD_SECONDS', '45'))
