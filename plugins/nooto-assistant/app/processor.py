@@ -189,6 +189,7 @@ async def _format_answer(query: str, search_results: str, language: str = 'en', 
     user_content = f'TODAY: {now}\nLANGUAGE: {language}\nQUESTION: {query}\n\nSEARCH RESULTS:\n{search_results}'
     if memory_context:
         user_content += f'\n\nRECENT CONVERSATION (for context):\n{memory_context}'
+    user_content += '\n\nREMINDER: ONLY use facts from the SEARCH RESULTS above. Do NOT use your own knowledge.'
     messages = [('system', system_prompt), ('human', user_content)]
 
     try:
