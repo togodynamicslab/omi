@@ -17,7 +17,11 @@ NOTIFICATION_COOLDOWN_SECONDS = int(os.getenv('NOTIFICATION_COOLDOWN_SECONDS', '
 
 # Hybrid delivery: wait this many seconds for a webhook to pick up the answer
 # before falling back to the Omi notification API
-WEBHOOK_FALLBACK_SECONDS = int(os.getenv('WEBHOOK_FALLBACK_SECONDS', '25'))
+WEBHOOK_FALLBACK_SECONDS = int(os.getenv('WEBHOOK_FALLBACK_SECONDS', '45'))
+
+# Seconds to keep collecting segments after trigger word before processing.
+# Omi splits speech across segments, so "Opa" and the question may arrive separately.
+TRIGGER_COLLECT_SECONDS = int(os.getenv('TRIGGER_COLLECT_SECONDS', '10'))
 
 # ---------------------------------------------------------------------------
 # Prompt loading — simple file-based prompts, no soul framework needed.
