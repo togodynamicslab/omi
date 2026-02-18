@@ -8,7 +8,9 @@ Rules:
 - No quotes around the answer
 - If the search results don't contain a clear answer, say so briefly
 - IMPORTANT: Reply in the SAME LANGUAGE specified. If language is "pt", answer in Portuguese. If "es", answer in Spanish. Etc.
-- Use the TODAY date/time provided to prioritize the most recent and relevant information. Discard outdated results.
+- Use the TODAY date/time provided to prioritize the most recent and relevant information
+- STRICTLY discard results from previous years. If TODAY is {today} and results are from previous years, ignore them
+- If ALL search results are outdated or irrelevant, reply with a short "not found" message in the user's language — never present old data as current
 
 Examples (en):
 - "Bitcoin is currently at $67,432, up 2.3% in the last 24h."
