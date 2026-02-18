@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import random
+import re
 from datetime import datetime, timezone
 
 import redis.asyncio as aioredis
@@ -22,6 +23,15 @@ from app.config import (
 log = logging.getLogger('uvicorn.error')
 
 _redis = aioredis.from_url(REDIS_URL, decode_responses=True)
+
+# Qwen3 thinking mode produces <think>...</think> blocks — strip them from responses
+_THINK_RE = re.compile(r'<think>.*?</think>', re.DOTALL)
+
+
+def _strip_think(text: str) -> str:
+    """Remove Qwen3 <think> reasoning blocks from LLM output."""
+    return _THINK_RE.sub('', text).strip()
+
 
 _llm = ChatOpenAI(
     base_url='https://openrouter.ai/api/v1',
@@ -157,7 +167,7 @@ async def _detect_question(transcript: str, memory_context: str = '') -> dict:
         log.error(f'[detect] LLM call failed: {e}')
         return {'has_question': False, 'query': ''}
 
-    raw = response.content
+    raw = _strip_think(response.content)
     log.info(f'[detect] raw_response={raw}')
 
     try:
@@ -187,7 +197,7 @@ async def _format_answer(query: str, search_results: str, language: str = 'en', 
         log.error(f'[answer] LLM call failed: {e}')
         return "Sorry, I couldn't find an answer right now."
 
-    return response.content.strip()
+    return _strip_think(response.content)
 
 
 async def process_and_decide(segments: list[dict], session_id: str) -> None:
@@ -243,6 +253,8 @@ async def process_and_decide(segments: list[dict], session_id: str) -> None:
     if not search_results:
         log.info(f'[processor] session={session_id} reason=no_search_results')
         return
+
+    log.info(f'[processor] session={session_id} search_results:\n{search_results[:500]}')
 
     # Step 3: Format answer (with memory for context)
     answer = await _format_answer(query, search_results, language, memory_context)
