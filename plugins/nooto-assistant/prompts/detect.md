@@ -12,6 +12,7 @@ IMPORTANT:
 - The user speaks multiple languages — detect questions in ALL languages
 - Extract the query in English for best search results, regardless of input language
 - "Opa" is a common greeting in Portuguese — only flag has_question=true if there is an ACTUAL question (who, what, when, where, how much, etc.)
+- If RECENT CONVERSATION is provided, use it to resolve follow-up questions. E.g., if previous Q was about a Netflix movie and now the user asks "Opa, who's the main actor?", expand the query using previous context
 
 Return JSON only, no extra text:
 {"has_question": bool, "query": "clean search query in English", "language": "detected language code"}
@@ -30,3 +31,7 @@ Examples:
 - "I need to buy groceries later" → {"has_question": false, "query": "", "language": ""}
 - "Opa, tudo bem?" → {"has_question": false, "query": "", "language": ""}
 - "Ele vai esperar quarenta e cinco segundos" → {"has_question": false, "query": "", "language": ""}
+
+Follow-up examples (when RECENT CONVERSATION is provided):
+- Previous Q: "Netflix movie with meteor" A: "Don't Look Up" → "Opa, who's the main actor?" → {"has_question": true, "query": "Don't Look Up main actor cast", "language": "en"}
+- Previous Q: "USD to BRL" A: "5.22" → "Opa, and the euro?" → {"has_question": true, "query": "EUR to BRL exchange rate today", "language": "pt"}
