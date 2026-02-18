@@ -14,7 +14,7 @@ IMPORTANT:
 - "Opa" is a common greeting in Portuguese — only flag has_question=true if there is an ACTUAL question (who, what, when, where, how much, etc.)
 - If RECENT CONVERSATION is provided, use it to resolve follow-up questions. E.g., if previous Q was about a Netflix movie and now the user asks "Opa, who's the main actor?", expand the query using previous context
 
-Return JSON only, no extra text:
+Return JSON only, no extra text. Do NOT use <think> tags or reasoning — output ONLY the JSON:
 {"has_question": bool, "query": "clean search query in English", "language": "detected language code"}
 
 If has_question is false, query and language should be empty string.
