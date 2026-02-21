@@ -15,3 +15,4 @@ class TranscriptSegment(BaseModel):
 class WebhookRequest(BaseModel):
     session_id: str = ''
     segments: list[TranscriptSegment] = []
+    time_zone: Optional[str] = None
