@@ -43,7 +43,10 @@ def _notify_response(message: str) -> dict:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Clear stale collecting flags from previous runs (Redis persists across restarts)
-    await buffer.clear_stale_flags()
+    try:
+        await buffer.clear_stale_flags()
+    except Exception as e:
+        log.warning(f'[startup] could not clear stale flags (Redis not ready?): {e}')
     yield
     await buffer.close()
     await omi_client.close()
