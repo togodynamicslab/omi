@@ -3,21 +3,24 @@ import json
 import logging
 import random
 import re
+import time
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import redis.asyncio as aioredis
 from ddgs import DDGS
 from langchain_openai import ChatOpenAI
 
-from app import omi_client
+from app import buffer, omi_client
 from app.config import (
     OPENROUTER_API_KEY,
     LLM_MODEL,
+    DETECT_MODEL,
     REDIS_URL,
     DETECT_PROMPT,
     ANSWER_PROMPT,
+    DIRECT_ANSWER_PROMPT,
     NOTIFICATION_COOLDOWN_SECONDS,
-    WEBHOOK_FALLBACK_SECONDS,
 )
 
 log = logging.getLogger('uvicorn.error')
@@ -27,10 +30,29 @@ _redis = aioredis.from_url(REDIS_URL, decode_responses=True)
 # Qwen3 thinking mode produces <think>...</think> blocks — strip them from responses
 _THINK_RE = re.compile(r'<think>.*?</think>', re.DOTALL)
 
+# Timezone cruft the detect model keeps adding to queries despite prompt instructions
+_TZ_CRUFT_RE = re.compile(
+    r'\s*\b(?:in\s+)?(?:'
+    r'florida\s+time|'
+    r'[a-z]+\s+time\s*zone?|'
+    r'horário\s+d[aeo]\s+\w+|'
+    r'hora\s+d[aeo]\s+\w+'
+    r')\b',
+    re.IGNORECASE,
+)
+
 
 def _strip_think(text: str) -> str:
     """Remove Qwen3 <think> reasoning blocks from LLM output."""
     return _THINK_RE.sub('', text).strip()
+
+
+def _clean_query(query: str) -> str:
+    """Strip timezone references from search queries — handled via USER_TIMEZONE instead."""
+    cleaned = _TZ_CRUFT_RE.sub('', query).strip()
+    # Remove trailing prepositions left after stripping
+    cleaned = re.sub(r'\s+(?:in|at|for|de|da|do|em|no|na)\s*$', '', cleaned, flags=re.IGNORECASE).strip()
+    return cleaned or query
 
 
 _llm = ChatOpenAI(
@@ -39,10 +61,11 @@ _llm = ChatOpenAI(
     model=LLM_MODEL,
 )
 
-_llm_json = ChatOpenAI(
+# Fast model for detection + inline answers — no thinking overhead
+_llm_detect = ChatOpenAI(
     base_url='https://openrouter.ai/api/v1',
     api_key=OPENROUTER_API_KEY,
-    model=LLM_MODEL,
+    model=DETECT_MODEL,
     model_kwargs={'response_format': {'type': 'json_object'}},
 )
 
@@ -51,42 +74,89 @@ _ddgs = DDGS()
 # Inspired by Claude Code's spinner verbs — localized per language
 _THINKING_MESSAGES = {
     'pt': [
-        'Opa! Pensando... 🧠', 'Peraí... Calculando... 🧠', 'Hmm, deixa eu ver... 🧠',
-        'Calma aí que já vai! 🧠', 'Eita, buscando... 🧠', 'Opa! Já tô ligado... 🧠',
-        'Segura firme... 🧠', 'Tô correndo atrás! 🧠', 'Xiiii, deixa comigo... 🧠',
-        'Rapidinho, tá? 🧠', 'Ihhh, peraí... 🧠', 'Só um minutinho... 🧠',
-        'Tô bolando aqui... 🧠', 'Vixe, deixa eu pesquisar... 🧠', 'Hmm, interessante... 🧠',
-        'Boa pergunta! Buscando... 🧠', 'Valeu! Já tô vendo... 🧠', 'Oxe, peraí... 🧠',
-        'Tô fuçando aqui... 🧠', 'Opa! Tô nessa... 🧠', 'Pera que eu descubro! 🧠',
-        'Uai, deixa eu ver... 🧠', 'Massa! Buscando... 🧠', 'Tô de olho, calma... 🧠',
-        'Epa! Processando... 🧠', 'Bora ver isso... 🧠', 'Hmmm, cozinhando a resposta... 🧠',
+        'Opa! Pensando... 🧠',
+        'Peraí... Calculando... 🧠',
+        'Hmm, deixa eu ver... 🧠',
+        'Calma aí que já vai! 🧠',
+        'Eita, buscando... 🧠',
+        'Opa! Já tô ligado... 🧠',
+        'Segura firme... 🧠',
+        'Tô correndo atrás! 🧠',
+        'Xiiii, deixa comigo... 🧠',
+        'Rapidinho, tá? 🧠',
+        'Ihhh, peraí... 🧠',
+        'Só um minutinho... 🧠',
+        'Tô bolando aqui... 🧠',
+        'Vixe, deixa eu pesquisar... 🧠',
+        'Hmm, interessante... 🧠',
+        'Boa pergunta! Buscando... 🧠',
+        'Valeu! Já tô vendo... 🧠',
+        'Oxe, peraí... 🧠',
+        'Tô fuçando aqui... 🧠',
+        'Opa! Tô nessa... 🧠',
+        'Pera que eu descubro! 🧠',
+        'Uai, deixa eu ver... 🧠',
+        'Massa! Buscando... 🧠',
+        'Tô de olho, calma... 🧠',
+        'Epa! Processando... 🧠',
+        'Bora ver isso... 🧠',
+        'Hmmm, cozinhando a resposta... 🧠',
     ],
     'es': [
-        '¡Opa! Pensando... 🧠', 'Un momento... Calculando... 🧠', 'Hmm, Procesando... 🧠',
-        'Déjame ver... Cocinando... 🧠', 'Buscando... 🧠', 'Conjurando... 🧠',
-        'Contemplando... 🧠', 'Descifrando... 🧠', 'Imaginando... 🧠',
-        'Forjando... 🧠', 'Germinando... 🧠', 'Marinando... 🧠',
-        'Rumiando... 🧠', 'Fermentando... 🧠', 'Sintetizando... 🧠',
-        'Maquinando... 🧠', 'Hmm, Tramando... 🧠', 'Elaborando... 🧠',
+        '¡Opa! Pensando... 🧠',
+        'Un momento... Calculando... 🧠',
+        'Hmm, Procesando... 🧠',
+        'Déjame ver... Cocinando... 🧠',
+        'Buscando... 🧠',
+        'Conjurando... 🧠',
+        'Contemplando... 🧠',
+        'Descifrando... 🧠',
+        'Imaginando... 🧠',
+        'Forjando... 🧠',
+        'Germinando... 🧠',
+        'Marinando... 🧠',
+        'Rumiando... 🧠',
+        'Fermentando... 🧠',
+        'Sintetizando... 🧠',
+        'Maquinando... 🧠',
+        'Hmm, Tramando... 🧠',
+        'Elaborando... 🧠',
     ],
     'en': [
-        'Opa! Thinking... 🧠', 'Hold on... Calculating... 🧠', 'Hmm, Processing... 🧠',
-        'Let me check... Brewing... 🧠', 'Conjuring... 🧠', 'Contemplating... 🧠',
-        'Deciphering... 🧠', 'Imagining... 🧠', 'Forging... 🧠',
-        'Cooking... 🧠', 'Marinating... 🧠', 'Ruminating... 🧠',
-        'Simmering... 🧠', 'Synthesizing... 🧠', 'Wizarding... 🧠',
-        'Pondering... 🧠', 'Hmm, Scheming... 🧠', 'Crafting... 🧠',
-        'Noodling... 🧠', 'Vibing... 🧠',
+        'Opa! Thinking... 🧠',
+        'Hold on... Calculating... 🧠',
+        'Hmm, Processing... 🧠',
+        'Let me check... Brewing... 🧠',
+        'Conjuring... 🧠',
+        'Contemplating... 🧠',
+        'Deciphering... 🧠',
+        'Imagining... 🧠',
+        'Forging... 🧠',
+        'Cooking... 🧠',
+        'Marinating... 🧠',
+        'Ruminating... 🧠',
+        'Simmering... 🧠',
+        'Synthesizing... 🧠',
+        'Wizarding... 🧠',
+        'Pondering... 🧠',
+        'Hmm, Scheming... 🧠',
+        'Crafting... 🧠',
+        'Noodling... 🧠',
+        'Vibing... 🧠',
     ],
 }
 
 # Default thinking message when language isn't known yet (trigger word just detected)
 _DEFAULT_THINKING = [
-    'Opa! 🧠', 'Hmm... 🧠', '🧠...', 'Opa! Thinking... 🧠', 'Opa! Pensando... 🧠',
+    'Opa! 🧠',
+    'Hmm... 🧠',
+    '🧠...',
+    'Opa! Thinking... 🧠',
+    'Opa! Pensando... 🧠',
 ]
 
 PENDING_ANSWER_KEY = 'nooto:answer:{session_id}'
-PENDING_ANSWER_TTL = 60  # seconds — answer expires if no webhook comes
+PENDING_ANSWER_TTL = 15  # seconds — answer expires if no webhook comes
 
 
 def thinking_message(language: str | None = None) -> str:
@@ -146,7 +216,7 @@ def _cooldown_key(session_id: str) -> str:
     return f'nooto:cd:{session_id}'
 
 
-async def _is_on_cooldown(session_id: str) -> bool:
+async def is_on_cooldown(session_id: str) -> bool:
     return await _redis.exists(_cooldown_key(session_id)) > 0
 
 
@@ -154,15 +224,17 @@ async def _set_cooldown(session_id: str) -> None:
     await _redis.set(_cooldown_key(session_id), '1', ex=NOTIFICATION_COOLDOWN_SECONDS)
 
 
-async def _detect_question(transcript: str, memory_context: str = '') -> dict:
+async def _detect_question(transcript: str, memory_context: str = '', user_time_zone: str | None = None) -> dict:
     """Cheap LLM call to check if transcript contains a question for Opa."""
     user_content = transcript
     if memory_context:
         user_content = f'RECENT CONVERSATION:\n{memory_context}\n\nCURRENT TRANSCRIPT:\n{transcript}'
+    if user_time_zone:
+        user_content += f'\n\nUSER_TIMEZONE: {user_time_zone}'
     messages = [('system', DETECT_PROMPT), ('human', user_content)]
 
     try:
-        response = await _llm_json.ainvoke(messages)
+        response = await _llm_detect.ainvoke(messages)
     except Exception as e:
         log.error(f'[detect] LLM call failed: {e}')
         return {'has_question': False, 'query': ''}
@@ -182,11 +254,22 @@ async def _detect_question(transcript: str, memory_context: str = '') -> dict:
         return {'has_question': False, 'query': ''}
 
 
-async def _format_answer(query: str, search_results: str, language: str = 'en', memory_context: str = '') -> str:
+async def _format_answer(
+    query: str, search_results: str, language: str = 'en', memory_context: str = '', user_time_zone: str | None = None
+) -> str:
     """LLM call to format search results into a short push notification answer."""
-    now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+    if user_time_zone:
+        try:
+            tz = ZoneInfo(user_time_zone)
+            now = datetime.now(tz).strftime(f'%Y-%m-%d %H:%M ({user_time_zone})')
+        except KeyError:
+            now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+    else:
+        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+    log.info(f'[answer] TODAY={now} language={language} query="{query}"')
     system_prompt = ANSWER_PROMPT.replace('{today}', now)
-    user_content = f'TODAY: {now}\nLANGUAGE: {language}\nQUESTION: {query}\n\nSEARCH RESULTS:\n{search_results}'
+    tz_line = f'\nUSER_TIMEZONE: {user_time_zone}' if user_time_zone else ''
+    user_content = f'TODAY: {now}\nLANGUAGE: {language}{tz_line}\nQUESTION: {query}\n\nSEARCH RESULTS:\n{search_results}'
     if memory_context:
         user_content += f'\n\nRECENT CONVERSATION (for context):\n{memory_context}'
     user_content += '\n\nREMINDER: ONLY use facts from the SEARCH RESULTS above. Do NOT use your own knowledge.'
@@ -198,15 +281,36 @@ async def _format_answer(query: str, search_results: str, language: str = 'en', 
         log.error(f'[answer] LLM call failed: {e}')
         return "Sorry, I couldn't find an answer right now."
 
-    return _strip_think(response.content)
+    raw = response.content
+    log.info(f'[answer] raw_response={raw[:500]}')
+    return _strip_think(raw)
 
 
-async def process_and_decide(segments: list[dict], session_id: str) -> None:
+async def _format_direct_answer(
+    query: str, language: str = 'en', memory_context: str = '', user_time_zone: str | None = None
+) -> str:
+    """LLM call to answer a factual question directly from model knowledge (no search)."""
+    user_content = f'LANGUAGE: {language}\nQUESTION: {query}'
+    if memory_context:
+        user_content += f'\n\nRECENT CONVERSATION (for context):\n{memory_context}'
+    messages = [('system', DIRECT_ANSWER_PROMPT), ('human', user_content)]
+
+    try:
+        response = await _llm.ainvoke(messages)
+    except Exception as e:
+        log.error(f'[direct] LLM call failed: {e}')
+        return "Sorry, I couldn't answer that right now."
+
+    raw = response.content
+    log.info(f'[direct] raw_response={raw[:500]}')
+    return _strip_think(raw)
+
+
+async def process_and_decide(
+    segments: list[dict], session_id: str, user_time_zone: str | None = None, trigger_time: float | None = None
+) -> None:
     """Background processing: detect → search → format → store answer for next webhook."""
-    # Check cooldown
-    if await _is_on_cooldown(session_id):
-        log.info(f'[processor] session={session_id} reason=cooldown — skipping')
-        return
+    t_start = time.monotonic()
 
     # Build transcript from segments
     transcript = '\n'.join(
@@ -219,59 +323,96 @@ async def process_and_decide(segments: list[dict], session_id: str) -> None:
     memory_context = _format_memory(memory)
 
     # Step 1: Detect question (with memory for follow-ups)
-    detection = await _detect_question(transcript, memory_context)
+    t_detect = time.monotonic()
+    detection = await _detect_question(transcript, memory_context, user_time_zone=user_time_zone)
+    dt_detect = time.monotonic() - t_detect
 
     if not detection.get('has_question'):
-        log.info(f'[processor] session={session_id} reason=no_question')
+        log.info(f'[processor] session={session_id} reason=no_question detect={dt_detect:.2f}s')
         return
 
-    query = detection.get('query', '').strip()
-    if not query:
-        log.info(f'[processor] session={session_id} reason=empty_query')
+    raw_query = detection.get('query', '').strip()
+    if not raw_query:
+        log.info(f'[processor] session={session_id} reason=empty_query detect={dt_detect:.2f}s')
         return
 
     language = detection.get('language', 'en') or 'en'
+    needs_search = detection.get('needs_search', True)
+    query = _clean_query(raw_query) if needs_search else raw_query
+    inline_answer = detection.get('answer', '').strip() if not needs_search else ''
 
-    # Step 2: Web search (DuckDuckGo with week filter for fresh results)
-    log.info(f'[processor] session={session_id} searching: "{query}"')
-    try:
-        results = await asyncio.to_thread(_ddgs.text, query, max_results=5, timelimit='w')
-        search_results = '\n'.join(f"- {r['title']}: {r['body']}" for r in results) if results else ''
-    except Exception as e:
-        log.error(f'[processor] session={session_id} search failed: {e}')
-        search_results = ''
+    # Determine route: inline (answered in detect call), direct (separate call), or search
+    if inline_answer:
+        route = 'inline'
+    elif needs_search:
+        route = 'search'
+    else:
+        route = 'direct'
 
-    # Fallback: retry without time filter if weekly results are empty
-    if not search_results:
-        log.info(f'[processor] session={session_id} no weekly results, retrying without time filter')
+    log.info(f'[processor] session={session_id} route={route} query="{query}" tz={user_time_zone} detect={dt_detect:.2f}s')
+
+    # Step 2: Get answer
+    dt_search = 0.0
+    dt_answer = 0.0
+    if route == 'inline':
+        # Answer already came from the detect call — zero extra latency
+        answer = inline_answer
+    elif route == 'search':
+        t_search = time.monotonic()
+        log.info(f'[processor] session={session_id} searching: "{query}"')
         try:
-            results = await asyncio.to_thread(_ddgs.text, query, max_results=5)
+            results = await asyncio.to_thread(_ddgs.text, query, max_results=5, timelimit='w')
             search_results = '\n'.join(f"- {r['title']}: {r['body']}" for r in results) if results else ''
         except Exception as e:
-            log.error(f'[processor] session={session_id} fallback search failed: {e}')
+            log.error(f'[processor] session={session_id} search failed: {e}')
             search_results = ''
 
-    if not search_results:
-        log.info(f'[processor] session={session_id} reason=no_search_results')
-        return
+        # Fallback: retry without time filter if weekly results are empty
+        if not search_results:
+            log.info(f'[processor] session={session_id} no weekly results, retrying without time filter')
+            try:
+                results = await asyncio.to_thread(_ddgs.text, query, max_results=5)
+                search_results = '\n'.join(f"- {r['title']}: {r['body']}" for r in results) if results else ''
+            except Exception as e:
+                log.error(f'[processor] session={session_id} fallback search failed: {e}')
+                search_results = ''
 
-    log.info(f'[processor] session={session_id} search_results:\n{search_results[:500]}')
+        dt_search = time.monotonic() - t_search
 
-    # Step 3: Format answer (with memory for context)
-    answer = await _format_answer(query, search_results, language, memory_context)
+        if not search_results:
+            log.info(f'[processor] session={session_id} reason=no_search_results search={dt_search:.2f}s')
+            return
 
-    # Step 4: Store Q&A in memory and answer in Redis
+        log.info(f'[processor] session={session_id} search_results ({dt_search:.2f}s):\n{search_results[:500]}')
+
+        t_answer = time.monotonic()
+        answer = await _format_answer(query, search_results, language, memory_context, user_time_zone=user_time_zone)
+        dt_answer = time.monotonic() - t_answer
+    else:
+        # Direct fallback — detect model didn't include answer
+        log.info(f'[processor] session={session_id} direct answer: "{query}"')
+        t_answer = time.monotonic()
+        answer = await _format_direct_answer(query, language, memory_context, user_time_zone=user_time_zone)
+        dt_answer = time.monotonic() - t_answer
+
+    # Step 3: Track question length, store Q&A in memory, and send via API
+    text_len = sum(len(s.get('text', '')) for s in segments)
+    await buffer.store_question_length(session_id, text_len)
     await _add_memory(session_id, query, answer)
     await _set_cooldown(session_id)
-    log.info(f'[processor] session={session_id} reason=READY — answer="{answer}"')
-    await store_pending_answer(session_id, answer)
 
-    # Step 5: Hybrid fallback — wait for a webhook to pick up the answer,
-    # if nobody picks it up within WEBHOOK_FALLBACK_SECONDS, send via API
-    await asyncio.sleep(WEBHOOK_FALLBACK_SECONDS)
-    remaining = await pop_pending_answer(session_id)
-    if remaining:
-        log.info(f'[processor] session={session_id} fallback — no webhook picked up, sending via API')
-        await omi_client.send_notification(session_id, remaining)
-    else:
-        log.info(f'[processor] session={session_id} answer delivered via webhook')
+    dt_total = time.monotonic() - t_start
+    parts = [f'detect={dt_detect:.2f}s']
+    if route == 'search':
+        parts.append(f'search={dt_search:.2f}s')
+    if dt_answer > 0:
+        parts.append(f'answer={dt_answer:.2f}s')
+    parts.append(f'total={dt_total:.2f}s')
+    parts.append(f'qlen={text_len}')
+    if trigger_time is not None:
+        dt_e2e = time.monotonic() - trigger_time
+        parts.append(f'e2e={dt_e2e:.2f}s')
+    perf = ' '.join(parts)
+
+    log.info(f'[processor] session={session_id} READY route={route} {perf} — answer="{answer}"')
+    await omi_client.send_notification(session_id, answer)
