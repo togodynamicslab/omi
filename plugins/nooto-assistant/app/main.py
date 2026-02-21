@@ -103,7 +103,7 @@ async def handle_transcript(payload: WebhookRequest, uid: str = Query(default=''
             }
 
         _reschedule_flush(session_id)
-        return _notify_response(thinking_message())
+        return {}
 
     # Non-trigger segment during collection — reset silence timer
     if is_active and session_id in _pending_flush:
