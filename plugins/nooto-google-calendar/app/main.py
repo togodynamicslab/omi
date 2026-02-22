@@ -1,0 +1,1428 @@
+"""
+Google Calendar Integration App for Nooto (Coolify-ready)
+
+Provides Google Calendar integration through OAuth2 authentication
+and chat tools for managing calendar events.
+"""
+
+import os
+import sys
+import secrets
+import traceback
+from datetime import datetime, timedelta
+from typing import Optional, List
+from urllib.parse import urlencode
+
+import requests
+from fastapi import FastAPI, Request, Query, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+
+from app.db import (
+    store_google_tokens,
+    get_google_tokens,
+    update_google_tokens,
+    delete_google_tokens,
+    store_oauth_state,
+    get_oauth_state,
+    delete_oauth_state,
+    store_user_setting,
+    get_user_setting,
+)
+from app.models import ChatToolResponse
+
+
+def log(msg: str):
+    """Print and flush immediately for container logging."""
+    print(msg)
+    sys.stdout.flush()
+
+
+# Google OAuth2 Configuration
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8080/auth/google/callback")
+
+# Google API endpoints
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
+GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3"
+
+# Scopes needed for Calendar access
+GOOGLE_SCOPES = [
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+]
+
+app = FastAPI(
+    title="Google Calendar Nooto Integration",
+    description="Google Calendar integration for Nooto - Manage your calendar with chat",
+    version="1.0.0",
+)
+
+
+# ============================================
+# Helper Functions
+# ============================================
+
+
+def get_valid_access_token(uid: str) -> Optional[str]:
+    """Get a valid access token, refreshing if necessary."""
+    tokens = get_google_tokens(uid)
+    if not tokens:
+        return None
+
+    access_token = tokens.get("access_token")
+    refresh_token = tokens.get("refresh_token")
+    expires_at = tokens.get("expires_at")
+
+    if expires_at:
+        try:
+            expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+            if datetime.now(expiry.tzinfo) >= expiry - timedelta(minutes=5):
+                log(f"Token expired for {uid}, refreshing...")
+                new_token = refresh_access_token(refresh_token)
+                if new_token:
+                    access_token = new_token["access_token"]
+                    new_expires_at = (
+                        datetime.utcnow() + timedelta(seconds=new_token.get("expires_in", 3600))
+                    ).isoformat() + "Z"
+                    update_google_tokens(uid, access_token, new_expires_at)
+                else:
+                    return None
+        except Exception as e:
+            log(f"Error checking token expiry: {e}")
+
+    return access_token
+
+
+def refresh_access_token(refresh_token: str) -> Optional[dict]:
+    """Refresh the access token using the refresh token."""
+    try:
+        response = requests.post(
+            GOOGLE_TOKEN_URL,
+            data={
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            },
+        )
+        if response.status_code == 200:
+            return response.json()
+        else:
+            log(f"Token refresh failed: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        log(f"Error refreshing token: {e}")
+        return None
+
+
+def calendar_api_request(
+    uid: str, method: str, endpoint: str, params: dict = None, json_data: dict = None
+) -> Optional[dict]:
+    """Make an authenticated request to the Google Calendar API."""
+    access_token = get_valid_access_token(uid)
+    if not access_token:
+        return None
+
+    url = f"{GOOGLE_CALENDAR_API}{endpoint}"
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+
+    try:
+        if method == "GET":
+            response = requests.get(url, headers=headers, params=params)
+        elif method == "POST":
+            response = requests.post(url, headers=headers, json=json_data)
+        elif method == "PUT":
+            response = requests.put(url, headers=headers, json=json_data)
+        elif method == "PATCH":
+            response = requests.patch(url, headers=headers, json=json_data)
+        elif method == "DELETE":
+            response = requests.delete(url, headers=headers)
+        else:
+            return None
+
+        if response.status_code in [200, 201, 204]:
+            if response.status_code == 204:
+                return {"success": True}
+            return response.json()
+        else:
+            log(f"Calendar API error: {response.status_code} - {response.text}")
+            return {"error": response.text, "status_code": response.status_code}
+
+    except Exception as e:
+        log(f"Calendar API request error: {e}")
+        return {"error": str(e)}
+
+
+def parse_datetime(dt_str: str) -> tuple[datetime, bool]:
+    """
+    Parse a datetime string into a datetime object.
+    Returns (datetime, is_all_day).
+    """
+    dt_str = dt_str.strip().lower()
+    now = datetime.now()
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    if dt_str in ("today", "now"):
+        return now, False
+    elif dt_str == "tomorrow":
+        return today + timedelta(days=1), True
+    elif dt_str == "next week":
+        return today + timedelta(weeks=1), True
+
+    time_formats = ["%H:%M", "%I:%M %p", "%I:%M%p", "%I %p", "%I%p"]
+    for fmt in time_formats:
+        try:
+            time_part = datetime.strptime(dt_str, fmt)
+            return now.replace(hour=time_part.hour, minute=time_part.minute, second=0, microsecond=0), False
+        except ValueError:
+            continue
+
+    date_formats = [
+        "%Y-%m-%d",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%dT%H:%M:%S%z",
+        "%m/%d/%Y",
+        "%d/%m/%Y",
+        "%B %d, %Y",
+        "%b %d, %Y",
+        "%B %d %Y",
+        "%b %d %Y",
+        "%B %d",
+        "%b %d",
+    ]
+
+    for fmt in date_formats:
+        try:
+            parsed = datetime.strptime(dt_str, fmt)
+            if "%Y" not in fmt:
+                parsed = parsed.replace(year=today.year)
+            is_all_day = "%H" not in fmt and "%I" not in fmt
+            return parsed, is_all_day
+        except ValueError:
+            continue
+
+    try:
+        parsed = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=None), False
+    except Exception:
+        pass
+
+    raise ValueError(f"Could not parse datetime: {dt_str}")
+
+
+def get_user_calendars(uid: str) -> Optional[list]:
+    """Fetch list of calendars for UI display."""
+    access_token = get_valid_access_token(uid)
+    if not access_token:
+        return None
+
+    result = calendar_api_request(uid, "GET", "/users/me/calendarList")
+    if not result or "error" in result:
+        return None
+
+    calendars = result.get("items", [])
+    return [
+        {
+            "id": cal.get("id", ""),
+            "name": cal.get("summary", "Unnamed"),
+            "primary": cal.get("primary", False),
+            "access_role": cal.get("accessRole", ""),
+        }
+        for cal in calendars
+        if cal.get("accessRole") in ("owner", "writer")
+    ]
+
+
+def get_default_calendar(uid: str) -> str:
+    """Get the user's default calendar ID, falling back to 'primary'."""
+    saved_cal = get_user_setting(uid, "default_calendar")
+    return saved_cal if saved_cal else "primary"
+
+
+def format_event_time(event: dict) -> str:
+    """Format event start/end time for display."""
+    start = event.get("start", {})
+    end = event.get("end", {})
+
+    if "date" in start:
+        start_date = start["date"]
+        end_date = end.get("date", start_date)
+        if start_date == end_date:
+            return f"All day on {start_date}"
+        else:
+            return f"All day from {start_date} to {end_date}"
+    else:
+        start_dt = start.get("dateTime", "")
+        end_dt = end.get("dateTime", "")
+        try:
+            start_parsed = datetime.fromisoformat(start_dt.replace("Z", "+00:00"))
+            end_parsed = datetime.fromisoformat(end_dt.replace("Z", "+00:00"))
+            start_str = start_parsed.strftime("%b %d, %Y %I:%M %p")
+            end_str = end_parsed.strftime("%I:%M %p")
+            return f"{start_str} - {end_str}"
+        except Exception:
+            return f"{start_dt} - {end_dt}"
+
+
+# ============================================
+# Chat Tools Manifest
+# ============================================
+
+
+@app.get("/.well-known/omi-tools.json")
+async def get_omi_tools_manifest():
+    """Chat Tools Manifest endpoint."""
+    return {
+        "tools": [
+            {
+                "name": "list_events",
+                "description": "List upcoming calendar events. Use this when the user wants to see their schedule, check upcoming meetings, view their calendar, or see what's planned.",
+                "endpoint": "/tools/list_events",
+                "method": "POST",
+                "parameters": {
+                    "properties": {
+                        "days": {
+                            "type": "integer",
+                            "description": "Number of days to look ahead (default: 7, max: 30)",
+                        },
+                        "max_results": {
+                            "type": "integer",
+                            "description": "Maximum number of events to return (default: 10, max: 50)",
+                        },
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar ID to list events from (default: primary calendar)",
+                        },
+                    },
+                    "required": [],
+                },
+                "auth_required": True,
+                "status_message": "Getting your calendar events...",
+            },
+            {
+                "name": "create_event",
+                "description": "Create a new calendar event. Use this when the user wants to schedule a meeting, add an event, create an appointment, or set a reminder.",
+                "endpoint": "/tools/create_event",
+                "method": "POST",
+                "parameters": {
+                    "properties": {
+                        "title": {"type": "string", "description": "Event title/summary. Required."},
+                        "start": {
+                            "type": "string",
+                            "description": "Event start time. Supports: 'tomorrow', '2pm', 'Jan 15 3pm', '2026-01-25T14:00:00'. Required.",
+                        },
+                        "end": {
+                            "type": "string",
+                            "description": "Event end time. If not provided, defaults to 1 hour after start for timed events.",
+                        },
+                        "description": {"type": "string", "description": "Event description or notes."},
+                        "location": {
+                            "type": "string",
+                            "description": "Event location (address, room name, or video call link).",
+                        },
+                        "attendees": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of attendee email addresses to invite.",
+                        },
+                        "all_day": {"type": "boolean", "description": "If true, create an all-day event."},
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar ID to create event in (default: primary)",
+                        },
+                    },
+                    "required": ["title", "start"],
+                },
+                "auth_required": True,
+                "status_message": "Creating calendar event...",
+            },
+            {
+                "name": "get_event",
+                "description": "Get details of a specific calendar event. Use this when the user wants to see event details, check meeting info, or get specifics about an appointment.",
+                "endpoint": "/tools/get_event",
+                "method": "POST",
+                "parameters": {
+                    "properties": {
+                        "event_id": {"type": "string", "description": "The event ID to get details for. Required."},
+                        "calendar_id": {
+                            "type": "string",
+                            "description": "Calendar ID the event is in (default: primary)",
+                        },
+                    },
+                    "required": ["event_id"],
+                },
+                "auth_required": True,
+                "status_message": "Getting event details...",
+            },
+            {
+                "name": "update_event",
+                "description": "Update an existing calendar event. Use this when the user wants to change, reschedule, modify, or edit an event.",
+                "endpoint": "/tools/update_event",
+                "method": "POST",
+                "parameters": {
+                    "properties": {
+                        "event_id": {"type": "string", "description": "The event ID to update. Required."},
+                        "title": {"type": "string", "description": "New event title."},
+                        "start": {"type": "string", "description": "New start time."},
+                        "end": {"type": "string", "description": "New end time."},
+                        "description": {"type": "string", "description": "New description."},
+                        "location": {"type": "string", "description": "New location."},
+                        "calendar_id": {"type": "string", "description": "Calendar ID (default: primary)"},
+                    },
+                    "required": ["event_id"],
+                },
+                "auth_required": True,
+                "status_message": "Updating event...",
+            },
+            {
+                "name": "delete_event",
+                "description": "Delete a calendar event. Use this when the user wants to remove, cancel, or delete an event from their calendar.",
+                "endpoint": "/tools/delete_event",
+                "method": "POST",
+                "parameters": {
+                    "properties": {
+                        "event_id": {"type": "string", "description": "The event ID to delete. Required."},
+                        "calendar_id": {"type": "string", "description": "Calendar ID (default: primary)"},
+                    },
+                    "required": ["event_id"],
+                },
+                "auth_required": True,
+                "status_message": "Deleting event...",
+            },
+            {
+                "name": "list_calendars",
+                "description": "List all calendars available to the user. Use this when the user wants to see their calendars, check which calendars they have access to, or find a calendar ID.",
+                "endpoint": "/tools/list_calendars",
+                "method": "POST",
+                "parameters": {"properties": {}, "required": []},
+                "auth_required": True,
+                "status_message": "Getting your calendars...",
+            },
+        ]
+    }
+
+
+# ============================================
+# Chat Tool Endpoints
+# ============================================
+
+
+@app.post("/tools/list_events", tags=["chat_tools"], response_model=ChatToolResponse)
+async def tool_list_events(request: Request):
+    """List upcoming calendar events."""
+    try:
+        body = await request.json()
+        log("=== LIST_EVENTS ===")
+
+        uid = body.get("uid")
+        days = min(body.get("days", 7), 30)
+        max_results = min(body.get("max_results", 10), 50)
+
+        if not uid:
+            return ChatToolResponse(error="User ID is required")
+
+        access_token = get_valid_access_token(uid)
+        if not access_token:
+            return ChatToolResponse(error="Please connect your Google Calendar first in the Nooto app settings.")
+
+        calendar_id = body.get("calendar_id") or get_default_calendar(uid)
+
+        now = datetime.utcnow()
+        time_min = now.isoformat() + "Z"
+        time_max = (now + timedelta(days=days)).isoformat() + "Z"
+
+        result = calendar_api_request(
+            uid,
+            "GET",
+            f"/calendars/{calendar_id}/events",
+            params={
+                "timeMin": time_min,
+                "timeMax": time_max,
+                "maxResults": max_results,
+                "singleEvents": True,
+                "orderBy": "startTime",
+            },
+        )
+
+        if not result or "error" in result:
+            return ChatToolResponse(error=f"Failed to get events: {result.get('error', 'Unknown error')}")
+
+        events = result.get("items", [])
+
+        if not events:
+            return ChatToolResponse(result=f"No events in the next {days} days.")
+
+        result_parts = [f"**Upcoming Events ({len(events)})**", ""]
+
+        for event in events:
+            summary = event.get("summary", "No title")
+            time_str = format_event_time(event)
+            location = event.get("location", "")
+            event_id = event.get("id", "")
+
+            line = f"- **{summary}**\n  {time_str}"
+            if location:
+                line += f"\n  Location: {location}"
+            line += f"\n  ID: `{event_id[:20]}...`"
+            result_parts.append(line)
+
+        return ChatToolResponse(result="\n".join(result_parts))
+
+    except Exception as e:
+        log(f"Error listing events: {e}")
+        traceback.print_exc()
+        return ChatToolResponse(error=f"Failed to list events: {str(e)}")
+
+
+@app.post("/tools/create_event", tags=["chat_tools"], response_model=ChatToolResponse)
+async def tool_create_event(request: Request):
+    """Create a new calendar event."""
+    try:
+        body = await request.json()
+        log("=== CREATE_EVENT ===")
+        log(f"Request: {body}")
+
+        uid = body.get("uid")
+        title = body.get("title")
+        start_str = body.get("start")
+        end_str = body.get("end")
+        description = body.get("description", "")
+        location = body.get("location", "")
+        attendees = body.get("attendees", [])
+        all_day = body.get("all_day", False)
+
+        if not uid:
+            return ChatToolResponse(error="User ID is required")
+
+        calendar_id = body.get("calendar_id") or get_default_calendar(uid)
+
+        if not title:
+            return ChatToolResponse(error="Event title is required")
+
+        if not start_str:
+            return ChatToolResponse(error="Event start time is required")
+
+        access_token = get_valid_access_token(uid)
+        if not access_token:
+            return ChatToolResponse(error="Please connect your Google Calendar first in the Nooto app settings.")
+
+        try:
+            start_dt, is_all_day = parse_datetime(start_str)
+            if all_day:
+                is_all_day = True
+        except ValueError as e:
+            return ChatToolResponse(error=str(e))
+
+        if end_str:
+            try:
+                end_dt, _ = parse_datetime(end_str)
+            except ValueError as e:
+                return ChatToolResponse(error=f"Invalid end time: {e}")
+        else:
+            if is_all_day:
+                end_dt = start_dt + timedelta(days=1)
+            else:
+                end_dt = start_dt + timedelta(hours=1)
+
+        event_data = {
+            "summary": title,
+        }
+
+        if is_all_day:
+            event_data["start"] = {"date": start_dt.strftime("%Y-%m-%d")}
+            event_data["end"] = {"date": end_dt.strftime("%Y-%m-%d")}
+        else:
+            event_data["start"] = {"dateTime": start_dt.isoformat(), "timeZone": "UTC"}
+            event_data["end"] = {"dateTime": end_dt.isoformat(), "timeZone": "UTC"}
+
+        if description:
+            event_data["description"] = description
+
+        if location:
+            event_data["location"] = location
+
+        if attendees:
+            event_data["attendees"] = [{"email": email.strip()} for email in attendees]
+
+        log(f"Creating event: {event_data}")
+
+        result = calendar_api_request(uid, "POST", f"/calendars/{calendar_id}/events", json_data=event_data)
+
+        if not result or "error" in result:
+            return ChatToolResponse(error=f"Failed to create event: {result.get('error', 'Unknown error')}")
+
+        event_id = result.get("id", "")
+        html_link = result.get("htmlLink", "")
+        time_str = format_event_time(result)
+
+        result_parts = [
+            "**Event Created!**",
+            "",
+            f"**{title}**",
+            f"When: {time_str}",
+        ]
+        if location:
+            result_parts.append(f"Where: {location}")
+        if attendees:
+            result_parts.append(f"Attendees: {', '.join(attendees)}")
+        if html_link:
+            result_parts.append(f"Link: {html_link}")
+
+        return ChatToolResponse(result="\n".join(result_parts))
+
+    except Exception as e:
+        log(f"Error creating event: {e}")
+        traceback.print_exc()
+        return ChatToolResponse(error=f"Failed to create event: {str(e)}")
+
+
+@app.post("/tools/get_event", tags=["chat_tools"], response_model=ChatToolResponse)
+async def tool_get_event(request: Request):
+    """Get details of a specific event."""
+    try:
+        body = await request.json()
+        uid = body.get("uid")
+        event_id = body.get("event_id")
+
+        if not uid:
+            return ChatToolResponse(error="User ID is required")
+
+        if not event_id:
+            return ChatToolResponse(error="Event ID is required. Use 'list events' to find event IDs.")
+
+        access_token = get_valid_access_token(uid)
+        if not access_token:
+            return ChatToolResponse(error="Please connect your Google Calendar first in the Nooto app settings.")
+
+        calendar_id = body.get("calendar_id") or get_default_calendar(uid)
+
+        result = calendar_api_request(uid, "GET", f"/calendars/{calendar_id}/events/{event_id}")
+
+        if not result or "error" in result:
+            return ChatToolResponse(error=f"Event not found: {result.get('error', 'Unknown error')}")
+
+        summary = result.get("summary", "No title")
+        description = result.get("description", "")
+        location = result.get("location", "")
+        status = result.get("status", "confirmed")
+        html_link = result.get("htmlLink", "")
+        time_str = format_event_time(result)
+
+        attendees = result.get("attendees", [])
+        attendee_list = [a.get("email", "") for a in attendees]
+
+        result_parts = [
+            f"**{summary}**",
+            "",
+            f"**When:** {time_str}",
+            f"**Status:** {status.title()}",
+        ]
+
+        if location:
+            result_parts.append(f"**Where:** {location}")
+
+        if description:
+            desc_preview = description[:300]
+            if len(description) > 300:
+                desc_preview += "..."
+            result_parts.append(f"**Description:** {desc_preview}")
+
+        if attendee_list:
+            result_parts.append(f"**Attendees:** {', '.join(attendee_list)}")
+
+        if html_link:
+            result_parts.append(f"**Link:** {html_link}")
+
+        result_parts.append(f"**Event ID:** `{event_id}`")
+
+        return ChatToolResponse(result="\n".join(result_parts))
+
+    except Exception as e:
+        log(f"Error getting event: {e}")
+        return ChatToolResponse(error=f"Failed to get event: {str(e)}")
+
+
+@app.post("/tools/update_event", tags=["chat_tools"], response_model=ChatToolResponse)
+async def tool_update_event(request: Request):
+    """Update an existing calendar event."""
+    try:
+        body = await request.json()
+        log("=== UPDATE_EVENT ===")
+
+        uid = body.get("uid")
+        event_id = body.get("event_id")
+        title = body.get("title")
+        start_str = body.get("start")
+        end_str = body.get("end")
+        description = body.get("description")
+        location = body.get("location")
+
+        if not uid:
+            return ChatToolResponse(error="User ID is required")
+
+        if not event_id:
+            return ChatToolResponse(error="Event ID is required. Use 'list events' to find event IDs.")
+
+        access_token = get_valid_access_token(uid)
+        if not access_token:
+            return ChatToolResponse(error="Please connect your Google Calendar first in the Nooto app settings.")
+
+        calendar_id = body.get("calendar_id") or get_default_calendar(uid)
+
+        existing = calendar_api_request(uid, "GET", f"/calendars/{calendar_id}/events/{event_id}")
+        if not existing or "error" in existing:
+            return ChatToolResponse(error=f"Event not found: {existing.get('error', 'Unknown error')}")
+
+        update_data = {}
+        updates = []
+
+        if title:
+            update_data["summary"] = title
+            updates.append(f"Title: {title}")
+
+        if start_str:
+            try:
+                start_dt, is_all_day = parse_datetime(start_str)
+                if is_all_day:
+                    update_data["start"] = {"date": start_dt.strftime("%Y-%m-%d")}
+                else:
+                    update_data["start"] = {"dateTime": start_dt.isoformat(), "timeZone": "UTC"}
+                updates.append(f"Start: {start_str}")
+            except ValueError as e:
+                return ChatToolResponse(error=f"Invalid start time: {e}")
+
+        if end_str:
+            try:
+                end_dt, is_all_day = parse_datetime(end_str)
+                if is_all_day:
+                    update_data["end"] = {"date": end_dt.strftime("%Y-%m-%d")}
+                else:
+                    update_data["end"] = {"dateTime": end_dt.isoformat(), "timeZone": "UTC"}
+                updates.append(f"End: {end_str}")
+            except ValueError as e:
+                return ChatToolResponse(error=f"Invalid end time: {e}")
+
+        if description is not None:
+            update_data["description"] = description
+            updates.append("Description updated")
+
+        if location is not None:
+            update_data["location"] = location
+            updates.append(f"Location: {location}")
+
+        if not update_data:
+            return ChatToolResponse(error="No updates provided. Specify title, start, end, description, or location.")
+
+        result = calendar_api_request(
+            uid, "PATCH", f"/calendars/{calendar_id}/events/{event_id}", json_data=update_data
+        )
+
+        if not result or "error" in result:
+            return ChatToolResponse(error=f"Failed to update event: {result.get('error', 'Unknown error')}")
+
+        result_parts = ["**Event Updated!**", ""] + updates
+
+        return ChatToolResponse(result="\n".join(result_parts))
+
+    except Exception as e:
+        log(f"Error updating event: {e}")
+        return ChatToolResponse(error=f"Failed to update event: {str(e)}")
+
+
+@app.post("/tools/delete_event", tags=["chat_tools"], response_model=ChatToolResponse)
+async def tool_delete_event(request: Request):
+    """Delete a calendar event."""
+    try:
+        body = await request.json()
+        uid = body.get("uid")
+        event_id = body.get("event_id")
+
+        if not uid:
+            return ChatToolResponse(error="User ID is required")
+
+        if not event_id:
+            return ChatToolResponse(error="Event ID is required. Use 'list events' to find event IDs.")
+
+        access_token = get_valid_access_token(uid)
+        if not access_token:
+            return ChatToolResponse(error="Please connect your Google Calendar first in the Nooto app settings.")
+
+        calendar_id = body.get("calendar_id") or get_default_calendar(uid)
+
+        existing = calendar_api_request(uid, "GET", f"/calendars/{calendar_id}/events/{event_id}")
+        event_title = existing.get("summary", "Event") if existing and "error" not in existing else "Event"
+
+        result = calendar_api_request(uid, "DELETE", f"/calendars/{calendar_id}/events/{event_id}")
+
+        if result and "error" in result:
+            return ChatToolResponse(error=f"Failed to delete event: {result.get('error', 'Unknown error')}")
+
+        return ChatToolResponse(result=f"**Event Deleted**\n\nDeleted: {event_title}")
+
+    except Exception as e:
+        log(f"Error deleting event: {e}")
+        return ChatToolResponse(error=f"Failed to delete event: {str(e)}")
+
+
+@app.post("/tools/list_calendars", tags=["chat_tools"], response_model=ChatToolResponse)
+async def tool_list_calendars(request: Request):
+    """List all calendars available to the user."""
+    try:
+        body = await request.json()
+        uid = body.get("uid")
+
+        if not uid:
+            return ChatToolResponse(error="User ID is required")
+
+        access_token = get_valid_access_token(uid)
+        if not access_token:
+            return ChatToolResponse(error="Please connect your Google Calendar first in the Nooto app settings.")
+
+        result = calendar_api_request(uid, "GET", "/users/me/calendarList")
+
+        if not result or "error" in result:
+            return ChatToolResponse(error=f"Failed to list calendars: {result.get('error', 'Unknown error')}")
+
+        calendars = result.get("items", [])
+
+        if not calendars:
+            return ChatToolResponse(result="No calendars found.")
+
+        result_parts = [f"**Your Calendars ({len(calendars)})**", ""]
+
+        for cal in calendars:
+            name = cal.get("summary", "Unnamed")
+            cal_id = cal.get("id", "")
+            primary = " (Primary)" if cal.get("primary") else ""
+            access_role = cal.get("accessRole", "")
+
+            result_parts.append(f"- **{name}**{primary}")
+            result_parts.append(f"  ID: `{cal_id}`")
+            if access_role:
+                result_parts.append(f"  Access: {access_role}")
+
+        return ChatToolResponse(result="\n".join(result_parts))
+
+    except Exception as e:
+        log(f"Error listing calendars: {e}")
+        return ChatToolResponse(error=f"Failed to list calendars: {str(e)}")
+
+
+# ============================================
+# OAuth & Setup Endpoints
+# ============================================
+
+
+@app.get("/")
+async def root(uid: str = Query(None)):
+    """Root endpoint - Homepage."""
+    if not uid:
+        return {
+            "app": "Google Calendar Nooto Integration",
+            "version": "1.0.0",
+            "status": "active",
+            "endpoints": {
+                "auth": "/auth/google?uid=<user_id>",
+                "setup_check": "/setup/google?uid=<user_id>",
+                "tools_manifest": "/.well-known/omi-tools.json",
+            },
+        }
+
+    tokens = get_google_tokens(uid)
+
+    if not tokens:
+        auth_url = f"/auth/google?uid={uid}"
+        return HTMLResponse(content=f"""
+        <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>Google Calendar - Connect</title>
+                <style>{get_css()}</style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="hero">
+                        <div class="icon-wrap">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>
+                        </div>
+                        <h1>Google Calendar</h1>
+                        <p class="subtitle">Manage your schedule with voice commands through Nooto</p>
+                    </div>
+
+                    <a href="{auth_url}" class="btn btn-primary">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                        Connect Google Calendar
+                    </a>
+
+                    <div class="features">
+                        <div class="feature-item">
+                            <div class="feature-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            </div>
+                            <div>
+                                <div class="feature-title">View Events</div>
+                                <div class="feature-desc">See your upcoming schedule</div>
+                            </div>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            </div>
+                            <div>
+                                <div class="feature-title">Create Events</div>
+                                <div class="feature-desc">Schedule meetings and appointments</div>
+                            </div>
+                        </div>
+                        <div class="feature-item">
+                            <div class="feature-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </div>
+                            <div>
+                                <div class="feature-title">Update & Delete</div>
+                                <div class="feature-desc">Reschedule or cancel with a command</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-label">Try saying</div>
+                        <div class="example">"What's on my calendar today?"</div>
+                        <div class="example">"Schedule a meeting tomorrow at 2pm"</div>
+                        <div class="example">"Cancel my 3pm appointment"</div>
+                    </div>
+
+                    <div class="footer">Powered by <strong>Nooto</strong></div>
+                </div>
+            </body>
+        </html>
+        """)
+
+    calendars = get_user_calendars(uid)
+    current_calendar = get_default_calendar(uid)
+
+    calendar_options = ""
+    if calendars:
+        for cal in calendars:
+            selected = (
+                "selected"
+                if cal["id"] == current_calendar or (current_calendar == "primary" and cal["primary"])
+                else ""
+            )
+            primary_badge = " (Primary)" if cal["primary"] else ""
+            calendar_options += f'<option value="{cal["id"]}" {selected}>{cal["name"]}{primary_badge}</option>'
+    else:
+        calendar_options = '<option value="primary" selected>Primary Calendar</option>'
+
+    return HTMLResponse(content=f"""
+    <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Google Calendar - Connected</title>
+            <style>{get_css()}</style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="hero">
+                    <div class="status-badge connected">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        Connected
+                    </div>
+                    <h1>Google Calendar</h1>
+                    <p class="subtitle">Your calendar is linked to Nooto</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">Default Calendar</div>
+                    <form action="/update-calendar" method="POST" id="calendarForm">
+                        <input type="hidden" name="uid" value="{uid}">
+                        <select name="calendar_id" class="select-input" onchange="this.form.submit()">
+                            {calendar_options}
+                        </select>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <div class="card-label">Try saying</div>
+                    <div class="example">"Show me my calendar for this week"</div>
+                    <div class="example">"Create a meeting with John tomorrow at 3pm"</div>
+                    <div class="example">"What do I have scheduled for Friday?"</div>
+                </div>
+
+                <a href="/disconnect?uid={uid}" class="btn btn-danger">
+                    Disconnect
+                </a>
+
+                <div class="footer">Powered by <strong>Nooto</strong></div>
+            </div>
+        </body>
+    </html>
+    """)
+
+
+@app.get("/auth/google")
+async def google_auth(uid: str = Query(...)):
+    """Start Google OAuth2 flow."""
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(status_code=500, detail="Google OAuth credentials not configured")
+
+    state = f"{uid}:{secrets.token_urlsafe(32)}"
+    store_oauth_state(uid, state)
+
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": " ".join(GOOGLE_SCOPES),
+        "access_type": "offline",
+        "prompt": "consent",
+        "state": state,
+    }
+
+    auth_url = f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
+    return RedirectResponse(url=auth_url)
+
+
+@app.get("/auth/google/callback")
+async def google_callback(code: str = Query(None), state: str = Query(None), error: str = Query(None)):
+    """Handle Google OAuth2 callback."""
+    if error:
+        return HTMLResponse(
+            content=f"""
+        <html>
+            <head><style>{get_css()}</style></head>
+            <body>
+                <div class="container">
+                    <div class="error-box">
+                        <h2>Authorization Failed</h2>
+                        <p>{error}</p>
+                    </div>
+                </div>
+            </body>
+        </html>
+        """,
+            status_code=400,
+        )
+
+    if not code or not state:
+        return HTMLResponse(
+            content=f"""
+        <html>
+            <head><style>{get_css()}</style></head>
+            <body>
+                <div class="container">
+                    <div class="error-box">
+                        <h2>Authorization Failed</h2>
+                        <p>Missing authorization code or state.</p>
+                    </div>
+                </div>
+            </body>
+        </html>
+        """,
+            status_code=400,
+        )
+
+    try:
+        uid = state.split(":")[0]
+    except Exception:
+        return HTMLResponse(content="Invalid state", status_code=400)
+
+    stored_state = get_oauth_state(uid)
+    if stored_state != state:
+        return HTMLResponse(content="State mismatch", status_code=400)
+
+    delete_oauth_state(uid)
+
+    try:
+        response = requests.post(
+            GOOGLE_TOKEN_URL,
+            data={
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "code": code,
+                "grant_type": "authorization_code",
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+            },
+        )
+
+        if response.status_code != 200:
+            log(f"Token exchange failed: {response.text}")
+            return HTMLResponse(content=f"Token exchange failed: {response.text}", status_code=400)
+
+        token_data = response.json()
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        expires_in = token_data.get("expires_in", 3600)
+
+        if not access_token:
+            return HTMLResponse(content="No access token received", status_code=400)
+
+        expires_at = (datetime.utcnow() + timedelta(seconds=expires_in)).isoformat() + "Z"
+
+        store_google_tokens(uid, access_token, refresh_token or "", expires_at)
+
+        return HTMLResponse(content=f"""
+        <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>Connected!</title>
+                <style>{get_css()}</style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="hero">
+                        <div class="success-check">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        </div>
+                        <h1>You're all set</h1>
+                        <p class="subtitle">Google Calendar is now connected to Nooto</p>
+                    </div>
+
+                    <a href="/?uid={uid}" class="btn btn-primary">
+                        Continue to Settings
+                    </a>
+
+                    <div class="card">
+                        <div class="card-label">Get started</div>
+                        <p style="text-align: left; margin-bottom: 0; color: rgba(255,255,255,0.5);">Try saying <strong style="color: rgba(255,255,255,0.8);">"What's on my calendar today?"</strong></p>
+                    </div>
+
+                    <div class="footer">Powered by <strong>Nooto</strong></div>
+                </div>
+            </body>
+        </html>
+        """)
+
+    except Exception as e:
+        log(f"OAuth error: {e}")
+        traceback.print_exc()
+        return HTMLResponse(content=f"Authentication error: {str(e)}", status_code=500)
+
+
+@app.get("/setup/google")
+async def check_setup(uid: str = Query(...)):
+    """Check if user has completed Google Calendar setup."""
+    tokens = get_google_tokens(uid)
+    return {"is_setup_completed": tokens is not None}
+
+
+@app.get("/disconnect")
+async def disconnect(uid: str = Query(...)):
+    """Disconnect Google Calendar."""
+    delete_google_tokens(uid)
+    return RedirectResponse(url=f"/?uid={uid}")
+
+
+@app.post("/update-calendar")
+async def update_calendar(request: Request):
+    """Update the default calendar for a user."""
+    form_data = await request.form()
+    uid = form_data.get("uid")
+    calendar_id = form_data.get("calendar_id")
+
+    if not uid:
+        raise HTTPException(status_code=400, detail="User ID is required")
+
+    if calendar_id:
+        store_user_setting(uid, "default_calendar", calendar_id)
+        log(f"Updated default calendar for {uid} to {calendar_id}")
+
+    return RedirectResponse(url=f"/?uid={uid}", status_code=303)
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {"status": "healthy", "service": "nooto-google-calendar"}
+
+
+# ============================================
+# CSS Styles
+# ============================================
+
+
+def get_css() -> str:
+    """Returns Apple-inspired glassmorphism dark theme CSS."""
+    return """
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+            background: #000;
+            color: #f5f5f7;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            padding: 24px 16px;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 420px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 48px 0 16px;
+        }
+
+        .icon-wrap {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: #f5f5f7;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.4);
+            font-weight: 400;
+            margin: 0;
+        }
+
+        /* Cards */
+        .card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 20px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .card-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: rgba(255, 255, 255, 0.3);
+            margin-bottom: 12px;
+        }
+
+        /* Features */
+        .features {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px 20px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        .feature-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.06);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .feature-title {
+            font-size: 15px;
+            font-weight: 500;
+            color: #f5f5f7;
+        }
+
+        .feature-desc {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.35);
+            margin-top: 1px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 16px 24px;
+            border-radius: 14px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: #f5f5f7;
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            background: #e8e8ed;
+            transform: scale(0.98);
+        }
+
+        .btn-primary:active {
+            transform: scale(0.96);
+        }
+
+        .btn-danger {
+            background: transparent;
+            color: rgba(255, 255, 255, 0.3);
+            font-size: 14px;
+            padding: 12px;
+        }
+
+        .btn-danger:hover {
+            color: #ff453a;
+        }
+
+        /* Status badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 100px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+
+        .status-badge.connected {
+            background: rgba(48, 209, 88, 0.12);
+            color: #30d158;
+            border: 1px solid rgba(48, 209, 88, 0.2);
+        }
+
+        /* Success check */
+        .success-check {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            border-radius: 50%;
+            background: rgba(48, 209, 88, 0.1);
+            border: 1px solid rgba(48, 209, 88, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #30d158;
+            animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes scaleIn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Error */
+        .error-box {
+            text-align: center;
+            padding: 48px 24px;
+        }
+
+        .error-box h2 {
+            color: #ff453a;
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .error-box p {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Examples */
+        .example {
+            padding: 12px 16px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .example:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Select */
+        .select-input {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            color: #f5f5f7;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='rgba(255,255,255,0.3)' stroke-width='1.5' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            transition: border-color 0.2s;
+        }
+
+        .select-input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.15);
+            padding: 24px 0;
+            font-size: 12px;
+            letter-spacing: 0.02em;
+        }
+
+        .footer strong {
+            color: rgba(255, 255, 255, 0.3);
+            font-weight: 500;
+        }
+
+        @media (max-width: 480px) {
+            body { padding: 16px 12px; }
+            .hero { padding: 32px 0 12px; }
+            h1 { font-size: 28px; }
+        }
+    """
