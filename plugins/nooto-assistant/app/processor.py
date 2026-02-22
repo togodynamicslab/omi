@@ -280,7 +280,7 @@ async def _format_answer(
     user_content = f'TODAY: {now}\nLANGUAGE: {language}{tz_line}\nQUESTION: {query}\n\nSEARCH RESULTS:\n{search_results}'
     if memory_context:
         user_content += f'\n\nRECENT CONVERSATION (for context):\n{memory_context}'
-    user_content += '\n\nREMINDER: ONLY use facts from the SEARCH RESULTS above. Do NOT use your own knowledge.'
+    user_content += '\n\nREMINDER: Every fact in your answer MUST appear literally in the SEARCH RESULTS above. If the specific answer is not there, say "not found". Do NOT fill in from your own knowledge — that is hallucination.'
     messages = [('system', system_prompt), ('human', user_content)]
 
     try:
