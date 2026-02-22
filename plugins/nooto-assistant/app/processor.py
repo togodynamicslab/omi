@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
+import httpx
 import redis.asyncio as aioredis
 from ddgs import DDGS
 from langchain_openai import ChatOpenAI
@@ -78,6 +79,24 @@ _llm_detect = ChatOpenAI(
 )
 
 _ddgs = DDGS()
+
+# Jina Reader — fetches full page content from URLs (free, no API key)
+_JINA_URL = 'https://r.jina.ai/'
+_JINA_TIMEOUT = 8
+_JINA_MAX_CHARS = 4000
+_jina = httpx.AsyncClient(timeout=_JINA_TIMEOUT, follow_redirects=True)
+
+
+async def _fetch_page(url: str) -> str | None:
+    """Fetch full page content via Jina Reader. Returns markdown text or None."""
+    try:
+        resp = await _jina.get(f'{_JINA_URL}{url}')
+        if resp.status_code == 200 and len(resp.text) > 100:
+            return resp.text[:_JINA_MAX_CHARS]
+        log.warning(f'[jina] status={resp.status_code} len={len(resp.text)} url={url}')
+    except Exception as e:
+        log.warning(f'[jina] error fetching {url}: {e}')
+    return None
 
 # Inspired by Claude Code's spinner verbs — localized per language
 _THINKING_MESSAGES = {
@@ -376,30 +395,45 @@ async def process_and_decide(
         now = datetime.now(timezone.utc)
         search_query = f'{query} {now.strftime("%B %Y")}'
         log.info(f'[processor] session={session_id} searching: "{search_query}"')
+        results = []
         try:
-            results = await asyncio.to_thread(_ddgs.text, search_query, max_results=5, timelimit='w')
-            search_results = '\n'.join(f"- {r['title']}: {r['body']}" for r in results) if results else ''
+            results = await asyncio.to_thread(_ddgs.text, search_query, max_results=5, timelimit='w') or []
         except Exception as e:
             log.error(f'[processor] session={session_id} search failed: {e}')
-            search_results = ''
 
         # Fallback: retry without time filter if weekly results are empty
-        if not search_results:
+        if not results:
             log.info(f'[processor] session={session_id} no weekly results, retrying without time filter')
             try:
-                results = await asyncio.to_thread(_ddgs.text, search_query, max_results=5)
-                search_results = '\n'.join(f"- {r['title']}: {r['body']}" for r in results) if results else ''
+                results = await asyncio.to_thread(_ddgs.text, search_query, max_results=5) or []
             except Exception as e:
                 log.error(f'[processor] session={session_id} fallback search failed: {e}')
-                search_results = ''
 
-        dt_search = time.monotonic() - t_search
-
-        if not search_results:
+        if not results:
+            dt_search = time.monotonic() - t_search
             log.info(f'[processor] session={session_id} reason=no_search_results search={dt_search:.2f}s')
             return
 
-        log.info(f'[processor] session={session_id} search_results ({dt_search:.2f}s):\n{search_results[:500]}')
+        snippets = '\n'.join(f"- {r['title']}: {r['body']}" for r in results)
+        dt_search = time.monotonic() - t_search
+        log.info(f'[processor] session={session_id} search_results ({dt_search:.2f}s):\n{snippets[:500]}')
+
+        # Fetch full page content from top result via Jina Reader
+        urls = [r['href'] for r in results if r.get('href')]
+        page_content = None
+        dt_jina = 0.0
+        if urls:
+            t_jina = time.monotonic()
+            page_content = await _fetch_page(urls[0])
+            dt_jina = time.monotonic() - t_jina
+            if page_content:
+                log.info(f'[jina] fetched {len(page_content)} chars from {urls[0]} ({dt_jina:.2f}s)')
+
+        # Use full page content if available, otherwise fall back to snippets
+        if page_content:
+            search_results = f'Page content from {urls[0]}:\n{page_content}'
+        else:
+            search_results = snippets
 
         t_answer = time.monotonic()
         answer = await _format_answer(query, search_results, language, memory_context, user_time_zone=user_time_zone)
@@ -421,6 +455,8 @@ async def process_and_decide(
     parts = [f'detect={dt_detect:.2f}s']
     if route == 'search':
         parts.append(f'search={dt_search:.2f}s')
+        if dt_jina > 0:
+            parts.append(f'jina={dt_jina:.2f}s')
     if dt_answer > 0:
         parts.append(f'answer={dt_answer:.2f}s')
     parts.append(f'total={dt_total:.2f}s')
