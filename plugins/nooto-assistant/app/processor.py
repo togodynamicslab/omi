@@ -98,6 +98,47 @@ async def _fetch_page(url: str) -> str | None:
         log.warning(f'[jina] error fetching {url}: {e}')
     return None
 
+
+# Domains/keywords that indicate high-quality structured data pages
+_GOOD_DOMAINS = ['espn.com', 'flashscore', 'sofascore', 'as.com', 'livescore', 'transfermarkt',
+                 'google.com/finance', 'xe.com', 'weather.com', 'accuweather']
+_GOOD_TITLE_WORDS = ['fixture', 'schedule', 'calendar', 'calendário', 'resultado', 'tabela',
+                     'horário', 'próximo jogo', 'standings', 'scoreboard']
+_BAD_DOMAINS = ['bookmaker', 'bet365', 'betano', 'odds', 'prediction', 'tipster', 'gambling']
+
+
+def _pick_best_url(results: list[dict]) -> str | None:
+    """Pick the most promising URL from search results for Jina fetch."""
+    if not results:
+        return None
+
+    scored = []
+    for r in results:
+        url = r.get('href', '')
+        title = f"{r.get('title', '')} {r.get('body', '')}".lower()
+        score = 0
+        # Prefer fixture/schedule pages
+        if any(w in title for w in _GOOD_TITLE_WORDS):
+            score += 10
+        if any(w in url.lower() for w in ['fixture', 'schedule', 'calendar']):
+            score += 10
+        # Prefer known data-rich sites
+        if any(d in url for d in _GOOD_DOMAINS):
+            score += 5
+        # Deprioritize Wikipedia (good for general info, bad for live data)
+        if 'wikipedia.org' in url:
+            score -= 3
+        # Skip betting/prediction sites entirely
+        if any(d in url for d in _BAD_DOMAINS):
+            score -= 20
+        scored.append((score, url))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    best_score, best_url = scored[0]
+    if best_score < -10:
+        return None  # all results are garbage
+    return best_url
+
 # Inspired by Claude Code's spinner verbs — localized per language
 _THINKING_MESSAGES = {
     'pt': [
@@ -418,20 +459,21 @@ async def process_and_decide(
         dt_search = time.monotonic() - t_search
         log.info(f'[processor] session={session_id} search_results ({dt_search:.2f}s):\n{snippets[:500]}')
 
-        # Fetch full page content from top result via Jina Reader
-        urls = [r['href'] for r in results if r.get('href')]
+        # Fetch full page content from best result via Jina Reader
+        best_url = _pick_best_url(results)
         page_content = None
         dt_jina = 0.0
-        if urls:
+        if best_url:
+            log.info(f'[jina] selected: {best_url}')
             t_jina = time.monotonic()
-            page_content = await _fetch_page(urls[0])
+            page_content = await _fetch_page(best_url)
             dt_jina = time.monotonic() - t_jina
             if page_content:
-                log.info(f'[jina] fetched {len(page_content)} chars from {urls[0]} ({dt_jina:.2f}s)')
+                log.info(f'[jina] fetched {len(page_content)} chars ({dt_jina:.2f}s)')
 
         # Use full page content if available, otherwise fall back to snippets
         if page_content:
-            search_results = f'Page content from {urls[0]}:\n{page_content}'
+            search_results = f'Page content from {best_url}:\n{page_content}'
         else:
             search_results = snippets
 
