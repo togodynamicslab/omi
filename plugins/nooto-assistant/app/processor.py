@@ -30,6 +30,14 @@ _redis = aioredis.from_url(REDIS_URL, decode_responses=True)
 # Qwen3 thinking mode produces <think>...</think> blocks — strip them from responses
 _THINK_RE = re.compile(r'<think>.*?</think>', re.DOTALL)
 
+# Refusal phrases — detect model sometimes says "I don't know" instead of answering
+_REFUSAL_PHRASES = [
+    'não tenho', 'no tengo', "i don't have", "i don't know",
+    'não sei', 'no sé', 'not sure',
+    'banco de dados', 'database', 'base de datos',
+    'não consigo', 'no puedo', "i can't",
+]
+
 # Timezone cruft the detect model keeps adding to queries despite prompt instructions
 _TZ_CRUFT_RE = re.compile(
     r'\s*\b(?:in\s+)?(?:'
@@ -340,6 +348,11 @@ async def process_and_decide(
     needs_search = detection.get('needs_search', True)
     query = _clean_query(raw_query) if needs_search else raw_query
     inline_answer = detection.get('answer', '').strip() if not needs_search else ''
+
+    # Reject inline answers that are refusals — fall through to the main LLM instead
+    if inline_answer and any(p in inline_answer.lower() for p in _REFUSAL_PHRASES):
+        log.info(f'[processor] session={session_id} inline answer looks like refusal, falling through to direct')
+        inline_answer = ''
 
     # Determine route: inline (answered in detect call), direct (separate call), or search
     if inline_answer:
