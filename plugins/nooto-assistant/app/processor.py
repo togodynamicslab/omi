@@ -7,16 +7,19 @@ import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-import httpx
 import redis.asyncio as aioredis
 from ddgs import DDGS
+from google import genai
+from google.genai import types
 from langchain_openai import ChatOpenAI
 
 from app import buffer, omi_client
 from app.config import (
     OPENROUTER_API_KEY,
+    GEMINI_API_KEY,
     LLM_MODEL,
     DETECT_MODEL,
+    GROUNDING_MODEL,
     REDIS_URL,
     DETECT_PROMPT,
     ANSWER_PROMPT,
@@ -80,64 +83,67 @@ _llm_detect = ChatOpenAI(
 
 _ddgs = DDGS()
 
-# Jina Reader — fetches full page content from URLs (free, no API key)
-_JINA_URL = 'https://r.jina.ai/'
-_JINA_TIMEOUT = 8
-_JINA_MAX_CHARS = 4000
-_jina = httpx.AsyncClient(timeout=_JINA_TIMEOUT, follow_redirects=True)
+# Gemini client for Google Search grounding (replaces DuckDuckGo + Jina)
+_gemini = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+
+_GROUNDING_SYSTEM = (
+    'You answer questions using Google Search results. '
+    'Rules: max 200 characters, be direct and casual like a smart friend texting, '
+    'lead with the answer, include numbers/data, no greetings or filler. '
+    'Reply in the SAME LANGUAGE as specified. '
+    'When timezone is provided and the question involves times/dates, convert to user timezone.'
+)
 
 
-async def _fetch_page(url: str) -> str | None:
-    """Fetch full page content via Jina Reader. Returns markdown text or None."""
-    try:
-        resp = await _jina.get(f'{_JINA_URL}{url}')
-        if resp.status_code == 200 and len(resp.text) > 100:
-            return resp.text[:_JINA_MAX_CHARS]
-        log.warning(f'[jina] status={resp.status_code} len={len(resp.text)} url={url}')
-    except Exception as e:
-        log.warning(f'[jina] error fetching {url}: {e}')
-    return None
-
-
-# Domains/keywords that indicate high-quality structured data pages
-_GOOD_DOMAINS = ['espn.com', 'flashscore', 'sofascore', 'as.com', 'livescore', 'transfermarkt',
-                 'google.com/finance', 'xe.com', 'weather.com', 'accuweather']
-_GOOD_TITLE_WORDS = ['fixture', 'schedule', 'calendar', 'calendário', 'resultado', 'tabela',
-                     'horário', 'próximo jogo', 'standings', 'scoreboard']
-_BAD_DOMAINS = ['bookmaker', 'bet365', 'betano', 'odds', 'prediction', 'tipster', 'gambling']
-
-
-def _pick_best_url(results: list[dict]) -> str | None:
-    """Pick the most promising URL from search results for Jina fetch."""
-    if not results:
+async def _search_with_grounding(
+    query: str, language: str, memory_context: str = '', user_time_zone: str | None = None
+) -> str | None:
+    """Search and answer using Gemini with Google Search grounding. One call does it all."""
+    if not _gemini:
         return None
 
-    scored = []
-    for r in results:
-        url = r.get('href', '')
-        title = f"{r.get('title', '')} {r.get('body', '')}".lower()
-        score = 0
-        # Prefer fixture/schedule pages
-        if any(w in title for w in _GOOD_TITLE_WORDS):
-            score += 10
-        if any(w in url.lower() for w in ['fixture', 'schedule', 'calendar']):
-            score += 10
-        # Prefer known data-rich sites
-        if any(d in url for d in _GOOD_DOMAINS):
-            score += 5
-        # Deprioritize Wikipedia (good for general info, bad for live data)
-        if 'wikipedia.org' in url:
-            score -= 3
-        # Skip betting/prediction sites entirely
-        if any(d in url for d in _BAD_DOMAINS):
-            score -= 20
-        scored.append((score, url))
+    if user_time_zone:
+        try:
+            tz = ZoneInfo(user_time_zone)
+            now = datetime.now(tz).strftime(f'%Y-%m-%d %H:%M ({user_time_zone})')
+        except KeyError:
+            now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
+    else:
+        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
 
-    scored.sort(key=lambda x: x[0], reverse=True)
-    best_score, best_url = scored[0]
-    if best_score < -10:
-        return None  # all results are garbage
-    return best_url
+    tz_line = f'\nUSER_TIMEZONE: {user_time_zone}' if user_time_zone else ''
+    user_content = f'TODAY: {now}\nLANGUAGE: {language}{tz_line}\nQUESTION: {query}'
+    if memory_context:
+        user_content += f'\n\nRECENT CONVERSATION (for context):\n{memory_context}'
+
+    try:
+        response = await _gemini.aio.models.generate_content(
+            model=GROUNDING_MODEL,
+            contents=user_content,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                system_instruction=_GROUNDING_SYSTEM,
+                response_modalities=['TEXT'],
+            ),
+        )
+        answer = response.text.strip() if response.text else None
+        if not answer:
+            log.warning('[grounding] empty response')
+            return None
+
+        # Log search queries and sources for debugging
+        meta = response.candidates[0].grounding_metadata if response.candidates else None
+        if meta:
+            if meta.web_search_queries:
+                log.info(f'[grounding] queries={meta.web_search_queries}')
+            if meta.grounding_chunks:
+                sources = [c.web.uri for c in meta.grounding_chunks[:3]]
+                log.info(f'[grounding] sources={sources}')
+
+        return answer
+    except Exception as e:
+        log.error(f'[grounding] Gemini search failed: {e}')
+        return None
 
 # Inspired by Claude Code's spinner verbs — localized per language
 _THINKING_MESSAGES = {
@@ -432,54 +438,31 @@ async def process_and_decide(
         answer = inline_answer
     elif route == 'search':
         t_search = time.monotonic()
-        # Add current month/year for time-sensitive searches
-        now = datetime.now(timezone.utc)
-        search_query = f'{query} {now.strftime("%B %Y")}'
-        log.info(f'[processor] session={session_id} searching: "{search_query}"')
-        results = []
-        try:
-            results = await asyncio.to_thread(_ddgs.text, search_query, max_results=5, timelimit='w') or []
-        except Exception as e:
-            log.error(f'[processor] session={session_id} search failed: {e}')
 
-        # Fallback: retry without time filter if weekly results are empty
-        if not results:
-            log.info(f'[processor] session={session_id} no weekly results, retrying without time filter')
+        # Primary: Gemini with Google Search grounding (one call, best quality)
+        answer = await _search_with_grounding(query, language, memory_context, user_time_zone)
+        dt_search = time.monotonic() - t_search
+
+        if not answer:
+            # Fallback: DuckDuckGo + LLM formatter
+            log.info(f'[processor] session={session_id} grounding unavailable, trying DuckDuckGo')
+            now = datetime.now(timezone.utc)
+            search_query = f'{query} {now.strftime("%B %Y")}'
+            results = []
             try:
                 results = await asyncio.to_thread(_ddgs.text, search_query, max_results=5) or []
             except Exception as e:
-                log.error(f'[processor] session={session_id} fallback search failed: {e}')
+                log.error(f'[processor] session={session_id} DuckDuckGo failed: {e}')
 
-        if not results:
+            if not results:
+                log.info(f'[processor] session={session_id} reason=no_search_results search={dt_search:.2f}s')
+                return
+
+            snippets = '\n'.join(f"- {r['title']}: {r['body']}" for r in results)
+            log.info(f'[processor] session={session_id} ddg_results:\n{snippets[:500]}')
+            t_answer = time.monotonic()
+            answer = await _format_answer(query, snippets, language, memory_context, user_time_zone=user_time_zone)
             dt_search = time.monotonic() - t_search
-            log.info(f'[processor] session={session_id} reason=no_search_results search={dt_search:.2f}s')
-            return
-
-        snippets = '\n'.join(f"- {r['title']}: {r['body']}" for r in results)
-        dt_search = time.monotonic() - t_search
-        log.info(f'[processor] session={session_id} search_results ({dt_search:.2f}s):\n{snippets[:500]}')
-
-        # Fetch full page content from best result via Jina Reader
-        best_url = _pick_best_url(results)
-        page_content = None
-        dt_jina = 0.0
-        if best_url:
-            log.info(f'[jina] selected: {best_url}')
-            t_jina = time.monotonic()
-            page_content = await _fetch_page(best_url)
-            dt_jina = time.monotonic() - t_jina
-            if page_content:
-                log.info(f'[jina] fetched {len(page_content)} chars ({dt_jina:.2f}s)')
-
-        # Use full page content if available, otherwise fall back to snippets
-        if page_content:
-            search_results = f'Page content from {best_url}:\n{page_content}'
-        else:
-            search_results = snippets
-
-        t_answer = time.monotonic()
-        answer = await _format_answer(query, search_results, language, memory_context, user_time_zone=user_time_zone)
-        dt_answer = time.monotonic() - t_answer
     else:
         # Direct fallback — detect model didn't include answer
         log.info(f'[processor] session={session_id} direct answer: "{query}"')
@@ -497,8 +480,6 @@ async def process_and_decide(
     parts = [f'detect={dt_detect:.2f}s']
     if route == 'search':
         parts.append(f'search={dt_search:.2f}s')
-        if dt_jina > 0:
-            parts.append(f'jina={dt_jina:.2f}s')
     if dt_answer > 0:
         parts.append(f'answer={dt_answer:.2f}s')
     parts.append(f'total={dt_total:.2f}s')
