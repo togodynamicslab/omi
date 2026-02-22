@@ -18,7 +18,7 @@ async def send_notification(uid: str, message: str) -> bool:
     try:
         resp = await _http.post(
             f'/v2/integrations/{OMI_APP_ID}/notification',
-            params={'uid': uid, 'message': message},
+            params={'uid': uid, 'message': message, 'sound': 'default'},
             headers=_headers,
         )
         if resp.status_code < 300:
