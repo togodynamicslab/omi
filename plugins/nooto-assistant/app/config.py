@@ -2,8 +2,10 @@ import os
 from pathlib import Path
 
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 LLM_MODEL = os.getenv('LLM_MODEL', 'google/gemini-2.5-flash')
 DETECT_MODEL = os.getenv('DETECT_MODEL', 'google/gemini-2.0-flash-001')
+GROUNDING_MODEL = os.getenv('GROUNDING_MODEL', 'gemini-2.5-flash')
 REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379')
 CHUNK_THRESHOLD = int(os.getenv('CHUNK_THRESHOLD', '15'))
 TIME_THRESHOLD_SECONDS = int(os.getenv('TIME_THRESHOLD_SECONDS', '45'))
