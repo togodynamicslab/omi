@@ -18,7 +18,6 @@ from app.config import (
     OPENROUTER_API_KEY,
     GEMINI_API_KEY,
     LLM_MODEL,
-    DETECT_MODEL,
     GROUNDING_MODEL,
     REDIS_URL,
     DETECT_PROMPT,
@@ -71,14 +70,6 @@ _llm = ChatOpenAI(
     base_url='https://openrouter.ai/api/v1',
     api_key=OPENROUTER_API_KEY,
     model=LLM_MODEL,
-)
-
-# Fast model for detection + inline answers — no thinking overhead
-_llm_detect = ChatOpenAI(
-    base_url='https://openrouter.ai/api/v1',
-    api_key=OPENROUTER_API_KEY,
-    model=DETECT_MODEL,
-    model_kwargs={'response_format': {'type': 'json_object'}},
 )
 
 _ddgs = DDGS()
@@ -310,26 +301,35 @@ async def _set_cooldown(session_id: str) -> None:
 
 
 async def _detect_question(transcript: str, memory_context: str = '', user_time_zone: str | None = None) -> dict:
-    """Cheap LLM call to check if transcript contains a question for Opa."""
+    """Detect questions via Gemini API directly (free tier, native JSON mode)."""
+    if not _gemini:
+        log.warning('[detect] Gemini client not available (no GEMINI_API_KEY)')
+        return {'has_question': False, 'query': ''}
+
     user_content = transcript
     if memory_context:
         user_content = f'RECENT CONVERSATION:\n{memory_context}\n\nCURRENT TRANSCRIPT:\n{transcript}'
     if user_time_zone:
         user_content += f'\n\nUSER_TIMEZONE: {user_time_zone}'
-    messages = [('system', DETECT_PROMPT), ('human', user_content)]
 
     try:
-        response = await _llm_detect.ainvoke(messages)
+        response = await _gemini.aio.models.generate_content(
+            model=GROUNDING_MODEL,
+            contents=user_content,
+            config=types.GenerateContentConfig(
+                system_instruction=DETECT_PROMPT,
+                response_mime_type='application/json',
+            ),
+        )
     except Exception as e:
-        log.error(f'[detect] LLM call failed: {e}')
+        log.error(f'[detect] Gemini call failed: {e}')
         return {'has_question': False, 'query': ''}
 
-    raw = _strip_think(response.content)
+    raw = _strip_think(response.text) if response.text else ''
     log.info(f'[detect] raw_response={raw}')
 
     try:
         parsed = json.loads(raw)
-        # LLM sometimes returns a list (one per segment) — take the last one with a question
         if isinstance(parsed, list):
             with_question = [p for p in parsed if p.get('has_question')]
             parsed = with_question[-1] if with_question else {'has_question': False, 'query': ''}
