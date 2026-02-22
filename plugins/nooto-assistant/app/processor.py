@@ -88,8 +88,10 @@ _gemini = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 _GROUNDING_SYSTEM = (
     'You answer questions using Google Search results. '
-    'Rules: max 200 characters, be direct and casual like a smart friend texting, '
-    'lead with the answer, include numbers/data, no greetings or filler. '
+    'STRICT LIMIT: your ENTIRE response must be under 200 characters. No exceptions. '
+    'One short sentence only. No bullet points, no lists, no multiple lines. '
+    'Be direct and casual like a smart friend texting. '
+    'Lead with the answer, include key numbers/data, no greetings or filler. '
     'Reply in the SAME LANGUAGE as specified. '
     'When timezone is provided and the question involves times/dates, convert to user timezone.'
 )
@@ -130,6 +132,15 @@ async def _search_with_grounding(
         if not answer:
             log.warning('[grounding] empty response')
             return None
+
+        # Enforce character limit — truncate at last sentence boundary if too long
+        if len(answer) > 250:
+            truncated = answer[:250]
+            last_period = max(truncated.rfind('.'), truncated.rfind('!'), truncated.rfind('?'))
+            if last_period > 100:
+                answer = truncated[:last_period + 1]
+            else:
+                answer = truncated.rstrip() + '...'
 
         # Log search queries and sources for debugging
         meta = response.candidates[0].grounding_metadata if response.candidates else None
