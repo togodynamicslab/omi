@@ -372,9 +372,12 @@ async def process_and_decide(
         answer = inline_answer
     elif route == 'search':
         t_search = time.monotonic()
-        log.info(f'[processor] session={session_id} searching: "{query}"')
+        # Add current month/year for time-sensitive searches
+        now = datetime.now(timezone.utc)
+        search_query = f'{query} {now.strftime("%B %Y")}'
+        log.info(f'[processor] session={session_id} searching: "{search_query}"')
         try:
-            results = await asyncio.to_thread(_ddgs.text, query, max_results=5, timelimit='w')
+            results = await asyncio.to_thread(_ddgs.text, search_query, max_results=5, timelimit='w')
             search_results = '\n'.join(f"- {r['title']}: {r['body']}" for r in results) if results else ''
         except Exception as e:
             log.error(f'[processor] session={session_id} search failed: {e}')
@@ -384,7 +387,7 @@ async def process_and_decide(
         if not search_results:
             log.info(f'[processor] session={session_id} no weekly results, retrying without time filter')
             try:
-                results = await asyncio.to_thread(_ddgs.text, query, max_results=5)
+                results = await asyncio.to_thread(_ddgs.text, search_query, max_results=5)
                 search_results = '\n'.join(f"- {r['title']}: {r['body']}" for r in results) if results else ''
             except Exception as e:
                 log.error(f'[processor] session={session_id} fallback search failed: {e}')
