@@ -31,11 +31,16 @@
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Nooto needs your microphone to capture a short voice sample during onboarding so it can recognize you later.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Nooto needs Bluetooth to connect to your Omi pendant and stream audio for your AI companion.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Nooto uses Bluetooth to communicate with your Omi pendant.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Nooto can tag conversations with where they happened. Optional — you can skip this.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
+		<string>bluetooth-central</string>
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
