@@ -5,6 +5,18 @@ import 'package:flutter/foundation.dart';
 import 'package:nooto_v2/library/conversation_model.dart';
 import 'package:nooto_v2/services/api_client.dart';
 
+/// Result returned by [ConversationsProvider.reprocessWithApp]. Carries
+/// the user-facing failure message so the picker sheet can surface a
+/// specific error (e.g. "Rate limit exceeded. Try again in 44m") instead
+/// of a generic "couldn't reprocess".
+class ReprocessResult {
+  const ReprocessResult.success() : ok = true, errorMessage = null;
+  const ReprocessResult.failure(this.errorMessage) : ok = false;
+
+  final bool ok;
+  final String? errorMessage;
+}
+
 /// Owns the Conversations list state for the Library tab. Hits
 /// `/v1/conversations`, surfaces a flat sorted list and date-bucketed groups.
 /// Mirrors LibraryProvider's idempotent-load + force-refresh + optimistic-
@@ -121,8 +133,10 @@ class ConversationsProvider extends ChangeNotifier {
   /// Returns true on success, false on any error. Sets `_error` only on
   /// failure so the detail screen can surface a snackbar without
   /// stomping the global "load failed" message from [load].
-  Future<bool> reprocessWithApp(String conversationId, String appId) async {
-    if (_reprocessingIds.contains(conversationId)) return false;
+  Future<ReprocessResult> reprocessWithApp(String conversationId, String appId) async {
+    if (_reprocessingIds.contains(conversationId)) {
+      return const ReprocessResult.failure('Already reprocessing');
+    }
     _reprocessingIds = {..._reprocessingIds, conversationId};
     notifyListeners();
     try {
@@ -131,21 +145,49 @@ class ConversationsProvider extends ChangeNotifier {
         body: const {},
       );
       final body = jsonDecode(res.body);
-      if (body is! Map) return false;
+      if (body is! Map) {
+        return const ReprocessResult.failure('Bad response from server');
+      }
       final updated = ConversationItem.fromRaw(Map<String, dynamic>.from(body));
       final idx = _items.indexWhere((c) => c.id == conversationId);
       if (idx >= 0) {
         _items = [..._items]..[idx] = updated;
       }
-      return true;
+      return const ReprocessResult.success();
+    } on ApiError catch (e) {
+      // Surface the backend's `detail` (e.g. "Rate limit exceeded. Try
+      // again in 2628s.") so the snackbar tells the user what to do
+      // instead of a generic try-again. Falls back to a short status
+      // string when detail is null.
+      debugPrint('[ConversationsProvider] reprocessWithApp($conversationId, $appId) failed: $e');
+      _error = e.detail ?? 'Server returned ${e.statusCode}';
+      return ReprocessResult.failure(_humanizeError(e));
     } catch (e) {
       debugPrint('[ConversationsProvider] reprocessWithApp($conversationId, $appId) failed: $e');
       _error = e.toString();
-      return false;
+      return ReprocessResult.failure(e.toString());
     } finally {
       _reprocessingIds = {..._reprocessingIds}..remove(conversationId);
       notifyListeners();
     }
+  }
+
+  /// Turn `Rate limit exceeded. Try again in 2628s.` into something a
+  /// human reads quickly. Other errors fall through unchanged.
+  String _humanizeError(ApiError e) {
+    final detail = e.detail ?? '';
+    if (e.statusCode == 429) {
+      final match = RegExp(r'(\d+)\s*s\b').firstMatch(detail);
+      if (match != null) {
+        final seconds = int.tryParse(match.group(1)!) ?? 0;
+        if (seconds > 60) {
+          final minutes = (seconds / 60).round();
+          return 'Rate limit exceeded. Try again in ${minutes}m.';
+        }
+        return 'Rate limit exceeded. Try again in ${seconds}s.';
+      }
+    }
+    return detail.isNotEmpty ? detail : 'Server returned ${e.statusCode}';
   }
 
   /// Optimistic delete with rollback at original index on non-2xx, matching
