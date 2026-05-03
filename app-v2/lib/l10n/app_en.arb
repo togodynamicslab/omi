@@ -76,14 +76,20 @@
   "todayCardCountPartial": "{visible} of {total}",
   "@todayCardCountPartial": {
     "placeholders": {
-      "visible": {"type": "int"},
-      "total": {"type": "int"}
+      "visible": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "todayCardCountFull": "{count, plural, =1{1 item} other{{count} items}}",
   "@todayCardCountFull": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "todayCardSeeAll": "See all",
@@ -92,7 +98,9 @@
   "summarizedBy": "Summarized by {name}",
   "@summarizedBy": {
     "placeholders": {
-      "name": {"type": "String"}
+      "name": {
+        "type": "String"
+      }
     }
   },
   "noSummaryForApp": "No summary available — tap to choose another app",
@@ -104,5 +112,92 @@
   "summarizedAppsSuggestedSection": "Suggested",
   "summarizedAppsAvailableSection": "Installed",
   "summarizedAppsEmpty": "No apps installed yet",
-  "summarizeWithApp": "Summarize with an app"
+  "summarizeWithApp": "Summarize with an app",
+  "pendantPillLive": "Live",
+  "@pendantPillLive": {
+    "description": "Status pill label when pendant is connected and streaming."
+  },
+  "pendantPillConnecting": "Connecting…",
+  "@pendantPillConnecting": {
+    "description": "Status pill label during initial connection or first-pair handshake."
+  },
+  "pendantPillReconnecting": "Reconnecting",
+  "@pendantPillReconnecting": {
+    "description": "Status pill label after a BLE drop while auto-reconnect is in flight."
+  },
+  "pendantPillOfflineSince": "Offline since {time}",
+  "@pendantPillOfflineSince": {
+    "description": "Status pill label after 30s with no successful reconnect.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "pendantPillPaused": "Paused",
+  "@pendantPillPaused": {
+    "description": "Status pill label while AVAudioSession interruption is active (call, Siri, etc.)."
+  },
+  "pendantPairTitle": "Pair your pendant",
+  "@pendantPairTitle": {
+    "description": "Pairing sheet title."
+  },
+  "pendantPairConnecting": "Setting up your pendant…",
+  "@pendantPairConnecting": {
+    "description": "Pairing sheet progress message during 5-15s first-pair characteristic discovery."
+  },
+  "pendantPairIncompatible": "This pendant doesn't expose Omi audio. Make sure your firmware is up to date.",
+  "@pendantPairIncompatible": {
+    "description": "Pairing sheet error message when the device does not expose the Omi audio service."
+  },
+  "pendantPairPermissionDenied": "Bluetooth and microphone access are needed to pair.",
+  "@pendantPairPermissionDenied": {
+    "description": "Pairing sheet error message when BLE or mic permission is denied."
+  },
+  "pendantPairOpenSettings": "Open Settings",
+  "@pendantPairOpenSettings": {
+    "description": "Pairing sheet CTA that opens the OS settings app."
+  },
+  "pendantPairTryAgain": "Try again",
+  "@pendantPairTryAgain": {
+    "description": "Pairing sheet CTA shown after an incompatible-device error."
+  },
+  "pendantVoiceCardConnectTitle": "Connect your pendant",
+  "@pendantVoiceCardConnectTitle": {
+    "description": "Home voice card title shown while no pendant is paired."
+  },
+  "pendantVoiceCardConnectBody": "Tap to pair your Omi pendant.",
+  "@pendantVoiceCardConnectBody": {
+    "description": "Home voice card body shown while no pendant is paired."
+  },
+  "pendantVoiceCardOfflineTitle": "Your pendant disconnected at {time}.",
+  "@pendantVoiceCardOfflineTitle": {
+    "description": "Home voice card title shown after the pendant has been offline for at least 5 minutes.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "pendantVoiceCardOfflineBody": "Tap to reconnect.",
+  "@pendantVoiceCardOfflineBody": {
+    "description": "Home voice card body shown after the pendant has been offline for at least 5 minutes."
+  },
+  "pendantPausePrompt": "Pause pendant for {seconds}s while we record your voice?",
+  "@pendantPausePrompt": {
+    "description": "Sheet prompt shown when phone-mic capture is requested while pendant is live.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "pendantPauseConfirm": "Pause and continue",
+  "@pendantPauseConfirm": {
+    "description": "Confirm CTA on the pause-pendant sheet."
+  },
+  "pendantOnboardingTurnText": "Pair your pendant when you're ready. Hold it near your phone so I can find it.",
+  "@pendantOnboardingTurnText": {
+    "description": "Onboarding chat turn text introducing pendant pairing after speech profile."
+  }
 }
