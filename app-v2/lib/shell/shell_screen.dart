@@ -15,6 +15,7 @@ import 'package:nooto_v2/shell/app_bar_kebab_menu.dart';
 import 'package:nooto_v2/shell/bottom_nav_bar.dart';
 import 'package:nooto_v2/shell/stubs/coming_soon_stub.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
+import 'package:nooto_v2/widgets/status_pill.dart';
 
 /// iOS HIG navigation bar height — Material defaults to 56pt which leaves
 /// dead space below a single-line title; 44pt is the platform standard.
@@ -81,7 +82,7 @@ class _ShellScreenState extends State<ShellScreen> {
                 tabs[_index].label,
                 style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
               ),
-        actions: const [AppBarKebabMenu()],
+        actions: isHome ? const [StatusPill(), AppBarKebabMenu()] : const [AppBarKebabMenu()],
         bottom: isLibrary
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(LibrarySectionTabBar.height),
