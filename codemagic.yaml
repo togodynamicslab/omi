@@ -43,6 +43,12 @@ workflows:
       changeset:
         includes:
           - 'app/**'
+          # 'app-v2/**' triggers this workflow so v2 changes are visible to CI.
+          # NOTE: working_directory below is still `app`, so the build itself
+          # targets the legacy Flutter project. A follow-up PR will introduce a
+          # dedicated v2 workflow (own bundle ID, ASC record, signing). Until
+          # then, this guarantees v2 PRs are not silently ignored by CI.
+          - 'app-v2/**'
     working_directory: app
     scripts:
       - name: Installing Opus
@@ -220,6 +226,12 @@ workflows:
       changeset:
         includes:
           - 'app/**'
+          # 'app-v2/**' triggers this workflow so v2 changes are visible to CI.
+          # NOTE: working_directory below is still `app`, so the build itself
+          # targets the legacy Flutter project. A follow-up PR will introduce a
+          # dedicated v2 workflow (own package name, Play listing, signing).
+          # Until then, this guarantees v2 PRs are not silently ignored by CI.
+          - 'app-v2/**'
     working_directory: app
     scripts:
       - name: Installing Android SDK
