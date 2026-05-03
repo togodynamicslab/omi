@@ -76,7 +76,10 @@ class TestRatePolicies(unittest.TestCase):
 
     def test_expensive_endpoints_have_low_limits(self):
         """Expensive endpoints should have lower limits."""
-        expensive = ['knowledge_graph:rebuild', 'wrapped:generate', 'conversations:reprocess']
+        # conversations:reprocess removed from this list — bumped to 10/hr
+        # to match conversations:create (same OpenAI cost shape) so the
+        # app-picker dogfood flow isn't blocked after 3 swaps.
+        expensive = ['knowledge_graph:rebuild', 'wrapped:generate']
         for name in expensive:
             max_req, _ = RATE_POLICIES[name]
             self.assertLessEqual(max_req, 5, f"{name} should have low base limit")

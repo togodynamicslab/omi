@@ -207,9 +207,17 @@ class _AppRow extends StatelessWidget {
     final messenger = ScaffoldMessenger.maybeOf(context);
     final l = AppLocalizations.of(context);
     Navigator.of(context).pop();
-    final ok = await convs.reprocessWithApp(conversationId, app.id);
-    if (!ok && messenger != null) {
-      messenger.showSnackBar(SnackBar(content: Text(l.reprocessFailed), backgroundColor: AppColors.errorColor));
+    final result = await convs.reprocessWithApp(conversationId, app.id);
+    if (!result.ok && messenger != null) {
+      // Prefer the specific error from the provider (e.g. "Rate limit
+      // exceeded. Try again in 44m.") over the generic l10n string —
+      // users need to know whether to wait, retry, or pick another app.
+      final message = result.errorMessage ?? l.reprocessFailed;
+      messenger.showSnackBar(SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.errorColor,
+        duration: const Duration(seconds: 6),
+      ));
     }
   }
 

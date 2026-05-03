@@ -37,7 +37,12 @@ RATE_LIMIT_SHADOW: bool = os.getenv("RATE_LIMIT_SHADOW_MODE", "false").lower() !
 RATE_POLICIES: dict[str, tuple[int, int]] = {
     # Conversations — each triggers ~22 OpenAI calls
     "conversations:create": (10, 3600),
-    "conversations:reprocess": (3, 3600),
+    # Reprocess: bumped from upstream's 3/hour. App-picker dogfooding
+    # hits the lower cap immediately — try 4 apps in a row and you're
+    # blocked for 44 minutes. 10/hour matches conversations:create
+    # (same ~22 OpenAI calls per request) and matches the natural
+    # rhythm of swapping summary apps a few times per conversation.
+    "conversations:reprocess": (10, 3600),
     "conversations:merge": (5, 3600),
     # Chat — 2-6 LLM calls per message
     "chat:send_message": (120, 3600),
