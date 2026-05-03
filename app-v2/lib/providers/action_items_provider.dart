@@ -47,14 +47,6 @@ class ExternalSource {
   /// "Medium"). The UI hides "Medium"/"None" because they're noise.
   String? get jiraPriority => metadata?['priority'] as String?;
 
-  /// Plain-text body of the Jira issue's description field. Fed by the
-  /// nooto-jira plugin's ADF→text flattener and capped at 2000 chars
-  /// server-side. Null when the issue has no description, or when this
-  /// item predates the description-body sync (older docs in Firestore
-  /// won't have it until the next /v1/integrations/jira/sync-now or
-  /// scheduled sync). The Plan detail screen renders this; chat pills /
-  /// rows do not.
-  String? get jiraDescriptionBody => metadata?['description_body'] as String?;
 
   /// When the issue last transitioned status. Optional. Null when missing
   /// or not parseable as ISO8601.
@@ -146,6 +138,41 @@ class ActionItem {
     dueAt: dueAt ?? this.dueAt,
     conversationId: conversationId,
     externalSource: externalSource ?? this.externalSource,
+  );
+}
+
+/// Live Jira issue details, fetched on demand by the Plan detail screen.
+/// We deliberately don't persist these — Jira is the source of truth, and
+/// caching them in Firestore would mean two truths that drift on edit and
+/// expand the surface area for Jira's RBAC content into our DB.
+class JiraIssueDetails {
+  const JiraIssueDetails({
+    required this.issueKey,
+    required this.summary,
+    this.description,
+    this.status,
+    this.priority,
+    this.assignee,
+  });
+
+  final String issueKey;
+  final String summary;
+
+  /// Plain-text body, plugin-side ADF→text flattened, capped at 2000 chars.
+  /// Null when the issue genuinely has no description in Jira.
+  final String? description;
+
+  final String? status;
+  final String? priority;
+  final String? assignee;
+
+  factory JiraIssueDetails.fromJson(Map<String, dynamic> json) => JiraIssueDetails(
+    issueKey: json['issue_key'] as String? ?? '',
+    summary: json['summary'] as String? ?? '',
+    description: json['description'] as String?,
+    status: json['status'] as String?,
+    priority: json['priority'] as String?,
+    assignee: json['assignee'] as String?,
   );
 }
 
@@ -323,6 +350,29 @@ class ActionItemsProvider extends ChangeNotifier {
       _lastActionError = _errorKey(e);
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Fetch live Jira issue details for the Plan detail screen. Read-only
+  /// (no two-way-sync gate), and intentionally not cached locally — every
+  /// detail-screen open hits Jira so users see current state.
+  ///
+  /// [integrationId] is the Apps catalog id for the Jira plugin (currently
+  /// always `'nooto-jira'`). Returns null on failure; caller decides
+  /// whether to show an error UI or just suppress the description card.
+  Future<JiraIssueDetails?> fetchJiraIssueDetails(String integrationId, String actionItemId) async {
+    try {
+      final res = await _client.get(
+        'v1/integrations/$integrationId/action-items/$actionItemId/jira-details',
+      );
+      final body = jsonDecode(res.body);
+      if (body is Map<String, dynamic>) {
+        return JiraIssueDetails.fromJson(body);
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[ActionItemsProvider] fetchJiraIssueDetails failed: $e');
+      return null;
     }
   }
 
