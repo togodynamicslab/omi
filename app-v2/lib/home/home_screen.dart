@@ -7,7 +7,7 @@ import 'package:nooto_v2/home/companion_stream_provider.dart';
 import 'package:nooto_v2/home/home_nav.dart';
 import 'package:nooto_v2/onboarding/onboarding_chat_provider.dart';
 import 'package:nooto_v2/providers/action_items_provider.dart';
-import 'package:nooto_v2/providers/pendant_provider_contract.dart';
+import 'package:nooto_v2/providers/pendant_provider.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
 import 'package:nooto_v2/services/chat_service.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
