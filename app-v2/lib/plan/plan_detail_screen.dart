@@ -38,6 +38,39 @@ class PlanDetailScreen extends StatefulWidget {
 
 class _PlanDetailScreenState extends State<PlanDetailScreen> {
   bool _busy = false;
+  // Fetched-on-demand details — not persisted, refetched on every screen
+  // open so the description / status / priority always reflect Jira.
+  JiraIssueDetails? _details;
+  bool _loadingDetails = false;
+  bool _detailsErrored = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeFetchDetails();
+    });
+  }
+
+  Future<void> _maybeFetchDetails() async {
+    final provider = context.read<ActionItemsProvider>();
+    final item = provider.items.firstWhere(
+      (i) => i.id == widget.itemId,
+      orElse: () => ActionItem(id: widget.itemId, description: '', completed: true),
+    );
+    if (item.externalSource?.source != 'jira') return;
+    setState(() {
+      _loadingDetails = true;
+      _detailsErrored = false;
+    });
+    final details = await provider.fetchJiraIssueDetails(_jiraAppId, widget.itemId);
+    if (!mounted) return;
+    setState(() {
+      _details = details;
+      _loadingDetails = false;
+      _detailsErrored = details == null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,8 +119,13 @@ class _PlanDetailScreenState extends State<PlanDetailScreen> {
             const SizedBox(height: AppStyles.spacingL),
             if (isJira) _JiraStatusPill(status: ext!.jiraStatus, statusType: ext.jiraStatusType),
             if (isJira) const SizedBox(height: AppStyles.spacingL),
-            if (isJira && (ext?.jiraDescriptionBody?.isNotEmpty ?? false)) ...[
-              _DescriptionBody(text: ext!.jiraDescriptionBody!),
+            if (isJira) ...[
+              _DescriptionBodySection(
+                loading: _loadingDetails,
+                errored: _detailsErrored,
+                description: _details?.description,
+                onRetry: _maybeFetchDetails,
+              ),
               const SizedBox(height: AppStyles.spacingL),
             ],
             _MetaTable(item: item, isJira: isJira),
@@ -156,13 +194,78 @@ class _PlanDetailScreenState extends State<PlanDetailScreen> {
   }
 }
 
-/// Plain-text Jira issue body. Capped server-side at 2000 chars; if the
-/// real description was longer, the cap added a trailing "…" so users see
-/// they can tap "Open in Jira" for the full thing.
-class _DescriptionBody extends StatelessWidget {
-  const _DescriptionBody({required this.text});
+/// Section wrapper for the Jira issue body. The body is fetched on demand
+/// from Jira (via the backend proxy) every time the detail screen opens —
+/// no Firestore caching. Renders four states: loading (skeleton), errored
+/// (retry CTA), empty (suppressed entirely), and loaded (selectable text
+/// with the body, capped server-side at 2000 chars; longer bodies have a
+/// trailing "…" and users tap "Open in Jira" for the full thing).
+class _DescriptionBodySection extends StatelessWidget {
+  const _DescriptionBodySection({
+    required this.loading,
+    required this.errored,
+    required this.description,
+    required this.onRetry,
+  });
 
-  final String text;
+  final bool loading;
+  final bool errored;
+  final String? description;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return const _DescriptionBodySkeleton();
+    if (errored) return _DescriptionBodyError(onRetry: onRetry);
+    final body = description;
+    if (body == null || body.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.backgroundSecondary,
+        borderRadius: BorderRadius.circular(AppStyles.radiusLarge),
+        border: Border.all(color: AppColors.textTertiary.withValues(alpha: 0.15)),
+      ),
+      padding: const EdgeInsets.all(AppStyles.spacingL),
+      child: SelectableText(
+        body,
+        style: const TextStyle(
+          fontSize: 15,
+          color: AppColors.textPrimary,
+          height: 1.5,
+        ),
+      ),
+    );
+  }
+}
+
+class _DescriptionBodySkeleton extends StatelessWidget {
+  const _DescriptionBodySkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: 64,
+      decoration: BoxDecoration(
+        color: AppColors.backgroundSecondary,
+        borderRadius: BorderRadius.circular(AppStyles.radiusLarge),
+        border: Border.all(color: AppColors.textTertiary.withValues(alpha: 0.15)),
+      ),
+      alignment: Alignment.center,
+      child: const SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textTertiary),
+      ),
+    );
+  }
+}
+
+class _DescriptionBodyError extends StatelessWidget {
+  const _DescriptionBodyError({required this.onRetry});
+
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -173,14 +276,21 @@ class _DescriptionBody extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppStyles.radiusLarge),
         border: Border.all(color: AppColors.textTertiary.withValues(alpha: 0.15)),
       ),
-      padding: const EdgeInsets.all(AppStyles.spacingL),
-      child: SelectableText(
-        text,
-        style: const TextStyle(
-          fontSize: 15,
-          color: AppColors.textPrimary,
-          height: 1.5,
-        ),
+      padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingL, vertical: AppStyles.spacingM),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              "Couldn't load description from Jira.",
+              style: TextStyle(fontSize: 14, color: AppColors.textTertiary),
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(foregroundColor: AppColors.brandPrimary),
+            child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ],
       ),
     );
   }
