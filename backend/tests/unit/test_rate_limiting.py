@@ -57,7 +57,7 @@ def _check_rate_limit(key, policy, max_requests, window):
 
 redis_db_stub.check_rate_limit = _check_rate_limit
 
-from utils.rate_limit_config import RATE_POLICIES, get_effective_limit, RATE_LIMIT_BOOST
+from utils.rate_limit_config import RATE_POLICIES, get_effective_limit, RATE_LIMIT_BOOST, parse_overrides
 
 
 class TestRatePolicies(unittest.TestCase):
@@ -116,6 +116,79 @@ class TestBoostFactor(unittest.TestCase):
         _, window = get_effective_limit("chat:send_message", boost=5.0)
         _, base_window = RATE_POLICIES["chat:send_message"]
         self.assertEqual(window, base_window)
+
+
+class TestOverrideParser(unittest.TestCase):
+    """parse_overrides() — the env-string parser. Robust against typos so a
+    single bad entry can't blow away the whole config."""
+
+    def test_empty_returns_empty_dict(self):
+        self.assertEqual(parse_overrides(""), {})
+        self.assertEqual(parse_overrides("   "), {})
+
+    def test_single_override(self):
+        self.assertEqual(
+            parse_overrides("conversations:reprocess=20:3600"),
+            {"conversations:reprocess": (20, 3600)},
+        )
+
+    def test_multiple_overrides_comma_separated(self):
+        result = parse_overrides("conversations:reprocess=20:3600,conversations:merge=8:1800")
+        self.assertEqual(result["conversations:reprocess"], (20, 3600))
+        self.assertEqual(result["conversations:merge"], (8, 1800))
+
+    def test_tolerates_whitespace_around_entries(self):
+        self.assertEqual(
+            parse_overrides("  conversations:reprocess=20:3600  ,  chat:send_message=200:3600  "),
+            {"conversations:reprocess": (20, 3600), "chat:send_message": (200, 3600)},
+        )
+
+    def test_skips_entry_without_equals(self):
+        # Bad entry shouldn't poison the good one
+        result = parse_overrides("conversations:reprocess=20:3600,garbage,chat:send_message=200:3600")
+        self.assertIn("conversations:reprocess", result)
+        self.assertIn("chat:send_message", result)
+        self.assertEqual(len(result), 2)
+
+    def test_skips_entry_with_non_numeric_max(self):
+        result = parse_overrides("conversations:reprocess=many:3600")
+        self.assertEqual(result, {})
+
+    def test_skips_entry_with_non_numeric_window(self):
+        result = parse_overrides("conversations:reprocess=20:forever")
+        self.assertEqual(result, {})
+
+    def test_skips_entry_with_zero_or_negative_max(self):
+        # Don't let a typo silently disable enforcement
+        self.assertEqual(parse_overrides("foo=0:3600"), {})
+        self.assertEqual(parse_overrides("foo=-5:3600"), {})
+
+    def test_skips_entry_missing_window(self):
+        result = parse_overrides("conversations:reprocess=20")
+        self.assertEqual(result, {})
+
+
+class TestOverrideResolution(unittest.TestCase):
+    """get_effective_limit honors RATE_LIMIT_OVERRIDES ahead of boost."""
+
+    def test_override_wins_over_base(self):
+        with patch.dict("utils.rate_limit_config.RATE_LIMIT_OVERRIDES", {"conversations:reprocess": (50, 7200)}, clear=False):
+            max_req, window = get_effective_limit("conversations:reprocess")
+            self.assertEqual(max_req, 50)
+            self.assertEqual(window, 7200)
+
+    def test_override_ignores_boost(self):
+        # Boost would normally double, but override is absolute
+        with patch.dict("utils.rate_limit_config.RATE_LIMIT_OVERRIDES", {"chat:send_message": (300, 3600)}, clear=False):
+            max_req, _ = get_effective_limit("chat:send_message", boost=2.0)
+            self.assertEqual(max_req, 300)
+
+    def test_no_override_falls_through_to_base_with_boost(self):
+        # Sanity: when no override is set for a policy, boost still applies
+        with patch.dict("utils.rate_limit_config.RATE_LIMIT_OVERRIDES", {}, clear=True):
+            max_req, _ = get_effective_limit("chat:send_message", boost=2.0)
+            base, _ = RATE_POLICIES["chat:send_message"]
+            self.assertEqual(max_req, base * 2)
 
 
 class TestShadowMode(unittest.TestCase):

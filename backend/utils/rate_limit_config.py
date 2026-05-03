@@ -8,7 +8,17 @@ prevents abuse and protects backend resources.
 Tuning knobs:
     RATE_LIMIT_BOOST: float multiplier on all limits (default 1.0).
         Set > 1.0 during events to relax limits, < 1.0 to tighten.
-        Read from env var RATE_LIMIT_BOOST at startup.
+        Applied to RATE_POLICIES base values; bypassed when an override
+        for the same policy is present in RATE_LIMIT_OVERRIDES.
+
+    RATE_LIMIT_OVERRIDES: comma-separated per-policy absolute overrides.
+        Format: "policy_name=max:window_seconds,policy_name=max:window".
+        Example:
+            RATE_LIMIT_OVERRIDES="conversations:reprocess=30:3600,conversations:merge=8:3600"
+        When a policy is overridden, the base value AND boost are both
+        ignored — the env value is the effective limit. This is the knob
+        for per-environment tuning (loosen on staging dogfood, tighten in
+        prod) without code changes or redeploys.
 
     RATE_LIMIT_SHADOW: defaults OFF (enforcement/429 rejections). Set env var
         RATE_LIMIT_SHADOW_MODE=true to revert to shadow/log-only mode.
@@ -18,7 +28,10 @@ Redis efficiency:
     Multi-instance safe — all state in Redis, no in-process caching.
 """
 
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Global knobs (read at import time from env vars)
@@ -26,6 +39,51 @@ import os
 
 RATE_LIMIT_BOOST: float = float(os.getenv("RATE_LIMIT_BOOST", "1.0"))
 RATE_LIMIT_SHADOW: bool = os.getenv("RATE_LIMIT_SHADOW_MODE", "false").lower() != "false"
+
+
+def parse_overrides(env_value: str) -> dict[str, tuple[int, int]]:
+    """Parse the RATE_LIMIT_OVERRIDES env value into a per-policy override map.
+
+    Format: ``policy_name=max:window,policy_name=max:window``. Whitespace
+    around entries is tolerated. Malformed entries (missing ``=``, non-int
+    max/window, missing ``:`` in spec) are skipped with a warning so a
+    single typo can't take the whole config offline.
+
+    Returns an empty dict for empty/whitespace-only input.
+    """
+    overrides: dict[str, tuple[int, int]] = {}
+    if not env_value or not env_value.strip():
+        return overrides
+    for entry in env_value.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        if "=" not in entry:
+            logger.warning("RATE_LIMIT_OVERRIDES: skipping entry without '=': %r", entry)
+            continue
+        name, _, spec = entry.partition("=")
+        name = name.strip()
+        spec = spec.strip()
+        if not name or ":" not in spec:
+            logger.warning("RATE_LIMIT_OVERRIDES: skipping malformed entry: %r", entry)
+            continue
+        try:
+            max_str, _, window_str = spec.partition(":")
+            max_req = int(max_str)
+            window = int(window_str)
+            if max_req < 1 or window < 1:
+                logger.warning("RATE_LIMIT_OVERRIDES: skipping non-positive entry: %r", entry)
+                continue
+            overrides[name] = (max_req, window)
+        except ValueError:
+            logger.warning("RATE_LIMIT_OVERRIDES: skipping non-numeric entry: %r", entry)
+            continue
+    return overrides
+
+
+RATE_LIMIT_OVERRIDES: dict[str, tuple[int, int]] = parse_overrides(
+    os.getenv("RATE_LIMIT_OVERRIDES", "")
+)
 
 # ---------------------------------------------------------------------------
 # Policies: "name" -> (max_requests, window_seconds)
@@ -82,7 +140,20 @@ RATE_POLICIES: dict[str, tuple[int, int]] = {
 
 
 def get_effective_limit(policy_name: str, boost: float | None = None) -> tuple[int, int]:
-    """Return (effective_max_requests, window_seconds) with boost applied."""
+    """Return ``(effective_max_requests, window_seconds)`` for ``policy_name``.
+
+    Resolution order:
+
+    1. ``RATE_LIMIT_OVERRIDES`` env var — if the policy is present, the
+       override is returned as-is. Boost is ignored. Window from the env
+       value, NOT from RATE_POLICIES, so an override can change both
+       dimensions in one knob.
+    2. ``RATE_POLICIES`` base — multiplied by ``boost`` (or
+       ``RATE_LIMIT_BOOST`` when boost is None). Floor of 1 so a tiny
+       boost can't fully zero a limit.
+    """
+    if policy_name in RATE_LIMIT_OVERRIDES:
+        return RATE_LIMIT_OVERRIDES[policy_name]
     base_max, window = RATE_POLICIES[policy_name]
     b = boost if boost is not None else RATE_LIMIT_BOOST
     return max(1, int(base_max * b)), window
