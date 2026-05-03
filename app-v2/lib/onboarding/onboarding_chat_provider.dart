@@ -101,6 +101,12 @@ class OnboardingChatProvider extends ChangeNotifier {
         return _signals.hasDevice == true ? 'connect later' : 'skip for now';
       case OnboardingStepId.speechProfile:
         return step.summarize(context, _signals.speechProfileCaptured == true);
+      case OnboardingStepId.pairPendant:
+        // Replay summary mirrors speechProfile: "captured" if the user
+        // completed pairing, "skipped" otherwise. Captured-state lives in
+        // PendantProvider (Lane C) at runtime, so on replay we conservatively
+        // surface "skipped" — the next opener will recheck live state.
+        return step.summarize(context, false);
       case OnboardingStepId.acknowledge:
         return null;
     }
@@ -234,11 +240,7 @@ class OnboardingChatProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       _kStateKey,
-      jsonEncode({
-        'currentStepIndex': _currentStepIndex,
-        'signals': _signals.toJson(),
-        'completed': _completed,
-      }),
+      jsonEncode({'currentStepIndex': _currentStepIndex, 'signals': _signals.toJson(), 'completed': _completed}),
     );
   }
 
