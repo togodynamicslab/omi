@@ -785,6 +785,58 @@ def get_reprocess_transcript_structure(
     return response
 
 
+# Structural template applied to every app's output. Apps still bring their
+# own *lens* via memory_prompt (what to emphasize, what perspective to take),
+# but the *shape* is the same across every meeting and every app.
+#
+# Why this lives in the wrapper, not in each app's prompt: apps live in
+# Firestore, prompts are user-editable, and we have no enforcement loop.
+# Putting structure here means a) every app renders the same shape from day
+# one without per-app prompt updates, b) installing a third-party app can't
+# break the shape, c) the structure can evolve in one place.
+#
+# Markdown only — keeps the wrapper simple and lets the existing
+# GenerativeMarkdownWidget on mobile render it cleanly. Apps that want
+# richer UI can still embed generative-UI tags (<rich-list>, <quote-board>,
+# etc.) inside any section; the parser handles mixed content.
+APP_RESULT_STRUCTURE_TEMPLATE = '''
+Format your response using EXACTLY this section structure. Every section must
+appear in this order. Use the explicit empty-state phrasing when a section has
+no real content — never silently drop a section, never invent content to fill
+one. Apply your lens (the Task above) INSIDE each section: a sales-focused
+lens highlights deal language in Topics and ownership in Action Items; an
+engineering lens highlights technical decisions and blockers; etc. Do NOT
+change section names, order, or add new top-level sections.
+
+## Snapshot
+One sentence summarizing the meeting through your lens. Keep it concrete.
+
+## Topics
+- 3 to 7 distinct topics discussed, each as one bullet.
+- Use specific nouns ("Q3 OKR review", not "Goals discussion").
+
+## Decisions
+- Explicit agreements reached. Format: "**[the call]** — [who decided / agreed]"
+- If no real decisions were made (casual chat, Q&A, brainstorming),
+  write exactly: "None this session."
+
+## Action Items
+- Who committed to do what, with a due date if stated. Format:
+  "**[Owner]** — [task] (*due [when]*)"
+- If nothing was committed, write exactly: "None captured."
+
+## Notable Quotes
+- 2 to 4 direct pulls from the transcript that capture the meeting's
+  character or a load-bearing line. Use blockquote markdown:
+  > "exact quote"
+- If nothing stood out, write exactly: "None."
+
+## Open Questions
+- Questions raised but unresolved during the meeting, one per bullet.
+- If nothing was left open, write exactly: "None."
+'''.strip()
+
+
 def get_app_result(transcript: str, photos: List[ConversationPhoto], app: App, language_code: str = 'en') -> str:
     context_parts = []
     if transcript and transcript.strip():
@@ -810,9 +862,11 @@ def get_app_result(transcript: str, photos: List[ConversationPhoto], app: App, l
 
     Conversation:
     {full_context}
+
+    {APP_RESULT_STRUCTURE_TEMPLATE}
     '''
 
-    response = llm_medium_experiment.invoke(prompt, prompt_cache_key="omi-app-result")
+    response = llm_medium_experiment.invoke(prompt, prompt_cache_key="omi-app-result-structured-v1")
     content = response.content.replace('```json', '').replace('```', '')
     return content
 
