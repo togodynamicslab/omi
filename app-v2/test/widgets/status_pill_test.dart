@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
-import 'package:nooto_v2/providers/pendant_provider_contract.dart';
+import 'package:nooto_v2/providers/pendant_provider.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 import 'package:nooto_v2/widgets/status_pill.dart';
