@@ -505,6 +505,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Summarize with an app'**
   String get summarizeWithApp;
+
+  /// Status pill label when pendant is connected and streaming.
+  ///
+  /// In en, this message translates to:
+  /// **'Live'**
+  String get pendantPillLive;
+
+  /// Status pill label during initial connection or first-pair handshake.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting…'**
+  String get pendantPillConnecting;
+
+  /// Status pill label after a BLE drop while auto-reconnect is in flight.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnecting'**
+  String get pendantPillReconnecting;
+
+  /// Status pill label after 30s with no successful reconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline since {time}'**
+  String pendantPillOfflineSince(String time);
+
+  /// Status pill label while AVAudioSession interruption is active (call, Siri, etc.).
+  ///
+  /// In en, this message translates to:
+  /// **'Paused'**
+  String get pendantPillPaused;
+
+  /// Pairing sheet title.
+  ///
+  /// In en, this message translates to:
+  /// **'Pair your pendant'**
+  String get pendantPairTitle;
+
+  /// Pairing sheet progress message during 5-15s first-pair characteristic discovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Setting up your pendant…'**
+  String get pendantPairConnecting;
+
+  /// Pairing sheet error message when the device does not expose the Omi audio service.
+  ///
+  /// In en, this message translates to:
+  /// **'This pendant doesn\'t expose Omi audio. Make sure your firmware is up to date.'**
+  String get pendantPairIncompatible;
+
+  /// Pairing sheet error message when BLE or mic permission is denied.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth and microphone access are needed to pair.'**
+  String get pendantPairPermissionDenied;
+
+  /// Pairing sheet CTA that opens the OS settings app.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Settings'**
+  String get pendantPairOpenSettings;
+
+  /// Pairing sheet CTA shown after an incompatible-device error.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get pendantPairTryAgain;
+
+  /// Home voice card title shown while no pendant is paired.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect your pendant'**
+  String get pendantVoiceCardConnectTitle;
+
+  /// Home voice card body shown while no pendant is paired.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to pair your Omi pendant.'**
+  String get pendantVoiceCardConnectBody;
+
+  /// Home voice card title shown after the pendant has been offline for at least 5 minutes.
+  ///
+  /// In en, this message translates to:
+  /// **'Your pendant disconnected at {time}.'**
+  String pendantVoiceCardOfflineTitle(String time);
+
+  /// Home voice card body shown after the pendant has been offline for at least 5 minutes.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to reconnect.'**
+  String get pendantVoiceCardOfflineBody;
+
+  /// Sheet prompt shown when phone-mic capture is requested while pendant is live.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause pendant for {seconds}s while we record your voice?'**
+  String pendantPausePrompt(int seconds);
+
+  /// Confirm CTA on the pause-pendant sheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause and continue'**
+  String get pendantPauseConfirm;
+
+  /// Onboarding chat turn text introducing pendant pairing after speech profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Pair your pendant when you\'re ready. Hold it near your phone so I can find it.'**
+  String get pendantOnboardingTurnText;
 }
 
 class _AppLocalizationsDelegate

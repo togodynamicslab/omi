@@ -244,4 +244,67 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get summarizeWithApp => 'Summarize with an app';
+
+  @override
+  String get pendantPillLive => 'Live';
+
+  @override
+  String get pendantPillConnecting => 'Connecting…';
+
+  @override
+  String get pendantPillReconnecting => 'Reconnecting';
+
+  @override
+  String pendantPillOfflineSince(String time) {
+    return 'Offline since $time';
+  }
+
+  @override
+  String get pendantPillPaused => 'Paused';
+
+  @override
+  String get pendantPairTitle => 'Pair your pendant';
+
+  @override
+  String get pendantPairConnecting => 'Setting up your pendant…';
+
+  @override
+  String get pendantPairIncompatible =>
+      'This pendant doesn\'t expose Omi audio. Make sure your firmware is up to date.';
+
+  @override
+  String get pendantPairPermissionDenied =>
+      'Bluetooth and microphone access are needed to pair.';
+
+  @override
+  String get pendantPairOpenSettings => 'Open Settings';
+
+  @override
+  String get pendantPairTryAgain => 'Try again';
+
+  @override
+  String get pendantVoiceCardConnectTitle => 'Connect your pendant';
+
+  @override
+  String get pendantVoiceCardConnectBody => 'Tap to pair your Omi pendant.';
+
+  @override
+  String pendantVoiceCardOfflineTitle(String time) {
+    return 'Your pendant disconnected at $time.';
+  }
+
+  @override
+  String get pendantVoiceCardOfflineBody => 'Tap to reconnect.';
+
+  @override
+  String pendantPausePrompt(int seconds) {
+    return 'Pause pendant for ${seconds}s while we record your voice?';
+  }
+
+  @override
+  String get pendantPauseConfirm => 'Pause and continue';
+
+  @override
+  String get pendantOnboardingTurnText =>
+      'Pair your pendant when you\'re ready. Hold it near your phone so I can find it.';
 }
