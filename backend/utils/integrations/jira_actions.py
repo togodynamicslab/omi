@@ -266,6 +266,65 @@ async def snooze_action_item(
     return refreshed
 
 
+async def fetch_issue_details(
+    uid: str,
+    action_item_id: str,
+    *,
+    http_client: Optional[httpx.AsyncClient] = None,
+) -> dict:
+    """Read-only fetch of the Jira issue's live details for the Plan detail
+    screen. Calls the plugin's ``GET /v1/issues/{key}/details`` and returns
+    the structured response (issue_key, summary, description, status,
+    priority, assignee). Description is plain text after ADF flattening.
+
+    No write-back gating — read-only flows are always allowed regardless of
+    the two-way-sync toggle.
+
+    Raises ``JiraActionNotFound`` when the action item is missing or not
+    Jira-linked, and ``JiraActionPluginError`` when the plugin URL is
+    unconfigured / network fails / plugin returns an error payload.
+    """
+    item = _get_jira_action_item(uid, action_item_id)
+    issue_key = item["external_source"]["external_id"]
+
+    base_url = _resolve_plugin_base_url()
+    if not base_url:
+        raise JiraActionNotFound("Jira plugin URL not configured")
+
+    url = f"{base_url}/v1/issues/{issue_key}/details"
+    owns_client = http_client is None
+    client = http_client or httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
+    try:
+        try:
+            resp = await client.get(url, params={"uid": uid})
+        except httpx.RequestError as exc:
+            logger.error("[JiraDetails] Network error calling plugin err=%s", sanitize(str(exc)))
+            raise JiraActionPluginError("Plugin network error") from exc
+
+        if resp.status_code != 200:
+            logger.warning(
+                "[JiraDetails] Plugin returned %s body=%s",
+                resp.status_code,
+                sanitize(resp.text[:500]),
+            )
+            raise JiraActionPluginError(f"Plugin HTTP {resp.status_code}")
+
+        body = resp.json() or {}
+    finally:
+        if owns_client:
+            await client.aclose()
+
+    if body.get("error"):
+        logger.info(
+            "[JiraDetails] Plugin reported error issue=%s err=%s",
+            issue_key,
+            sanitize(str(body.get("error"))),
+        )
+        raise JiraActionPluginError(str(body.get("error")))
+
+    return body
+
+
 def _infer_status_type(status_name: str) -> str:
     """Best-effort mapping from a free-form Jira status name to the canonical
     statusCategory key.
