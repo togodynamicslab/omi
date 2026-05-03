@@ -6,6 +6,7 @@ import 'package:nooto_v2/companion/companion_signals.dart';
 import 'package:nooto_v2/onboarding/widgets/acknowledge_turn.dart';
 import 'package:nooto_v2/onboarding/widgets/chip_widget_turn.dart';
 import 'package:nooto_v2/onboarding/widgets/device_pairing_turn.dart';
+import 'package:nooto_v2/onboarding/widgets/pair_pendant_turn.dart';
 import 'package:nooto_v2/onboarding/widgets/permission_widget_turn.dart';
 import 'package:nooto_v2/onboarding/widgets/speech_profile_turn.dart';
 import 'package:nooto_v2/onboarding/widgets/text_input_turn.dart';
@@ -28,6 +29,7 @@ enum OnboardingStepId {
   location,
   device,
   speechProfile,
+  pairPendant,
   acknowledge,
 }
 
@@ -130,6 +132,15 @@ const _registry = <ChatStepDef>[
     summarize: _summarizeSpeechProfile,
   ),
   ChatStepDef(
+    id: OnboardingStepId.pairPendant,
+    acceptsTypedAnswer: false,
+    skippable: true,
+    includeForPlatform: _allPlatforms,
+    fallbackOpener: _openerPairPendant,
+    widgetBuilder: _buildPairPendant,
+    summarize: _summarizePairPendant,
+  ),
+  ChatStepDef(
     id: OnboardingStepId.acknowledge,
     acceptsTypedAnswer: false,
     skippable: false,
@@ -150,6 +161,7 @@ String _openerBackground(BuildContext c, CompanionSignals s) => AppLocalizations
 String _openerLocation(BuildContext c, CompanionSignals s) => AppLocalizations.of(c).onboardingOpenerLocation;
 String _openerDevice(BuildContext c, CompanionSignals s) => AppLocalizations.of(c).onboardingOpenerDevice;
 String _openerSpeechProfile(BuildContext c, CompanionSignals s) => AppLocalizations.of(c).onboardingOpenerSpeechProfile;
+String _openerPairPendant(BuildContext c, CompanionSignals s) => AppLocalizations.of(c).pendantOnboardingTurnText;
 String _openerAcknowledge(BuildContext c, CompanionSignals s) => AppLocalizations.of(c).onboardingOpenerAcknowledge;
 
 // Widget builders
@@ -165,13 +177,13 @@ Widget _buildLocationPermission(BuildContext c, String turnId) =>
     PermissionWidgetTurn(turnId: turnId, kind: PermissionKind.location);
 Widget _buildDevicePairing(BuildContext c, String turnId) => DevicePairingTurn(turnId: turnId);
 Widget _buildSpeechProfile(BuildContext c, String turnId) => SpeechProfileTurn(turnId: turnId);
+Widget _buildPairPendant(BuildContext c, String turnId) => PairPendantTurn(turnId: turnId);
 Widget _buildAcknowledge(BuildContext c, String turnId) => AcknowledgeTurn(turnId: turnId);
 
 // Summaries
 String _summarizeText(BuildContext c, dynamic v) => v is String ? v : '';
 String _summarizeChip(BuildContext c, dynamic v) => v is String ? v : '';
-String _summarizeLanguage(BuildContext c, dynamic v) =>
-    v is String ? (kLanguageLabelById[v] ?? v) : '';
+String _summarizeLanguage(BuildContext c, dynamic v) => v is String ? (kLanguageLabelById[v] ?? v) : '';
 String _summarizePermission(BuildContext c, dynamic v) {
   final l = AppLocalizations.of(c);
   if (v == 'granted') return l.onboardingPermissionGranted;
@@ -180,6 +192,12 @@ String _summarizePermission(BuildContext c, dynamic v) {
 }
 
 String _summarizeSpeechProfile(BuildContext c, dynamic v) {
+  final l = AppLocalizations.of(c);
+  if (v == true) return l.onboardingSpeechCaptured;
+  return l.onboardingSkipped;
+}
+
+String _summarizePairPendant(BuildContext c, dynamic v) {
   final l = AppLocalizations.of(c);
   if (v == true) return l.onboardingSpeechCaptured;
   return l.onboardingSkipped;

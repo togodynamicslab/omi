@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:nooto_v2/home/cards/connect_pendant_voice_card.dart';
 import 'package:nooto_v2/home/companion_card.dart';
 import 'package:nooto_v2/home/companion_stream_provider.dart';
 import 'package:nooto_v2/home/home_nav.dart';
 import 'package:nooto_v2/onboarding/onboarding_chat_provider.dart';
 import 'package:nooto_v2/providers/action_items_provider.dart';
+import 'package:nooto_v2/providers/pendant_provider.dart';
+import 'package:nooto_v2/services/ble/pendant_state.dart';
 import 'package:nooto_v2/services/chat_service.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 
@@ -38,11 +41,7 @@ class HomeScreen extends StatelessWidget {
       providers: [
         Provider<HomeNav>.value(value: HomeNav(switchToTab: onSwitchToTab)),
         ChangeNotifierProvider<CompanionStreamProvider>(
-          create: (_) => CompanionStreamProvider(
-            signals: signals,
-            actionItems: actionItems,
-            chatService: chatService,
-          ),
+          create: (_) => CompanionStreamProvider(signals: signals, actionItems: actionItems, chatService: chatService),
         ),
       ],
       child: _HomeBody(onSwitchToTab: onSwitchToTab),
@@ -59,20 +58,41 @@ class _HomeBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<CompanionStreamProvider>(
       builder: (context, stream, _) {
-        return Column(
-          children: [
-            Expanded(
-              child: _CardList(cards: stream.cards),
-            ),
-            _Composer(
-              onTap: () {
-                onSwitchToTab(1); // Chat tab
-              },
-            ),
-          ],
+        // Selector keeps the rebuild scope tight: only the PendantInfo
+        // affects the merged card list. Avoids editing companion_stream_
+        // provider.dart so Lane D stays additive.
+        return Selector<PendantProvider, PendantInfo>(
+          selector: (_, p) => p.info,
+          builder: (context, info, _) {
+            final cards = _mergePendantCard(stream.cards, info);
+            return Column(
+              children: [
+                Expanded(child: _CardList(cards: cards)),
+                _Composer(
+                  onTap: () {
+                    onSwitchToTab(1); // Chat tab
+                  },
+                ),
+              ],
+            );
+          },
         );
       },
     );
+  }
+
+  /// Inserts the connect-pendant voice card into the stream when
+  /// `PendantState` is `unpaired` (priority 950) or `offline` for ≥ 5 min
+  /// (priority 600). Pure list operation — keeps the stream provider's
+  /// generator pattern untouched while honoring the State × surface matrix.
+  List<CompanionCard> _mergePendantCard(List<CompanionCard> base, PendantInfo info) {
+    final card = connectPendantVoiceCardFor(info);
+    if (card == null) {
+      return base.where((c) => c is! ConnectPendantVoiceCard).toList();
+    }
+    final merged = [...base.where((c) => c is! ConnectPendantVoiceCard), card];
+    merged.sort((a, b) => b.priority.compareTo(a.priority));
+    return merged;
   }
 }
 
@@ -113,11 +133,7 @@ class _QuietEmpty extends StatelessWidget {
         padding: const EdgeInsets.all(AppStyles.spacingXL),
         child: Text(
           "I'm here when you need me.",
-          style: brandEmphasis(
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-            color: AppColors.textTertiary,
-          ),
+          style: brandEmphasis(fontSize: 18, fontWeight: FontWeight.w500, color: AppColors.textTertiary),
           textAlign: TextAlign.center,
         ),
       ),
@@ -155,10 +171,7 @@ class _Composer extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppStyles.radiusXLarge),
               border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
             ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppStyles.spacingL,
-              vertical: AppStyles.spacingM,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingL, vertical: AppStyles.spacingM),
             // Use a readOnly TextField (vs. plain Text) so hint metrics —
             // line-height, letter-spacing, baseline — match the Chat tab
             // composer exactly. onTap routes to Chat instead of editing.
@@ -168,16 +181,10 @@ class _Composer extends StatelessWidget {
                 readOnly: true,
                 showCursor: false,
                 onTap: onTap,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: AppColors.textPrimary,
-                ),
+                style: const TextStyle(fontSize: 16, color: AppColors.textPrimary),
                 decoration: const InputDecoration(
                   hintText: "What's on your mind?",
-                  hintStyle: TextStyle(
-                    fontSize: 16,
-                    color: AppColors.textTertiary,
-                  ),
+                  hintStyle: TextStyle(fontSize: 16, color: AppColors.textTertiary),
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
                   isDense: true,
