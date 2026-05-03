@@ -13,6 +13,12 @@ class FrameSyncKey {
 
   FrameSyncKey(this.bytes);
 
+  /// BLE sync key from 3-byte firmware header [packet_id_low, packet_id_high, packet_index].
+  factory FrameSyncKey.fromBleHeader(List<int> header) {
+    return FrameSyncKey(List<int>.unmodifiable(header.sublist(0, 3)));
+  }
+
+  /// Phone mic sync key from monotonic frame index (0-255 wrapping).
   factory FrameSyncKey.fromIndex(int index) {
     return FrameSyncKey(List<int>.unmodifiable([index & 0xFF]));
   }

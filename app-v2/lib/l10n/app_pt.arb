@@ -1,10 +1,13 @@
 {
   "@@locale": "pt",
   "appName": "Nooto",
-
   "welcomeBrandLine": "Bem-vindo ao {brand}",
   "@welcomeBrandLine": {
-    "placeholders": { "brand": { "type": "String" } }
+    "placeholders": {
+      "brand": {
+        "type": "String"
+      }
+    }
   },
   "welcomeTaglinePrefix": "Inteligência pessoal que transforma ",
   "welcomeTaglineEmphasis": "pensamento em ação.",
@@ -12,14 +15,16 @@
   "welcomeContinueWithGoogle": "Continuar com Google",
   "welcomeWaitingForBrowser": "Aguardando o navegador…",
   "welcomeAgreeFooter": "Ao continuar você concorda com nossos Termos e Política de Privacidade.",
-
   "onboardingPromptHintTyped": "Digite sua resposta…",
   "onboardingPromptHintTap": "Toque em uma opção acima para continuar",
-
   "onboardingOpenerName": "Oi — como você quer que eu te chame?",
   "onboardingOpenerLanguage": "Prazer em te conhecer, {name}. Em qual idioma você quer que eu fale?",
   "@onboardingOpenerLanguage": {
-    "placeholders": { "name": { "type": "String" } }
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   },
   "onboardingOpenerMicrophone": "Vou precisar do seu microfone para ouvir o que importa.",
   "onboardingOpenerNotifications": "Tudo bem se eu te avisar quando algo precisar da sua atenção?",
@@ -29,13 +34,11 @@
   "onboardingOpenerSpeechProfile": "Deixa eu aprender sua voz para te reconhecer no meio de outras.",
   "onboardingOpenerAcknowledge": "Tudo pronto. Vamos lá.",
   "onboardingSkipped": "Claro, podemos fazer isso depois.",
-
   "onboardingChipMoreLanguages": "Mais idiomas…",
   "onboardingChipSkipForNow": "Pular por agora",
   "onboardingChipPairLater": "Vou parear depois",
   "onboardingAckLetsGo": "Vamos lá",
   "onboardingAckGotIt": "Entendi",
-
   "onboardingPermissionAllow": "Permitir",
   "onboardingPermissionPending": "Pendente",
   "onboardingPermissionGranted": "Permitido",
@@ -49,37 +52,44 @@
   "onboardingPermissionLabelBackgroundHelper": "Permite que o Nooto continue ativo enquanto você usa outros apps.",
   "onboardingPermissionLabelLocation": "Localização",
   "onboardingPermissionLabelLocationHelper": "Marca conversas com o local em que aconteceram. Opcional.",
-
   "onboardingSpeechCardTitle": "Leia isto em voz alta",
   "onboardingSpeechCardBody": "Quando estiver pronto, segure o botão e leia isto em voz normal por uns cinco segundos.",
   "onboardingSpeechCardSample": "Oi, estou configurando o Nooto. É assim que minha voz soa numa sala normal.",
   "onboardingSpeechRecording": "Ouvindo…",
   "onboardingSpeechCaptured": "Voz capturada ✓",
   "onboardingSpeechSkip": "Pular por agora",
-
   "shellTabHome": "Início",
   "shellTabChat": "Chat",
   "shellTabLibrary": "Biblioteca",
   "shellTabPlan": "Plano",
   "shellTabApps": "Apps",
-
   "shellComingSoonTitle": "{tab} chega em breve",
   "@shellComingSoonTitle": {
-    "placeholders": { "tab": { "type": "String" } }
+    "placeholders": {
+      "tab": {
+        "type": "String"
+      }
+    }
   },
   "shellComingSoonBody": "Esta tela chega em uma fase futura. Por enquanto, o Nooto v2 é só o fluxo de boas-vindas e onboarding.",
   "todayCardHeader": "Hoje",
   "todayCardCountPartial": "{visible} de {total}",
   "@todayCardCountPartial": {
     "placeholders": {
-      "visible": {"type": "int"},
-      "total": {"type": "int"}
+      "visible": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "todayCardCountFull": "{count, plural, =1{1 item} other{{count} itens}}",
   "@todayCardCountFull": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "todayCardSeeAll": "Ver tudo",
@@ -88,7 +98,9 @@
   "summarizedBy": "Summarized by {name}",
   "@summarizedBy": {
     "placeholders": {
-      "name": { "type": "String" }
+      "name": {
+        "type": "String"
+      }
     }
   },
   "noSummaryForApp": "No summary available — tap to choose another app",
@@ -100,5 +112,92 @@
   "summarizedAppsSuggestedSection": "Suggested",
   "summarizedAppsAvailableSection": "Installed",
   "summarizedAppsEmpty": "No apps installed yet",
-  "summarizeWithApp": "Summarize with an app"
+  "summarizeWithApp": "Summarize with an app",
+  "pendantPillLive": "Ao vivo",
+  "@pendantPillLive": {
+    "description": "Status pill label when pendant is connected and streaming."
+  },
+  "pendantPillConnecting": "Conectando…",
+  "@pendantPillConnecting": {
+    "description": "Status pill label during initial connection or first-pair handshake."
+  },
+  "pendantPillReconnecting": "Reconectando",
+  "@pendantPillReconnecting": {
+    "description": "Status pill label after a BLE drop while auto-reconnect is in flight."
+  },
+  "pendantPillOfflineSince": "Offline desde {time}",
+  "@pendantPillOfflineSince": {
+    "description": "Status pill label after 30s with no successful reconnect.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "pendantPillPaused": "Pausado",
+  "@pendantPillPaused": {
+    "description": "Status pill label while AVAudioSession interruption is active (call, Siri, etc.)."
+  },
+  "pendantPairTitle": "Conectar pendant",
+  "@pendantPairTitle": {
+    "description": "Pairing sheet title."
+  },
+  "pendantPairConnecting": "Configurando seu pendant…",
+  "@pendantPairConnecting": {
+    "description": "Pairing sheet progress message during 5-15s first-pair characteristic discovery."
+  },
+  "pendantPairIncompatible": "Este pendant não expõe áudio Omi. Verifique se o firmware está atualizado.",
+  "@pendantPairIncompatible": {
+    "description": "Pairing sheet error message when the device does not expose the Omi audio service."
+  },
+  "pendantPairPermissionDenied": "Acesso a Bluetooth e microfone é necessário para conectar.",
+  "@pendantPairPermissionDenied": {
+    "description": "Pairing sheet error message when BLE or mic permission is denied."
+  },
+  "pendantPairOpenSettings": "Abrir Ajustes",
+  "@pendantPairOpenSettings": {
+    "description": "Pairing sheet CTA that opens the OS settings app."
+  },
+  "pendantPairTryAgain": "Tentar novamente",
+  "@pendantPairTryAgain": {
+    "description": "Pairing sheet CTA shown after an incompatible-device error."
+  },
+  "pendantVoiceCardConnectTitle": "Conecte seu pendant",
+  "@pendantVoiceCardConnectTitle": {
+    "description": "Home voice card title shown while no pendant is paired."
+  },
+  "pendantVoiceCardConnectBody": "Toque para conectar seu pendant Omi.",
+  "@pendantVoiceCardConnectBody": {
+    "description": "Home voice card body shown while no pendant is paired."
+  },
+  "pendantVoiceCardOfflineTitle": "Seu pendant desconectou às {time}.",
+  "@pendantVoiceCardOfflineTitle": {
+    "description": "Home voice card title shown after the pendant has been offline for at least 5 minutes.",
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "pendantVoiceCardOfflineBody": "Toque para reconectar.",
+  "@pendantVoiceCardOfflineBody": {
+    "description": "Home voice card body shown after the pendant has been offline for at least 5 minutes."
+  },
+  "pendantPausePrompt": "Pausar pendant por {seconds}s para gravar sua voz?",
+  "@pendantPausePrompt": {
+    "description": "Sheet prompt shown when phone-mic capture is requested while pendant is live.",
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "pendantPauseConfirm": "Pausar e continuar",
+  "@pendantPauseConfirm": {
+    "description": "Confirm CTA on the pause-pendant sheet."
+  },
+  "pendantOnboardingTurnText": "Conecte seu pendant quando estiver pronto. Mantenha-o perto do telefone para que eu possa encontrá-lo.",
+  "@pendantOnboardingTurnText": {
+    "description": "Onboarding chat turn text introducing pendant pairing after speech profile."
+  }
 }
