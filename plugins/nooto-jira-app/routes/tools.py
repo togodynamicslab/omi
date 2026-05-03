@@ -30,6 +30,7 @@ from models import (
     JiraAddCommentRequest,
     JiraCreateIssueRequest,
     JiraGetIssueRequest,
+    JiraIssueDetailsResponse,
     JiraListMyIssuesRequest,
     JiraListProjectsRequest,
     JiraListReleasesRequest,
@@ -348,6 +349,61 @@ async def tool_get_issue(req: JiraGetIssueRequest) -> ChatToolResponse:
         body += f"\n\n{description_text}"
 
     return ChatToolResponse(result=body, data=result)
+
+
+@router.get("/v1/issues/{issue_key}/details", response_model=JiraIssueDetailsResponse)
+async def get_issue_details(issue_key: str, uid: str) -> JiraIssueDetailsResponse:
+    """Structured-JSON variant of `/tools/get_issue` for the Plan detail
+    screen's on-demand fetch. Returns typed fields the backend can forward
+    directly to the client without parsing a formatted result string.
+
+    Description is the plain-text flattening of Jira's ADF, capped at
+    2000 chars (same cap as `_normalize_jira_issue` for consistency).
+    """
+    if not _validate_issue_key(issue_key):
+        return JiraIssueDetailsResponse(issue_key=issue_key, summary="", error=f"Invalid issue key: {issue_key!r}.")
+
+    active = _resolve_active(uid)
+    if isinstance(active, ChatToolResponse):
+        return JiraIssueDetailsResponse(
+            issue_key=issue_key,
+            summary="",
+            error=active.error,
+            oauth_url=active.oauth_url,
+        )
+    token, cloudid, _ = active
+
+    try:
+        result = jira_client.get_issue(cloudid, token, key=issue_key, fields=_DETAIL_FIELDS)
+    except JiraAuthError:
+        return JiraIssueDetailsResponse(issue_key=issue_key, summary="", error="Jira auth failed.", oauth_url=_oauth_url(uid))
+    except JiraNotFound:
+        return JiraIssueDetailsResponse(issue_key=issue_key, summary="", error=f"Issue {issue_key} not found.")
+    except JiraRateLimit:
+        return JiraIssueDetailsResponse(issue_key=issue_key, summary="", error="Jira is rate-limiting; try again shortly.")
+    except httpx.HTTPStatusError as e:
+        log.warning("get_issue_details failed: %s", e)
+        return JiraIssueDetailsResponse(issue_key=issue_key, summary="", error=f"Failed to fetch issue: {e.response.status_code}")
+    except Exception as e:  # pragma: no cover
+        log.exception("get_issue_details unexpected error")
+        return JiraIssueDetailsResponse(issue_key=issue_key, summary="", error=f"Failed to fetch issue: {e}")
+
+    f = result.get("fields", {}) or {}
+    summary = (f.get("summary") or "").strip()
+    status_name = ((f.get("status") or {}).get("name")) or None
+    priority_name = ((f.get("priority") or {}).get("name")) or None
+    assignee = (f.get("assignee") or {}).get("displayName") or None
+    description_text = _adf_to_text(f.get("description"))
+    if description_text and len(description_text) > 2000:
+        description_text = description_text[:1999].rstrip() + "…"
+    return JiraIssueDetailsResponse(
+        issue_key=issue_key,
+        summary=summary,
+        description=description_text or None,
+        status=status_name,
+        priority=priority_name,
+        assignee=assignee,
+    )
 
 
 @router.post("/tools/update_issue_status", response_model=ChatToolResponse)
