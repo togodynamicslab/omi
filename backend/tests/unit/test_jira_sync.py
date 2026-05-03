@@ -230,6 +230,8 @@ class TestExternalSourceMetadata:
             "priority": "High",
             "project_key": "PROJ",
             "status_changed_at": "2026-04-28T14:00:00.000+0000",
+            # description is intentionally NOT cached in metadata — Plan
+            # detail screen fetches it on demand from Jira.
             "description": "Validate Partner status on WO assignment.",
         }
         ext = jira_sync._build_external_source(task)
@@ -240,17 +242,19 @@ class TestExternalSourceMetadata:
         assert md["priority"] == "High"
         assert md["project_key"] == "PROJ"
         assert md["status_changed_at"] == "2026-04-28T14:00:00.000+0000"
-        assert md["description_body"] == "Validate Partner status on WO assignment."
 
-    def test_description_body_omitted_when_empty_or_missing(self):
-        # Empty string → not emitted (so deep-merge doesn't zap a prior body).
-        task = {"external_id": "P-1", "description": ""}
+    def test_description_is_never_cached_in_metadata(self):
+        # Even when the plugin returns a description, we deliberately drop
+        # it. Plan detail screen fetches on demand so users always see the
+        # current Jira state, and we don't duplicate Jira's RBAC content
+        # into Firestore.
+        task = {
+            "external_id": "P-1",
+            "description": "long Jira description body that should not land in metadata",
+        }
         ext = jira_sync._build_external_source(task)
         assert "description_body" not in ext.get("metadata", {})
-        # Missing key → not emitted.
-        task2 = {"external_id": "P-1"}
-        ext2 = jira_sync._build_external_source(task2)
-        assert "description_body" not in ext2.get("metadata", {})
+        assert "description" not in ext.get("metadata", {})
 
     def test_status_type_done_passes_through(self):
         task = {"external_id": "P-1", "status_type": "done"}
