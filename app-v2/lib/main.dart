@@ -21,8 +21,11 @@ import 'package:nooto_v2/plan/plan_storage.dart';
 import 'package:nooto_v2/providers/action_items_provider.dart';
 import 'package:nooto_v2/providers/auth_provider.dart';
 import 'package:nooto_v2/providers/locale_provider.dart';
+import 'package:nooto_v2/providers/pendant_provider.dart';
 import 'package:nooto_v2/services/api_client.dart';
 import 'package:nooto_v2/services/app_links_service.dart';
+import 'package:nooto_v2/services/ble/omi_pendant.dart';
+import 'package:nooto_v2/services/ble/socket_streamer.dart';
 import 'package:nooto_v2/services/chat_service.dart';
 
 Future<void> main() async {
@@ -39,12 +42,24 @@ Future<void> main() async {
     Hive.openBox<Map>(ChatBoxes.sessions),
     Hive.openBox<Map>(AppsBoxes.prefs),
     Hive.openBox<dynamic>(PlanBoxes.prefs),
+    Hive.openBox<dynamic>(OmiPendant.hiveBoxName),
   ]);
   final localeProvider = LocaleProvider();
   await localeProvider.hydrate();
   final apiClient = ApiClient();
   final chatService = ChatService(client: apiClient);
   final appLinksService = AppLinksService();
+  // Process-level singletons for the pendant recording stack (Lane C).
+  // Per Decision 1C in the eng-review test plan, OmiPendant and
+  // SocketStreamer survive Provider tree rebuilds; PendantProvider is the
+  // thin ChangeNotifier adapter wired into the Provider tree below.
+  final omiPendant = OmiPendant.instance;
+  final socketStreamer = SocketStreamer();
+  final pendantProvider = PendantProvider(pendant: omiPendant, socket: socketStreamer);
+  // Cold-start auto-reconnect: read last-paired pendant from Hive and
+  // attempt to reconnect. Non-blocking — the UI can render before BLE
+  // resolves.
+  unawaited(pendantProvider.bootstrap());
   // App-startup deep-link wiring. AppsProvider drains the cold-start link
   // (captured before apps load) and listens for warm links thereafter. The
   // AppsProvider construction below grabs both via the closure.
@@ -88,6 +103,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => ConversationsProvider(client: apiClient)),
         Provider<ChatService>.value(value: chatService),
         ChangeNotifierProvider(create: (_) => ChatProvider(service: chatService)),
+        ChangeNotifierProvider<PendantProvider>.value(value: pendantProvider),
       ],
       child: const MobileApp(),
     ),
