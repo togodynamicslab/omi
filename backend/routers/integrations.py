@@ -372,6 +372,57 @@ async def jira_transition(
     return updated
 
 
+class JiraIssueDetailsResponse(BaseModel):
+    """Structured Jira details for the Plan detail screen's on-demand fetch.
+
+    Mirrors the plugin's ``JiraIssueDetailsResponse`` 1:1 — the route is a
+    thin proxy that adds Firebase auth + action-item ownership lookup.
+    """
+
+    issue_key: str
+    summary: str
+    description: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    assignee: Optional[str] = None
+
+
+@router.get(
+    "/v1/integrations/{integration_id}/action-items/{action_item_id}/jira-details",
+    response_model=JiraIssueDetailsResponse,
+    tags=['integrations'],
+)
+async def jira_issue_details(
+    integration_id: str,
+    action_item_id: str,
+    uid: str = Depends(auth.get_current_user_uid),
+):
+    """Fetch the live Jira issue details for a Plan row, on demand.
+
+    Read-only — NOT gated on two-way-sync because we never write. The Plan
+    detail screen calls this on mount; we fetch from Jira every time
+    instead of caching in Firestore so users always see the current
+    description and we don't duplicate Jira's RBAC-controlled content into
+    our DB.
+    """
+    try:
+        details = await jira_actions.fetch_issue_details(uid, action_item_id)
+    except jira_actions.JiraActionNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except jira_actions.JiraActionPluginError as e:
+        logger.warning("[JiraDetails] plugin error uid=%s err=%s", uid, sanitize(str(e)))
+        raise HTTPException(status_code=502, detail={"error": "jira_plugin_error"})
+
+    return JiraIssueDetailsResponse(
+        issue_key=details.get("issue_key", ""),
+        summary=details.get("summary") or "",
+        description=details.get("description"),
+        status=details.get("status"),
+        priority=details.get("priority"),
+        assignee=details.get("assignee"),
+    )
+
+
 @router.post("/v1/integrations/{integration_id}/snooze", tags=['integrations'])
 async def jira_snooze(
     integration_id: str,

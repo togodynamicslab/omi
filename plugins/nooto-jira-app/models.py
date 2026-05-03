@@ -126,6 +126,25 @@ class TranscriptSegment(BaseModel):
     end: Optional[float] = None
 
 
+class JiraIssueDetailsResponse(BaseModel):
+    """Structured details for the Plan detail screen's on-demand fetch.
+
+    Returned by ``GET /v1/issues/{key}/details``. Distinct from
+    ``ChatToolResponse`` because the client (via the backend proxy) wants
+    typed fields, not a formatted string. Description is plain text after
+    ADF flattening, capped at 2000 chars.
+    """
+
+    issue_key: str
+    summary: str
+    description: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    assignee: Optional[str] = None
+    error: Optional[str] = None
+    oauth_url: Optional[str] = None
+
+
 class WebhookRequest(BaseModel):
     segments: list[TranscriptSegment] = Field(default_factory=list)
     session_id: Optional[str] = None
