@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/onboarding/onboarding_chat_provider.dart';
 import 'package:nooto_v2/onboarding/widgets/pair_pendant_turn.dart';
-import 'package:nooto_v2/providers/pendant_provider_contract.dart';
+import 'package:nooto_v2/providers/pendant_provider.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
 
 import '../../test_helpers/fake_pendant_provider.dart';
