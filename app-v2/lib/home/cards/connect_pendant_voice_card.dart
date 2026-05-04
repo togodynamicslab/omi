@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nooto_v2/home/cards/card_entrance.dart';
 import 'package:nooto_v2/home/companion_card.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
-import 'package:nooto_v2/services/ble/pairing_sheet.dart';
+import 'package:nooto_v2/pendant/pendant_screen.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 
@@ -22,9 +22,9 @@ import 'package:nooto_v2/theme/app_theme.dart';
 /// test enforces this by asserting the absence of any wrapping Container with
 /// `backgroundSecondary`.
 ///
-/// Tap → opens the pairing sheet. Caller (Home companion stream) gates
-/// emission on the `PendantState` predicate above; this card itself does not
-/// poke into the provider.
+/// Tap → pushes `PendantScreen.route()`. Caller (Home companion stream)
+/// gates emission on the `PendantState` predicate above; this card itself
+/// does not poke into the provider.
 final class ConnectPendantVoiceCard extends CompanionCard {
   ConnectPendantVoiceCard({required this.variant, required this.generatedAt, this.offlineSince});
 
@@ -68,7 +68,7 @@ final class ConnectPendantVoiceCard extends CompanionCard {
   @override
   void onAction(BuildContext context, CardAction action) {
     if (action == CardAction.tapThrough) {
-      PairingSheet.show(context);
+      Navigator.of(context).push(PendantScreen.route());
     }
   }
 
