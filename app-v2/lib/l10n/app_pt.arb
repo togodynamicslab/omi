@@ -146,7 +146,7 @@
   "@pendantPairConnecting": {
     "description": "Pairing sheet progress message during 5-15s first-pair characteristic discovery."
   },
-  "pendantPairIncompatible": "Este pendant não expõe áudio Omi. Verifique se o firmware está atualizado.",
+  "pendantPairIncompatible": "Este pendant não expõe o serviço de áudio correto. Verifique se o firmware está atualizado.",
   "@pendantPairIncompatible": {
     "description": "Pairing sheet error message when the device does not expose the Omi audio service."
   },
@@ -166,7 +166,7 @@
   "@pendantVoiceCardConnectTitle": {
     "description": "Home voice card title shown while no pendant is paired."
   },
-  "pendantVoiceCardConnectBody": "Toque para conectar seu pendant Omi.",
+  "pendantVoiceCardConnectBody": "Toque para conectar seu pendant.",
   "@pendantVoiceCardConnectBody": {
     "description": "Home voice card body shown while no pendant is paired."
   },
@@ -212,7 +212,7 @@
   "@pendantScreenPairCta": {
     "description": "Primary CTA on the pendant screen when no pendant is paired."
   },
-  "pendantScreenPairHint": "Mantenha seu pendant Omi perto do telefone.",
+  "pendantScreenPairHint": "Mantenha seu pendant perto do telefone.",
   "@pendantScreenPairHint": {
     "description": "Hint shown under the pair CTA on the pendant screen."
   },
@@ -277,5 +277,9 @@
   "settingsPermissionStatusPermanentlyDenied": "Permanentemente negado",
   "settingsPermissionStatusRestricted": "Restrito",
   "settingsPermissionStatusLimited": "Limitado",
-  "settingsPermissionOpenSettingsCta": "Abrir Ajustes"
+  "settingsPermissionOpenSettingsCta": "Abrir Ajustes",
+  "pendantScreenDefaultDeviceName": "Pendant Nooto",
+  "@pendantScreenDefaultDeviceName": {
+    "description": "Default device name shown in PendantScreen when info.deviceName is null"
+  }
 }
