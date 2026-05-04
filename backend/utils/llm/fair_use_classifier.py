@@ -26,7 +26,7 @@ CLASSIFIER_MAX_CONVERSATIONS = 30
 # Prompt recipes for different non-personal usage scenarios
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """You are a fair-use cost-protection analyst for Omi, a personal AI wearable device.
+SYSTEM_PROMPT = """You are a fair-use cost-protection analyst for Nooto, a personal AI wearable device.
 
 OBJECTIVE: Protect against abuse that causes excessive Deepgram transcription costs. The concern is users who BOTH use the device for the wrong purpose AND consume disproportionate resources. Wrong purpose alone at low volume is NOT a concern.
 
@@ -37,7 +37,7 @@ CRITICAL RULES:
 - A single suspicious conversation is NOT enough. Require a clear PATTERN across many sessions.
 - High usage of personal conversations is 100% LEGITIMATE — never flag this.
 - Someone recording 10 hours of work meetings per day is a power user, NOT an abuser.
-- Only flag patterns where the user is clearly using Omi as a bulk transcription tool for pre-recorded or non-live content.
+- Only flag patterns where the user is clearly using Nooto as a bulk transcription tool for pre-recorded or non-live content.
 
 LEGITIMATE USE (score 0.0-0.3, do NOT flag regardless of volume):
 - Personal conversations (any length, any frequency)
