@@ -52,6 +52,11 @@ class PendantProvider extends ChangeNotifier {
   /// when the pendant is offline.
   Future<void> reconnect() => _pendant.reconnect();
 
+  /// Public action — used by the dedicated pendant screen's "Disconnect"
+  /// button. Thin pass-through to [OmiPendant.disconnect]; the provider's
+  /// `_onInfoChanged` listener handles the socket teardown side effects.
+  Future<void> disconnect() => _pendant.disconnect();
+
   /// Cold-start hook. Should be called once at app boot after Hive is
   /// open. Reads the last-paired device id and attempts to auto-connect.
   Future<void> bootstrap() => _pendant.tryAutoReconnect();
