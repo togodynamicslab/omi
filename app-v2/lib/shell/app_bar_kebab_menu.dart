@@ -8,6 +8,7 @@ import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/onboarding/onboarding_chat_provider.dart';
 import 'package:nooto_v2/pendant/pendant_screen.dart';
 import 'package:nooto_v2/providers/auth_provider.dart';
+import 'package:nooto_v2/settings/settings_screen.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 
 /// Sign-out + (debug) reset menu. Lives in the trailing slot of whichever
@@ -29,7 +30,9 @@ class _AppBarKebabMenuState extends State<AppBarKebabMenu> {
       icon: const Icon(Icons.more_vert, color: AppColors.textTertiary, size: 20),
       color: AppColors.backgroundSecondary,
       onSelected: (v) async {
-        if (v == 'pendant') {
+        if (v == 'settings') {
+          await Navigator.of(context).push(SettingsScreen.route());
+        } else if (v == 'pendant') {
           await Navigator.of(context).push(PendantScreen.route());
         } else if (v == 'signout') {
           await context.read<AuthChangeProvider>().signOut();
@@ -38,6 +41,10 @@ class _AppBarKebabMenuState extends State<AppBarKebabMenu> {
         }
       },
       itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'settings',
+          child: Text(l.settingsMenuItem, style: const TextStyle(color: AppColors.textPrimary)),
+        ),
         PopupMenuItem(
           value: 'pendant',
           child: Text(l.pendantScreenMenuItem, style: const TextStyle(color: AppColors.textPrimary)),

@@ -249,5 +249,33 @@
         "type": "String"
       }
     }
-  }
+  },
+  "settingsScreenTitle": "Configurações",
+  "settingsMenuItem": "Configurações",
+  "settingsDevModeHeader": "Modo Desenvolvedor",
+  "settingsPermissionsLabel": "Permissões",
+  "settingsPermissionMicrophone": "Microfone",
+  "settingsPermissionBluetooth": "Bluetooth",
+  "settingsPermissionNotifications": "Notificações",
+  "settingsPermissionLocation": "Localização",
+  "settingsPendantLabel": "Pendant",
+  "settingsAuthLabel": "Conta",
+  "settingsAuthSignedInAs": "Conectado como {email}",
+  "@settingsAuthSignedInAs": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAuthNotSignedIn": "Não conectado",
+  "settingsBuildLabel": "Build",
+  "settingsActionOpenIosSettings": "Abrir Ajustes do iOS",
+  "settingsActionResetOnboarding": "Reiniciar onboarding",
+  "settingsPermissionStatusGranted": "Permitido",
+  "settingsPermissionStatusDenied": "Negado",
+  "settingsPermissionStatusPermanentlyDenied": "Permanentemente negado",
+  "settingsPermissionStatusRestricted": "Restrito",
+  "settingsPermissionStatusLimited": "Limitado",
+  "settingsPermissionOpenSettingsCta": "Abrir Ajustes"
 }

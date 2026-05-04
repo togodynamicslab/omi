@@ -342,4 +342,69 @@ class AppLocalizationsEn extends AppLocalizations {
   String pendantScreenCodecLabel(String codec) {
     return 'Codec: $codec';
   }
+
+  @override
+  String get settingsScreenTitle => 'Settings';
+
+  @override
+  String get settingsMenuItem => 'Settings';
+
+  @override
+  String get settingsDevModeHeader => 'Developer Mode';
+
+  @override
+  String get settingsPermissionsLabel => 'Permissions';
+
+  @override
+  String get settingsPermissionMicrophone => 'Microphone';
+
+  @override
+  String get settingsPermissionBluetooth => 'Bluetooth';
+
+  @override
+  String get settingsPermissionNotifications => 'Notifications';
+
+  @override
+  String get settingsPermissionLocation => 'Location';
+
+  @override
+  String get settingsPendantLabel => 'Pendant';
+
+  @override
+  String get settingsAuthLabel => 'Account';
+
+  @override
+  String settingsAuthSignedInAs(String email) {
+    return 'Signed in as $email';
+  }
+
+  @override
+  String get settingsAuthNotSignedIn => 'Not signed in';
+
+  @override
+  String get settingsBuildLabel => 'Build';
+
+  @override
+  String get settingsActionOpenIosSettings => 'Open iOS Settings';
+
+  @override
+  String get settingsActionResetOnboarding => 'Reset onboarding';
+
+  @override
+  String get settingsPermissionStatusGranted => 'Granted';
+
+  @override
+  String get settingsPermissionStatusDenied => 'Denied';
+
+  @override
+  String get settingsPermissionStatusPermanentlyDenied => 'Permanently denied';
+
+  @override
+  String get settingsPermissionStatusRestricted => 'Restricted';
+
+  @override
+  String get settingsPermissionStatusLimited => 'Limited';
+
+  @override
+  String get settingsPermissionOpenSettingsCta => 'Open Settings';
 }
