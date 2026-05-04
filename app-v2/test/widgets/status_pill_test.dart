@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
+import 'package:nooto_v2/pendant/pendant_screen.dart';
 import 'package:nooto_v2/providers/pendant_provider.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
@@ -140,6 +141,34 @@ void main() {
 
     expect(_semanticsContainsLabel(tester, 'Recording active. Pendant connected.'), isTrue);
     handle.dispose();
+  });
+
+  testWidgets('tap in offline state pushes PendantScreen route', (tester) async {
+    final provider = FakePendantProvider(
+      initial: PendantInfo(state: PendantState.offline, offlineSince: DateTime(2026, 5, 3, 12, 42)),
+    );
+    await tester.pumpWidget(_harness(provider));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PendantScreen), findsNothing);
+
+    await tester.tap(find.byType(StatusPill));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PendantScreen), findsOneWidget);
+  });
+
+  testWidgets('tap in incompatible state pushes PendantScreen route', (tester) async {
+    final provider = FakePendantProvider(initial: const PendantInfo(state: PendantState.incompatible));
+    await tester.pumpWidget(_harness(provider));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PendantScreen), findsNothing);
+
+    await tester.tap(find.byType(StatusPill));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PendantScreen), findsOneWidget);
   });
 
   testWidgets('semantics: offline state advertises actionable label', (tester) async {
