@@ -272,7 +272,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get pendantPairIncompatible =>
-      'Este pendant não expõe áudio Omi. Verifique se o firmware está atualizado.';
+      'Este pendant não expõe o serviço de áudio correto. Verifique se o firmware está atualizado.';
 
   @override
   String get pendantPairPermissionDenied =>
@@ -288,8 +288,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get pendantVoiceCardConnectTitle => 'Conecte seu pendant';
 
   @override
-  String get pendantVoiceCardConnectBody =>
-      'Toque para conectar seu pendant Omi.';
+  String get pendantVoiceCardConnectBody => 'Toque para conectar seu pendant.';
 
   @override
   String pendantVoiceCardOfflineTitle(String time) {
@@ -321,8 +320,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get pendantScreenPairCta => 'Conectar pendant';
 
   @override
-  String get pendantScreenPairHint =>
-      'Mantenha seu pendant Omi perto do telefone.';
+  String get pendantScreenPairHint => 'Mantenha seu pendant perto do telefone.';
 
   @override
   String get pendantScreenConnectedHeader => 'Conectado';
@@ -412,4 +410,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get settingsPermissionOpenSettingsCta => 'Abrir Ajustes';
+
+  @override
+  String get pendantScreenDefaultDeviceName => 'Pendant Nooto';
 }

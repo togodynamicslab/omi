@@ -62,7 +62,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Connect your pendant'), findsOneWidget);
-    expect(find.text('Tap to pair your Omi pendant.'), findsOneWidget);
+    expect(find.text('Tap to pair your pendant.'), findsOneWidget);
   });
 
   testWidgets('offlineLatePair variant renders formatted time + reconnect copy', (tester) async {

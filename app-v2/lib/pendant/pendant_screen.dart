@@ -261,7 +261,7 @@ class _LiveBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final deviceName = info.deviceName ?? 'Omi pendant';
+    final deviceName = info.deviceName ?? l.pendantScreenDefaultDeviceName;
     final battery = info.batteryPercent;
     final codec = info.codec;
 

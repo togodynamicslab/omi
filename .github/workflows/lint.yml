@@ -1,0 +1,15 @@
+name: lint
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+jobs:
+  no-omi-in-user-strings:
+    name: Check no Omi in user-facing strings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run rebrand lint
+        run: bash scripts/check-no-omi-in-user-strings.sh

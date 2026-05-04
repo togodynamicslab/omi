@@ -551,7 +551,7 @@ abstract class AppLocalizations {
   /// Pairing sheet error message when the device does not expose the Omi audio service.
   ///
   /// In en, this message translates to:
-  /// **'This pendant doesn\'t expose Omi audio. Make sure your firmware is up to date.'**
+  /// **'This pendant doesn\'t expose the right audio service. Make sure your firmware is up to date.'**
   String get pendantPairIncompatible;
 
   /// Pairing sheet error message when BLE or mic permission is denied.
@@ -581,7 +581,7 @@ abstract class AppLocalizations {
   /// Home voice card body shown while no pendant is paired.
   ///
   /// In en, this message translates to:
-  /// **'Tap to pair your Omi pendant.'**
+  /// **'Tap to pair your pendant.'**
   String get pendantVoiceCardConnectBody;
 
   /// Home voice card title shown after the pendant has been offline for at least 5 minutes.
@@ -635,7 +635,7 @@ abstract class AppLocalizations {
   /// Hint shown under the pair CTA on the pendant screen.
   ///
   /// In en, this message translates to:
-  /// **'Hold your Omi pendant near your phone.'**
+  /// **'Hold your pendant near your phone.'**
   String get pendantScreenPairHint;
 
   /// Header on the pendant screen when the pendant is live.
@@ -799,6 +799,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open Settings'**
   String get settingsPermissionOpenSettingsCta;
+
+  /// Default device name shown in PendantScreen when info.deviceName is null
+  ///
+  /// In en, this message translates to:
+  /// **'Nooto pendant'**
+  String get pendantScreenDefaultDeviceName;
 }
 
 class _AppLocalizationsDelegate

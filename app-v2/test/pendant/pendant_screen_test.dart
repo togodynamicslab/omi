@@ -30,7 +30,7 @@ void main() {
 
     expect(find.text('Pendant'), findsOneWidget);
     expect(find.text('Pair pendant'), findsOneWidget);
-    expect(find.text('Hold your Omi pendant near your phone.'), findsOneWidget);
+    expect(find.text('Hold your pendant near your phone.'), findsOneWidget);
   });
 
   testWidgets('Pair pendant tap calls provider.startPair', (tester) async {
@@ -96,7 +96,7 @@ void main() {
     await tester.pumpWidget(_harness(provider));
     await tester.pumpAndSettle();
 
-    expect(find.text("This pendant doesn't expose Omi audio. Make sure your firmware is up to date."), findsOneWidget);
+    expect(find.text("This pendant doesn't expose the right audio service. Make sure your firmware is up to date."), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
 
     await tester.tap(find.text('Try again'));
@@ -129,7 +129,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Connected'), findsOneWidget);
-    expect(find.text('Omi pendant'), findsOneWidget);
+    expect(find.text('Nooto pendant'), findsOneWidget);
   });
 
   testWidgets('reconnecting state shows spinner + Reconnecting label', (tester) async {
