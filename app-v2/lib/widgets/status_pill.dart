@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
+import 'package:nooto_v2/pendant/pendant_screen.dart';
 import 'package:nooto_v2/providers/pendant_provider.dart';
-import 'package:nooto_v2/services/ble/pairing_sheet.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 
 /// Five-state status pill rendered in the Home tab's AppBar trailing slot.
 ///
 /// Wraps in a 44pt hit area mirroring `app/lib/widgets/header_icon_button.dart`
-/// so taps in `unpaired`, `offline`, and `incompatible` open the pairing
-/// sheet. Other states are read-only.
+/// so taps in `unpaired`, `offline`, and `incompatible` push `PendantScreen`.
+/// Other states are read-only.
 ///
 /// Visual grammar (per design doc Pill state machine + DESIGN.md tokens):
 ///
@@ -21,7 +21,7 @@ import 'package:nooto_v2/theme/app_theme.dart';
 ///   - `reconnecting`— `textTertiary` dot, no pulse.
 ///   - `offline`     — `warningColor` dot, "Offline since {time}" label.
 ///   - `interrupted` — `textTertiary` dot, "Paused" label, no pulse.
-///   - `incompatible`— `errorColor` dot, briefly visible while sheet opens.
+///   - `incompatible`— `errorColor` dot, briefly visible while screen opens.
 ///   - `unpaired`    — hidden (`SizedBox.shrink()`).
 ///
 /// Reduced motion: when `MediaQuery.of(context).disableAnimations` is true,
@@ -87,7 +87,7 @@ class _StatusPillState extends State<StatusPill> with SingleTickerProviderStateM
       child: SizedBox(
         height: AppStyles.touchTargetMinimum,
         child: InkWell(
-          onTap: visual.tappable ? () => PairingSheet.show(context) : null,
+          onTap: visual.tappable ? () => Navigator.of(context).push(PendantScreen.route()) : null,
           customBorder: const StadiumBorder(),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingM, vertical: AppStyles.spacingS),
@@ -156,8 +156,8 @@ class _StatusPillState extends State<StatusPill> with SingleTickerProviderStateM
         );
       case PendantState.permissionDenied:
       case PendantState.unpaired:
-        // permissionDenied is also hidden in the pill (sheet drives the
-        // recovery UX); unpaired is filtered above.
+        // permissionDenied is also hidden in the pill (PendantScreen drives
+        // the recovery UX); unpaired is filtered above.
         return _PillVisual(dotColor: AppColors.textTertiary, label: '', tappable: false, semanticsLabel: '');
     }
   }
