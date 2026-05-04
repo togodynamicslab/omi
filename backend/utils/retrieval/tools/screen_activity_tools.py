@@ -87,7 +87,7 @@ def get_screen_activity_tool(
     if not summary['apps']:
         return (
             "No screen activity data available for this date range. "
-            "The user may not have the Omi desktop app installed, or it wasn't running during this period."
+            "The user may not have the Nooto desktop app installed, or it wasn't running during this period."
         )
 
     # Format output
@@ -193,7 +193,7 @@ def search_screen_activity_tool(
     if not matches:
         return (
             f"No screen activity found matching '{query}'. "
-            "The user may not have the Omi desktop app installed, or no matching content was captured."
+            "The user may not have the Nooto desktop app installed, or no matching content was captured."
         )
 
     # Fetch full metadata from Firestore for matched screenshot IDs
