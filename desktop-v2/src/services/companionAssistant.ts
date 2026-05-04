@@ -553,12 +553,12 @@ function isOwnApp(app: ActiveApp): boolean {
   const name = app.name.toLowerCase();
   return (
     id.startsWith("com.togodynamics.nooto") ||
-    id.startsWith("com.omi.") ||
+    id.startsWith("com.omi.") || // allow-omi: bundle-id detection of legacy desktop
     name.includes("nooto") ||
     name.includes("companion") ||
-    name === "omi" ||
-    name === "omi dev" ||
-    name === "omi beta"
+    name === "omi" || // allow-omi: process-name detection of legacy desktop
+    name === "omi dev" || // allow-omi: process-name detection of legacy desktop
+    name === "omi beta" // allow-omi: process-name detection of legacy desktop
   );
 }
 
