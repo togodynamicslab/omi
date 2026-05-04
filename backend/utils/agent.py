@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 # )
 omi_documentation_str = ""
 omi_documentation_prompt = f"""
-You are a helpful assistant that answers questions from the Omi documentation.
+You are a helpful assistant that answers questions from the Nooto documentation.
 
 Documentation:
 {omi_documentation_str}
@@ -35,12 +35,12 @@ async def run(
     stream_callback: Optional[AsyncStreamingCallback] = None,
 ):
     docs_agent = Agent(
-        name="Omi Documentation Agent",
+        name="Nooto Documentation Agent",
         instructions=omi_documentation_prompt,
         model="o4-mini",
     )
     omi_agent = Agent(
-        name="Omi Agent",
+        name="Nooto Agent",
         instructions=f"You are a helpful assistant that answers questions from the user {uid}, using the tools you were provided.",
         mcp_servers=[mcp_server],
         model="o4-mini",
@@ -50,7 +50,7 @@ async def run(
         tools=[
             docs_agent.as_tool(
                 tool_name="docs_agent",
-                tool_description="Answer user questions from the Omi documentation.",
+                tool_description="Answer user questions from the Nooto documentation.",
             )
         ],
     )
@@ -82,7 +82,7 @@ async def execute_agent_chat_stream(
 
     async with MCPServerStdio(
         cache_tools_list=True,
-        params={"command": "uvx", "args": ["mcp-server-omi", "-v"]},
+        params={"command": "uvx", "args": ["mcp-server-omi", "-v"]},  # allow-omi: external MCP package name
     ) as server:
         task = asyncio.create_task(
             run(
@@ -121,9 +121,9 @@ async def execute_agent_chat_stream(
 async def send_single_message():
     async with MCPServerStdio(
         cache_tools_list=True,
-        params={"command": "uvx", "args": ["mcp-server-omi"]},
+        params={"command": "uvx", "args": ["mcp-server-omi"]},  # allow-omi: external MCP package name
     ) as server:
-        with trace(workflow_name="Omi Agent"):
+        with trace(workflow_name="Nooto Agent"):
             await run(
                 server,
                 "viUv7GtdoHXbK1UBCDlPuTDuPgJ2",
@@ -133,19 +133,19 @@ async def send_single_message():
 
 
 async def interactive_chat_stream():
-    logger.info("Starting interactive chat with Omi Agent. Type 'exit' to quit.")
+    logger.info("Starting interactive chat with Nooto Agent. Type 'exit' to quit.")
     async with MCPServerStdio(
         cache_tools_list=True,
-        params={"command": "uvx", "args": ["mcp-server-omi", "-v"]},
+        params={"command": "uvx", "args": ["mcp-server-omi", "-v"]},  # allow-omi: external MCP package name
     ) as server:
         while True:
             user_input = input("\nYou: ")
             if user_input.lower() == "exit":
                 break
 
-            logger.info("\nOmi: ")
+            logger.info("\nNooto: ")
 
-            with trace(workflow_name="Omi Agent"):
+            with trace(workflow_name="Nooto Agent"):
                 await run(
                     server,
                     "viUv7GtdoHXbK1UBCDlPuTDuPgJ2",
