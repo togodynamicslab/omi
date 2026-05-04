@@ -673,6 +673,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Codec: {codec}'**
   String pendantScreenCodecLabel(String codec);
+
+  /// No description provided for @settingsScreenTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settingsScreenTitle;
+
+  /// No description provided for @settingsMenuItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settingsMenuItem;
+
+  /// No description provided for @settingsDevModeHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Developer Mode'**
+  String get settingsDevModeHeader;
+
+  /// No description provided for @settingsPermissionsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Permissions'**
+  String get settingsPermissionsLabel;
+
+  /// No description provided for @settingsPermissionMicrophone.
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone'**
+  String get settingsPermissionMicrophone;
+
+  /// No description provided for @settingsPermissionBluetooth.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth'**
+  String get settingsPermissionBluetooth;
+
+  /// No description provided for @settingsPermissionNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get settingsPermissionNotifications;
+
+  /// No description provided for @settingsPermissionLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get settingsPermissionLocation;
+
+  /// No description provided for @settingsPendantLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Pendant'**
+  String get settingsPendantLabel;
+
+  /// No description provided for @settingsAuthLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get settingsAuthLabel;
+
+  /// No description provided for @settingsAuthSignedInAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in as {email}'**
+  String settingsAuthSignedInAs(String email);
+
+  /// No description provided for @settingsAuthNotSignedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Not signed in'**
+  String get settingsAuthNotSignedIn;
+
+  /// No description provided for @settingsBuildLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Build'**
+  String get settingsBuildLabel;
+
+  /// No description provided for @settingsActionOpenIosSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open iOS Settings'**
+  String get settingsActionOpenIosSettings;
+
+  /// No description provided for @settingsActionResetOnboarding.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset onboarding'**
+  String get settingsActionResetOnboarding;
+
+  /// No description provided for @settingsPermissionStatusGranted.
+  ///
+  /// In en, this message translates to:
+  /// **'Granted'**
+  String get settingsPermissionStatusGranted;
+
+  /// No description provided for @settingsPermissionStatusDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Denied'**
+  String get settingsPermissionStatusDenied;
+
+  /// No description provided for @settingsPermissionStatusPermanentlyDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently denied'**
+  String get settingsPermissionStatusPermanentlyDenied;
+
+  /// No description provided for @settingsPermissionStatusRestricted.
+  ///
+  /// In en, this message translates to:
+  /// **'Restricted'**
+  String get settingsPermissionStatusRestricted;
+
+  /// No description provided for @settingsPermissionStatusLimited.
+  ///
+  /// In en, this message translates to:
+  /// **'Limited'**
+  String get settingsPermissionStatusLimited;
+
+  /// No description provided for @settingsPermissionOpenSettingsCta.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Settings'**
+  String get settingsPermissionOpenSettingsCta;
 }
 
 class _AppLocalizationsDelegate
