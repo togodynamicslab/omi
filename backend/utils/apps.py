@@ -1317,7 +1317,7 @@ def fetch_app_chat_tools_from_manifest(
     Implements caching with 2-hour TTL to reduce external requests.
 
     Args:
-        manifest_url: Full URL to the manifest endpoint (e.g., https://my-app.com/.well-known/omi-tools.json)
+        manifest_url: Full URL to the manifest endpoint (e.g., https://my-app.com/.well-known/omi-tools.json)  # allow-omi: external manifest path (external API contract — apps register tools at this path)
         timeout: Request timeout in seconds
         force_refresh: If True, bypass cache and fetch fresh data
 
@@ -1365,7 +1365,7 @@ def fetch_app_chat_tools_from_manifest(
         logger.info(f"📥 Fetching chat tools manifest from: {manifest_url}")
 
         response = requests.get(
-            manifest_url, timeout=timeout, headers={'Accept': 'application/json', 'User-Agent': 'Omi-App-Store/1.0'}
+            manifest_url, timeout=timeout, headers={'Accept': 'application/json', 'User-Agent': 'Omi-App-Store/1.0'}  # allow-omi: external user-agent identifier
         )
 
         if response.status_code != 200:
