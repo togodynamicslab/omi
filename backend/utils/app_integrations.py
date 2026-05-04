@@ -408,7 +408,7 @@ def _process_mentor_proactive_notification(uid: str, conversation_messages: list
         f"mentor_proactive sending uid={uid} confidence={draft.confidence:.2f} "
         f"category={draft.category} reasoning={draft.reasoning[:100]}"
     )
-    send_app_notification(uid, 'Omi', 'mentor', notification_text)
+    send_app_notification(uid, 'Nooto', 'mentor', notification_text)
 
     # Update rate limit and daily count
     ts = int(time.time())
