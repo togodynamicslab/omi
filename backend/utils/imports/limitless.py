@@ -1,7 +1,7 @@
 """
 Limitless data import utilities.
 
-Parses Limitless lifelog exports and creates Omi conversations.
+Parses Limitless lifelog exports and creates Nooto conversations.
 Uses "light import" mode - no AI processing, just stores the data directly.
 """
 
