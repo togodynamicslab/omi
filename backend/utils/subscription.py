@@ -30,7 +30,7 @@ def get_paid_plan_definitions() -> list[dict]:
         {
             "plan_type": PlanType.pro,
             "plan_id": "pro",
-            "title": "Omi Pro",
+            "title": "Nooto Pro",
             "monthly_price_id": os.getenv('STRIPE_PRO_MONTHLY_PRICE_ID'),
             "annual_price_id": os.getenv('STRIPE_PRO_ANNUAL_PRICE_ID'),
             "annual_description": "Save with annual billing.",
