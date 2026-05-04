@@ -613,6 +613,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pair your pendant when you\'re ready. Hold it near your phone so I can find it.'**
   String get pendantOnboardingTurnText;
+
+  /// AppBar title for the dedicated pendant connection screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Pendant'**
+  String get pendantScreenTitle;
+
+  /// Kebab menu entry that opens the pendant connection screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Pendant'**
+  String get pendantScreenMenuItem;
+
+  /// Primary CTA on the pendant screen when no pendant is paired.
+  ///
+  /// In en, this message translates to:
+  /// **'Pair pendant'**
+  String get pendantScreenPairCta;
+
+  /// Hint shown under the pair CTA on the pendant screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold your Omi pendant near your phone.'**
+  String get pendantScreenPairHint;
+
+  /// Header on the pendant screen when the pendant is live.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected'**
+  String get pendantScreenConnectedHeader;
+
+  /// Outlined button on the pendant screen to disconnect a live pendant.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get pendantScreenDisconnectCta;
+
+  /// Button on the pendant screen to reconnect when offline.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect'**
+  String get pendantScreenReconnectCta;
+
+  /// Explanation shown when the pendant is in interrupted state.
+  ///
+  /// In en, this message translates to:
+  /// **'Recording is paused while a phone call or other audio session is active.'**
+  String get pendantScreenInterruptedExplain;
+
+  /// Battery percentage row label on the pendant screen.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}% battery'**
+  String pendantScreenBatteryLabel(int percent);
+
+  /// Codec badge label on the pendant screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Codec: {codec}'**
+  String pendantScreenCodecLabel(String codec);
 }
 
 class _AppLocalizationsDelegate

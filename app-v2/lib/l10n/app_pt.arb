@@ -199,5 +199,55 @@
   "pendantOnboardingTurnText": "Conecte seu pendant quando estiver pronto. Mantenha-o perto do telefone para que eu possa encontrá-lo.",
   "@pendantOnboardingTurnText": {
     "description": "Onboarding chat turn text introducing pendant pairing after speech profile."
+  },
+  "pendantScreenTitle": "Pendant",
+  "@pendantScreenTitle": {
+    "description": "AppBar title for the dedicated pendant connection screen."
+  },
+  "pendantScreenMenuItem": "Pendant",
+  "@pendantScreenMenuItem": {
+    "description": "Kebab menu entry that opens the pendant connection screen."
+  },
+  "pendantScreenPairCta": "Conectar pendant",
+  "@pendantScreenPairCta": {
+    "description": "Primary CTA on the pendant screen when no pendant is paired."
+  },
+  "pendantScreenPairHint": "Mantenha seu pendant Omi perto do telefone.",
+  "@pendantScreenPairHint": {
+    "description": "Hint shown under the pair CTA on the pendant screen."
+  },
+  "pendantScreenConnectedHeader": "Conectado",
+  "@pendantScreenConnectedHeader": {
+    "description": "Header on the pendant screen when the pendant is live."
+  },
+  "pendantScreenDisconnectCta": "Desconectar",
+  "@pendantScreenDisconnectCta": {
+    "description": "Outlined button on the pendant screen to disconnect a live pendant."
+  },
+  "pendantScreenReconnectCta": "Reconectar",
+  "@pendantScreenReconnectCta": {
+    "description": "Button on the pendant screen to reconnect when offline."
+  },
+  "pendantScreenInterruptedExplain": "A gravação está pausada enquanto uma ligação ou outra sessão de áudio está ativa.",
+  "@pendantScreenInterruptedExplain": {
+    "description": "Explanation shown when the pendant is in interrupted state."
+  },
+  "pendantScreenBatteryLabel": "{percent}% de bateria",
+  "@pendantScreenBatteryLabel": {
+    "description": "Battery percentage row label on the pendant screen.",
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "pendantScreenCodecLabel": "Codec: {codec}",
+  "@pendantScreenCodecLabel": {
+    "description": "Codec badge label on the pendant screen.",
+    "placeholders": {
+      "codec": {
+        "type": "String"
+      }
+    }
   }
 }

@@ -310,4 +310,40 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get pendantOnboardingTurnText =>
       'Conecte seu pendant quando estiver pronto. Mantenha-o perto do telefone para que eu possa encontrá-lo.';
+
+  @override
+  String get pendantScreenTitle => 'Pendant';
+
+  @override
+  String get pendantScreenMenuItem => 'Pendant';
+
+  @override
+  String get pendantScreenPairCta => 'Conectar pendant';
+
+  @override
+  String get pendantScreenPairHint =>
+      'Mantenha seu pendant Omi perto do telefone.';
+
+  @override
+  String get pendantScreenConnectedHeader => 'Conectado';
+
+  @override
+  String get pendantScreenDisconnectCta => 'Desconectar';
+
+  @override
+  String get pendantScreenReconnectCta => 'Reconectar';
+
+  @override
+  String get pendantScreenInterruptedExplain =>
+      'A gravação está pausada enquanto uma ligação ou outra sessão de áudio está ativa.';
+
+  @override
+  String pendantScreenBatteryLabel(int percent) {
+    return '$percent% de bateria';
+  }
+
+  @override
+  String pendantScreenCodecLabel(String codec) {
+    return 'Codec: $codec';
+  }
 }
