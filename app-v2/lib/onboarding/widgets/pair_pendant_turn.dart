@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/onboarding/onboarding_chat_provider.dart';
+import 'package:nooto_v2/pendant/pendant_screen.dart';
 import 'package:nooto_v2/providers/pendant_provider.dart';
-import 'package:nooto_v2/services/ble/pairing_sheet.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 
@@ -16,7 +16,7 @@ import 'package:nooto_v2/theme/app_theme.dart';
 ///
 /// Mirrors `speech_profile_turn.dart`'s shape — a chrome'd surface card
 /// with two CTAs:
-///   - "Pair"  → opens `PairingSheet.show(context)`. When state transitions
+///   - "Pair"  → pushes `PendantScreen.route()`. When state transitions
 ///     to `live`, auto-advances via `reportWidgetCapture(true)`.
 ///   - "Skip"  → calls `OnboardingChatProvider.skipCurrent`.
 ///
@@ -75,7 +75,7 @@ class _PairPendantTurnState extends State<PairPendantTurn> {
             children: [
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () => PairingSheet.show(context),
+                  onPressed: () => Navigator.of(context).push(PendantScreen.route()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brandPrimary,
                     foregroundColor: Colors.white,
