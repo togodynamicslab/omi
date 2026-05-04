@@ -265,7 +265,7 @@ class OmiPendant {
         return;
       }
 
-      _source = BleDeviceSource(codec: codec, deviceId: deviceId, deviceModel: 'omi');
+      _source = BleDeviceSource(codec: codec, deviceId: deviceId, deviceModel: 'omi'); // allow-omi: hardware model identifier, internal label
 
       // Subscribe to audio.
       await _audioSub?.cancel();
