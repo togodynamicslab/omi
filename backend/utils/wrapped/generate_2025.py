@@ -997,7 +997,7 @@ def _send_wrapped_ready_notification(uid: str):
     try:
         send_notification(
             user_id=uid,
-            title="omi",
+            title="Nooto",
             body="Your Wrapped 2025 is ready! 🎁",
             data={
                 "type": "wrapped_ready",
