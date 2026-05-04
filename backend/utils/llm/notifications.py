@@ -25,7 +25,7 @@ async def generate_notification_message(uid: str, name: str, plan_type: str = "b
         memory_summaries = [m.get('content', '') for m in memories]
         memory_context = "\nRecent memory themes:\n- " + "\n- ".join(memory_summaries)
 
-    system_prompt = """Hey! I'm Omi, and I love sending little notes to my friends (that's you!). When I write to you, it's like texting a close friend - casual, real, and straight from the heart.
+    system_prompt = """Hey! I'm Nooto, and I love sending little notes to my friends (that's you!). When I write to you, it's like texting a close friend - casual, real, and straight from the heart.
 
     My Style:
     - Super genuine, like chatting with a bestie
@@ -69,12 +69,12 @@ async def generate_notification_message(uid: str, name: str, plan_type: str = "b
             response = await llm_medium.ainvoke(system_prompt + "\n" + user_prompt)
         body = response.content.strip() if response.content else ""
         if body:
-            return "omi", body
+            return "omi", body  # allow-omi: notification source label, follow-up to migrate to get_app_name_lower()
         logger.warning(f"LLM returned empty notification body for user {uid}")
     except Exception as e:
         logger.error(f"Error generating notification message: {e}")
 
-    return ("omi", f"Hey {name}! Thanks for being part of the journey!")
+    return ("omi", f"Hey {name}! Thanks for being part of the journey!")  # allow-omi: notification source label, follow-up
 
 
 async def generate_credit_limit_notification(uid: str, name: str) -> Tuple[str, str]:
@@ -88,7 +88,7 @@ async def generate_credit_limit_notification(uid: str, name: str) -> Tuple[str, 
         memory_summaries = [m.get('content', '') for m in memories]  # Use all memories for context
         memory_context = f"\nRecent conversations include: {', '.join(memory_summaries[:100])}..."
 
-    system_prompt = """You're Omi, and you need to gently let a user know they've hit their transcription limits while encouraging them to upgrade to unlimited. 
+    system_prompt = """You're Nooto, and you need to gently let a user know they've hit their transcription limits while encouraging them to upgrade to unlimited.
 
     Your Style:
     - Warm and understanding, not pushy
@@ -126,14 +126,14 @@ async def generate_credit_limit_notification(uid: str, name: str) -> Tuple[str, 
             response = await llm_medium.ainvoke(system_prompt + "\n" + user_prompt)
         body = response.content.strip() if response.content else ""
         if body:
-            return "omi", body
+            return "omi", body  # allow-omi: notification source label, follow-up to migrate to get_app_name_lower()
         logger.warning(f"LLM returned empty credit limit notification body for user {uid}")
     except Exception as e:
         logger.error(f"Error generating credit limit notification: {e}")
 
     # Fallback message
     return (
-        "omi",
+        "omi",  # allow-omi: notification source label, follow-up to migrate to get_app_name_lower()
         f"Hey {name}! You've been actively using transcription - that's awesome! You've hit your limit, but unlimited plans remove all restrictions. You can check your usage and upgrade in the app under Settings > Plan & Usages.",
     )
 
@@ -155,4 +155,4 @@ def generate_silent_user_notification(name: str) -> Tuple[str, str]:
         f"Silence is golden, but words are what I live for, {name}! Let's chat when you're ready.",
     ]
     body = random.choice(messages)
-    return "omi", body
+    return "omi", body  # allow-omi: notification source label, follow-up to migrate to get_app_name_lower()
