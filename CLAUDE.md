@@ -431,40 +431,13 @@ When the user says "RELEASE", perform the full release flow:
   4. Merge the PR (no squash — regular merge)
   5. Switch back to main and pull
 
-### RELEASEWITHBACKEND command
-Same as RELEASE, plus deploy the backend to production after merging:
-  ```bash
-  gh workflow run gcp_backend.yml -f environment=prod -f branch=main
-  ```
+## Deployment
 
-## CI/CD Auto-Deploy (push to main)
+- **Backend**: deployed manually via Coolify at `coolify.togodynamics.com`. No auto-deploy. No GitHub Actions for backend deploy — they were removed in May 2026 because they targeted GCP/Cloud Run/GKE which we no longer use.
+- **Mobile (app-v2)**: builds locally via `flutter run` for dogfood. TestFlight + Play Internal pipelines via Codemagic are deferred (see `app-v2/TODOS.md`); ASC + Play Console records need to be set up first.
+- **Desktop (desktop-v2)**: built and distributed manually (process owned by Matheus).
 
-### Python Backend (dev)
-- **Trigger**: push to `main` with `backend/**` changes
-- **Workflow**: GitHub Actions `gcp_backend_auto_dev.yml`
-- **Deploys to**: Cloud Run + GKE (dev environment)
-- **Check**: `gh run list --workflow=gcp_backend_auto_dev.yml --limit=3`
-
-### Python Backend (prod) — manual only
-- **Never auto-deploys.** Must trigger manually:
-  ```bash
-  gh workflow run gcp_backend.yml -f environment=prod -f branch=main
-  ```
-
-### Mobile App (iOS TestFlight + Android) — Codemagic
-- **Trigger**: push to `main` with `app/**` changes
-- **Workflow**: `ios-internal-auto` / `android-internal-auto` in `codemagic.yaml`
-- **IMPORTANT**: Codemagic **skips** if the build number in `app/pubspec.yaml` is already on TestFlight. After merging `app/**` changes, you **must bump the build number** or no new build will be uploaded:
-  ```bash
-  # In app/pubspec.yaml, increment the +N build number:
-  # version: 1.0.525+760  →  version: 1.0.525+761
-  ```
-- **Check**: `curl -s -H "x-auth-token: $CODEMAGIC_API_TOKEN" "https://api.codemagic.io/builds?appId=66c95e6ec76853c447b8bcbb&limit=5"`
-
-### Desktop App (macOS) — GitHub Actions + Codemagic
-- **Trigger**: push to `main` with `desktop/**` changes
-- **Step 1**: GitHub Actions `desktop_auto_release.yml` auto-increments version, pushes `v*-macos` tag
-- **Step 2**: Codemagic `omi-desktop-swift-release` builds, signs, notarizes, publishes
+CI runs on every PR via `.github/workflows/lint.yml` (Omi→Nooto rebrand guard, the only active workflow). All deploys are manual.
 
 ## Logs
 
@@ -474,24 +447,8 @@ App logs go to `/tmp/flutter-run.log`. Use `print()` (not `Logger.debug`) for lo
 grep -E "\[AgentChat\]|\[HomePage\]" /tmp/flutter-run.log | tail -20
 ```
 
-### Backend (Cloud Run)
-```bash
-gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.service_name="backend-listen"' --project=based-hardware --limit=30 --freshness=5m --format=json
-```
-
-### Agent-proxy (GKE, namespace `prod-omi-backend`)
-```bash
-kubectl logs -n prod-omi-backend -l app=agent-proxy --timestamps --since=10m | grep "<uid>"
-```
-
-### Agent VM
-```bash
-gcloud compute ssh omi-agent-<id> --zone=us-central1-a --project=based-hardware \
-  --command="journalctl -u omi-agent --no-pager --since '10 minutes ago' | grep -E 'Client|Query|Prewarm|session|disconnect|error|Persistent'"
-```
-
-### Agent Chat Debugging
-For end-to-end debugging of the mobile agent chat pipeline (phone → agent-proxy → VM), see the `ai-chat-debug` skill.
+### Backend (Coolify)
+Backend logs live in Coolify at `coolify.togodynamics.com`. Use the `mcp__coolify__get_deployment_log` tool, or open the application in the Coolify dashboard and stream logs from the Logs tab.
 
 ## Testing
 
