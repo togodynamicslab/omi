@@ -17,13 +17,13 @@ export const DEFAULT_MIN_CONFIDENCE = 0.7;
  * Shared across Advice, Focus, and Memory assistants.
  */
 export const BUILT_IN_EXCLUDED_APPS: ReadonlySet<string> = new Set([
-  "Omi",
+  "Omi", // allow-omi: process-name detection of legacy desktop
   "Nooto",
   "Nooto Beta",
   "Nooto Dev",
-  "omi",
-  "Omi Dev",
-  "Omi Computer",
+  "omi", // allow-omi: process-name detection of legacy desktop
+  "Omi Dev", // allow-omi: process-name detection of legacy desktop
+  "Omi Computer", // allow-omi: process-name detection of legacy desktop
   "Finder",
   "System Preferences",
   "System Settings",
