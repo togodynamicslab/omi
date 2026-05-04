@@ -8,7 +8,7 @@
 # Surfaces scanned:
 #   - app-v2/lib/l10n/*.arb               -> JSON value lines (skip "@key" descriptions)
 #   - app-v2/lib/**/*.dart                -> non-comment lines (skip /// and //)
-#   - backend/utils/llm/*.py              -> non-comment lines (skip # and prompt_cache_key=)
+#   - backend/utils/**/*.py               -> non-comment lines (skip # and prompt_cache_key=)
 #   - desktop-v2/src/**/*.ts(x)           -> non-comment lines (skip // and *-prefixed block lines)
 #
 # Match rule: case-insensitive whole-word "omi" (grep -wi). Identifiers like
@@ -71,12 +71,15 @@ while IFS= read -r f; do
   scan "$f" "$dart_skip"
 done < <(find app-v2/lib -type f -name '*.dart' 2>/dev/null)
 
-# Backend LLM Python files: skip pure # comment lines and prompt_cache_key= lines.
+# Backend utils Python files (recursive): skip pure # comment lines and prompt_cache_key= lines.
+# Lane H originally only covered backend/utils/llm/*.py — which missed the actual
+# chat leak in backend/utils/observability/langsmith_prompts.py and identity strings
+# in backend/utils/agent.py, backend/utils/mcp_client.py, and many others. Widened
+# in Lane K to backend/utils/**/*.py so future regressions are caught everywhere.
 py_skip='(^[[:space:]]*#)|(prompt_cache_key)'
-for f in backend/utils/llm/*.py; do
-  [ -f "$f" ] || continue
+while IFS= read -r f; do
   scan "$f" "$py_skip"
-done
+done < <(find backend/utils -type f -name '*.py' -not -path '*/__pycache__/*' 2>/dev/null)
 
 # desktop-v2 TS/TSX: skip pure // comment lines and lines whose first non-whitespace
 # token is `*` (continuation lines inside /* ... */ block comments). Multi-line
