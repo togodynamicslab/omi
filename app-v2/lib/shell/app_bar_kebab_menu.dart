@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/chat/chat_storage.dart';
 import 'package:nooto_v2/home/home_storage.dart';
+import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/onboarding/onboarding_chat_provider.dart';
+import 'package:nooto_v2/pendant/pendant_screen.dart';
 import 'package:nooto_v2/providers/auth_provider.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 
@@ -21,18 +23,25 @@ class AppBarKebabMenu extends StatefulWidget {
 class _AppBarKebabMenuState extends State<AppBarKebabMenu> {
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     return PopupMenuButton<String>(
       tooltip: 'More',
       icon: const Icon(Icons.more_vert, color: AppColors.textTertiary, size: 20),
       color: AppColors.backgroundSecondary,
       onSelected: (v) async {
-        if (v == 'signout') {
+        if (v == 'pendant') {
+          await Navigator.of(context).push(PendantScreen.route());
+        } else if (v == 'signout') {
           await context.read<AuthChangeProvider>().signOut();
         } else if (v == 'reset') {
           await _confirmReset();
         }
       },
       itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'pendant',
+          child: Text(l.pendantScreenMenuItem, style: const TextStyle(color: AppColors.textPrimary)),
+        ),
         const PopupMenuItem(
           value: 'signout',
           child: Text('Sign out', style: TextStyle(color: AppColors.textPrimary)),
