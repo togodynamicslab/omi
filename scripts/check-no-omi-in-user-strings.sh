@@ -9,6 +9,7 @@
 #   - app-v2/lib/l10n/*.arb               -> JSON value lines (skip "@key" descriptions)
 #   - app-v2/lib/**/*.dart                -> non-comment lines (skip /// and //)
 #   - backend/utils/llm/*.py              -> non-comment lines (skip # and prompt_cache_key=)
+#   - desktop-v2/src/**/*.ts(x)           -> non-comment lines (skip // and *-prefixed block lines)
 #
 # Match rule: case-insensitive whole-word "omi" (grep -wi). Identifiers like
 # omiServiceUuid or IsAnOmiQuestion are not matched — only standalone tokens.
@@ -76,6 +77,15 @@ for f in backend/utils/llm/*.py; do
   [ -f "$f" ] || continue
   scan "$f" "$py_skip"
 done
+
+# desktop-v2 TS/TSX: skip pure // comment lines and lines whose first non-whitespace
+# token is `*` (continuation lines inside /* ... */ block comments). Multi-line
+# /* */ comments where the opening and offending text share a line are rare; the
+# `// allow-omi:` escape hatch handles the residual cases.
+ts_skip='^[[:space:]]*(//|\*)'
+while IFS= read -r f; do
+  scan "$f" "$ts_skip"
+done < <(find desktop-v2/src -type f \( -name '*.tsx' -o -name '*.ts' \) 2>/dev/null)
 
 if [ "$found" -ne 0 ]; then
   echo "" >&2
