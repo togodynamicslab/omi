@@ -25,7 +25,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-MCP_CLIENT_NAME = "Omi"
+MCP_CLIENT_NAME = "Nooto"
 MCP_CLIENT_VERSION = "1.0.0"
 MCP_PROTOCOL_VERSION = "2025-03-26"
 

@@ -1,5 +1,5 @@
 """
-Fair-use engine for Omi.
+Fair-use engine for Nooto.
 
 Tracks per-user rolling speech hours via Redis minute buckets,
 detects soft-cap violations, triggers LLM classification,
@@ -578,7 +578,7 @@ async def _send_fair_use_notification(uid: str, action: str, case_ref: str = '')
 
     bodies = {
         'warning': (
-            'Your speech usage is unusually high. Omi is designed for personal conversations. '
+            'Your speech usage is unusually high. Nooto is designed for personal conversations. '
             'If this continues, transcription quality may be reduced. '
             f'Check Settings > Plan & Usage for details.{ref_suffix}'
         ),

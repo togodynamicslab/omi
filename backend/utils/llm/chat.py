@@ -891,7 +891,7 @@ def obtain_emotional_message(uid: str, memory: Conversation, context: str, emoti
 
     transcript = memory.get_transcript(False, people=people, user_name=user_name)
     prompt = f"""
-    You are a thoughtful and encouraging Friend.
+    You are a thoughtful and encouraging companion.
     Your best friend is {user_name}, {memories_str}
 
     {user_name} just finished a conversation where {user_name} experienced {emotion}.

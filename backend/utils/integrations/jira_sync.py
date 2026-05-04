@@ -1,7 +1,7 @@
-"""Jira → Omi action items sync.
+"""Jira → Nooto action items sync.
 
 Periodic read-only puller. Calls the Jira plugin's ``/tools/list_my_issues``
-endpoint with ``open_only=True``, normalizes each task into the Omi action
+endpoint with ``open_only=True``, normalizes each task into the Nooto action
 item shape, and upserts via ``database.action_items.upsert_external_action_item``.
 
 Design constraints (from project CLAUDE.md / project memory):

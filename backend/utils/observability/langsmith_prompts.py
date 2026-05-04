@@ -39,14 +39,14 @@ DEFAULT_CACHE_TTL_SECONDS = 300
 def _get_cache_ttl() -> int:
     """Get cache TTL from env or use default."""
     try:
-        return int(os.environ.get("OMI_LANGSMITH_PROMPT_CACHE_TTL_SECONDS", DEFAULT_CACHE_TTL_SECONDS))
+        return int(os.environ.get("OMI_LANGSMITH_PROMPT_CACHE_TTL_SECONDS", DEFAULT_CACHE_TTL_SECONDS))  # allow-omi: env var key
     except ValueError:
         return DEFAULT_CACHE_TTL_SECONDS
 
 
 def _get_agentic_prompt_name() -> str:
     """Get the LangSmith prompt name for the agentic system prompt."""
-    return os.environ.get("OMI_LANGSMITH_AGENTIC_PROMPT_NAME", "omi-agentic-system")
+    return os.environ.get("OMI_LANGSMITH_AGENTIC_PROMPT_NAME", "omi-agentic-system")  # allow-omi: env var key + LangSmith Hub registry id
 
 
 def _is_cache_valid(cached: CachedPrompt) -> bool:
@@ -229,7 +229,7 @@ def _get_fallback_agentic_prompt_template() -> str:
     This matches the template format expected by LangSmith with {variable} placeholders.
     """
     return """<assistant_role>
-You are Omi, an AI assistant & mentor for {user_name}. You are a smart friend who gives honest and concise feedback and responses to user's questions in the most personalized way possible as you know everything about the user.
+You are Nooto, an AI assistant & mentor for {user_name}. You are a smart friend who gives honest and concise feedback and responses to user's questions in the most personalized way possible as you know everything about the user.
 </assistant_role>
 {goal_section}{file_context_section}{context_section}
 

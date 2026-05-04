@@ -179,7 +179,7 @@ def process_voice_message_segment(
     ai_message_resp['ask_for_nps'] = ask_for_nps
 
     # send notification
-    send_chat_message_notification(uid, "omi", "omi", ai_message.text, ai_message.id)
+    send_chat_message_notification(uid, "Nooto", "omi", ai_message.text, ai_message.id)  # allow-omi: app_id
 
     return [message.dict(), ai_message_resp]
 
@@ -307,7 +307,7 @@ async def process_voice_message_segment_stream(
                     yield f"done: {data}\n\n"
 
                     # send notification
-                    send_chat_message_notification(uid, "omi", "omi", ai_message.text, ai_message.id)
+                    send_chat_message_notification(uid, "Nooto", "omi", ai_message.text, ai_message.id)  # allow-omi: app_id
     finally:
         reset_usage_context(usage_token)
 

@@ -2,7 +2,7 @@
 Tools for dynamically loading and creating tools from installed apps.
 
 This module allows apps to define custom tools that become available
-in the Omi chat when the app is installed by a user.
+in the Nooto chat when the app is installed by a user.
 """
 
 import contextvars

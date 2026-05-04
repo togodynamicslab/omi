@@ -94,7 +94,7 @@ INCLUDE system memories for:
 • Relationship context (who knows who, what roles people have)
 
 Examples:
-✅ "{user_name} realized multiple cofounders are essential after Omi project delays"
+✅ "{user_name} realized multiple cofounders are essential after project delays"
 ✅ "{user_name}'s cofounder Araf built apps with hundreds of thousands of users at age 14"
 ✅ "{user_name} advises making 20 Instagram posts showing product use for viral success"
 ✅ "{user_name} prefers dark roast coffee with oat milk, no sugar"

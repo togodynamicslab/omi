@@ -138,7 +138,7 @@ def perform_merge_async(
         started_at = sorted_convs[0].get('started_at')
         finished_at = max(c.get('finished_at', datetime.min) for c in sorted_convs)
         language = sorted_convs[0].get('language', 'en')
-        source = sorted_convs[0].get('source', 'omi')
+        source = sorted_convs[0].get('source', 'omi')  # allow-omi: internal DB source identifier
 
         # Visibility: most restrictive wins
         visibility = _determine_visibility(sorted_convs)

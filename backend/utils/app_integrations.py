@@ -57,7 +57,7 @@ def _json_serialize_datetime(obj: Any) -> Any:
 PROACTIVE_NOTI_LIMIT_SECONDS = 30  # 1 noti / 30s
 
 
-def get_github_docs_content(repo="BasedHardware/omi", path="docs/doc"):
+def get_github_docs_content(repo="BasedHardware/omi", path="docs/doc"):  # allow-omi: upstream repo URL
     """
     Recursively retrieves content from GitHub docs folder and subfolders using GitHub API.
     Returns a dict mapping file paths to their raw content.
@@ -408,7 +408,7 @@ def _process_mentor_proactive_notification(uid: str, conversation_messages: list
         f"mentor_proactive sending uid={uid} confidence={draft.confidence:.2f} "
         f"category={draft.category} reasoning={draft.reasoning[:100]}"
     )
-    send_app_notification(uid, 'Omi', 'mentor', notification_text)
+    send_app_notification(uid, 'Nooto', 'mentor', notification_text)
 
     # Update rate limit and daily count
     ts = int(time.time())
@@ -610,7 +610,7 @@ def _trigger_realtime_integrations(uid: str, segments: List[dict], conversation_
 
 
 def send_app_notification(user_id: str, app_name: str, app_id: str, message: str, target: str = 'app'):
-    navigate_to = '/chat/omi' if target == 'main' else f'/chat/{app_id}'
+    navigate_to = '/chat/omi' if target == 'main' else f'/chat/{app_id}'  # allow-omi: internal route id
     ai_message = NotificationMessage(
         text=message,
         app_id=app_id,

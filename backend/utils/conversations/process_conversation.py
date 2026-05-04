@@ -499,7 +499,7 @@ def send_new_memories_notification(user_id: str, memories: [MemoryDB]):
         navigate_to="/facts",
     )
 
-    send_notification(user_id, "omi" + ' says', message, NotificationMessage.get_message_as_dict(ai_message))
+    send_notification(user_id, "Nooto" + ' says', message, NotificationMessage.get_message_as_dict(ai_message))
 
 
 def _extract_trends(uid: str, conversation: Conversation):
@@ -940,7 +940,7 @@ def process_user_expression_measurement_callback(provider: str, request_id: str,
     logger.info(f"Emotion Uid: {uid} {emotion}")
 
     # Ask llms about notification content
-    title = "omi"
+    title = "Nooto"
     context_str, _ = retrieve_rag_conversation_context(uid, conversation)
 
     response: str = obtain_emotional_message(uid, conversation, context_str, emotion)
