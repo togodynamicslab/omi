@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/onboarding/onboarding_chat_provider.dart';
 import 'package:nooto_v2/onboarding/widgets/pair_pendant_turn.dart';
+import 'package:nooto_v2/pendant/pendant_screen.dart';
 import 'package:nooto_v2/providers/pendant_provider.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
 
@@ -53,6 +54,20 @@ void main() {
     expect(find.textContaining("Pair your pendant when you're ready"), findsOneWidget);
     expect(find.text('Pair'), findsOneWidget);
     expect(find.text('Skip'), findsOneWidget);
+  });
+
+  testWidgets('Pair pushes PendantScreen route', (tester) async {
+    final pendant = FakePendantProvider(initial: const PendantInfo(state: PendantState.unpaired));
+    final chat = _StubOnboardingChatProvider();
+    await tester.pumpWidget(_harness(pendant, chat));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PendantScreen), findsNothing);
+
+    await tester.tap(find.text('Pair'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PendantScreen), findsOneWidget);
   });
 
   testWidgets('Skip calls OnboardingChatProvider.skipCurrent', (tester) async {

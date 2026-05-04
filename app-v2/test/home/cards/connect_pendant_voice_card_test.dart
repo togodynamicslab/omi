@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/home/cards/connect_pendant_voice_card.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
+import 'package:nooto_v2/pendant/pendant_screen.dart';
 import 'package:nooto_v2/providers/pendant_provider.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
@@ -79,6 +80,20 @@ void main() {
 
     expect(find.text('Your pendant disconnected at 12:42.'), findsOneWidget);
     expect(find.text('Tap to reconnect.'), findsOneWidget);
+  });
+
+  testWidgets('tap pushes PendantScreen route', (tester) async {
+    final card = ConnectPendantVoiceCard(variant: ConnectPendantVoiceVariant.unpaired, generatedAt: DateTime.now());
+    final provider = FakePendantProvider(initial: const PendantInfo(state: PendantState.unpaired));
+    await tester.pumpWidget(_harness(card, provider));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PendantScreen), findsNothing);
+
+    await tester.tap(find.text('Connect your pendant'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PendantScreen), findsOneWidget);
   });
 
   testWidgets('priority is 950 for unpaired and 600 for offlineLatePair', (tester) async {
