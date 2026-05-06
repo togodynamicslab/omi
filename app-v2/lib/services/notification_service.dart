@@ -147,6 +147,14 @@ class NotificationService extends ChangeNotifier {
   /// Called from auth_provider BEFORE the actual Firebase sign-out, so the
   /// DELETE has a valid auth token. Best-effort: errors here don't block the
   /// sign-out flow.
+  /// In-app dogfood affordance: ask the backend to send the signed-in user a
+  /// test notification (writes to Inbox + fires OS push). Surfaces the
+  /// backend's `detail` field on rate-limit / failure so the caller can show
+  /// it in a snackbar.
+  Future<void> sendTestNotification() async {
+    await _client.post('v1/users/test-notification', body: const <String, dynamic>{});
+  }
+
   Future<void> signOut() async {
     try {
       await _client.delete('v1/users/fcm-token', headers: await _deviceHeaders());
