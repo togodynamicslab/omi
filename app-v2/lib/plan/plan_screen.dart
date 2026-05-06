@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/apps/apps_provider.dart' hide LaunchUrlFn;
+import 'package:nooto_v2/home/home_nav.dart';
 import 'package:nooto_v2/plan/plan_detail_screen.dart';
 import 'package:nooto_v2/plan/plan_grouping.dart';
 import 'package:nooto_v2/plan/widgets/plan_action_sheet.dart';
@@ -47,6 +50,13 @@ class _PlanScreenState extends State<PlanScreen> {
   /// into deactivate for the tab-switch case).
   String? _projectFilter;
 
+  /// Item id currently being highlighted from a Home brief chip tap. Set when
+  /// HomeNav delivers a pending focus id; cleared after the 1500ms pulse
+  /// fade. The corresponding row paints `brandPrimary @ 12% alpha` for the
+  /// duration. Reduced-motion is honored by the underlying AnimatedContainer.
+  String? _focusedItemId;
+  Timer? _focusFadeTimer;
+
   @override
   void initState() {
     super.initState();
@@ -57,12 +67,53 @@ class _PlanScreenState extends State<PlanScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Consume any pending focus id from HomeNav. Clear-on-read protects
+    // against double-firing; the next tab activation without a chip-tap
+    // returns null and is a no-op.
+    final homeNav = context.read<HomeNav?>();
+    final pending = homeNav?.consumePendingFocusId();
+    if (pending != null && mounted) {
+      _scheduleFocusHighlight(pending);
+    }
+  }
+
+  /// Triggers the focus pulse on [itemId]. Sets state, schedules a scroll-
+  /// into-view after layout, and starts a 1500ms timer to clear the focus.
+  void _scheduleFocusHighlight(String itemId) {
+    setState(() => _focusedItemId = itemId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ctx = _PlanFocusKey(itemId).currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          alignment: 0.3,
+        );
+      }
+    });
+    _focusFadeTimer?.cancel();
+    _focusFadeTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _focusedItemId = null);
+    });
+  }
+
+  @override
   void deactivate() {
     // Clear transient project filter when the tab unmounts so re-entering
     // Plan starts clean. Permanent filter / pivot state persists via Hive
     // (pivot, owned by Shell) and via the lifetime of this State (filter).
     _projectFilter = null;
     super.deactivate();
+  }
+
+  @override
+  void dispose() {
+    _focusFadeTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -116,6 +167,7 @@ class _PlanScreenState extends State<PlanScreen> {
               sliver: _GroupsSliver(
                 groups: PlanGrouping.group(items, pivot: _pivot),
                 pivot: _pivot,
+                focusedItemId: _focusedItemId,
                 onCheckboxTap: (item) => _onCheckboxTap(item, twoWaySync: twoWaySync),
                 onRowBodyTap: _onRowBodyTap,
                 onProjectTap: (project) {
@@ -290,6 +342,7 @@ class _GroupsSliver extends StatelessWidget {
   const _GroupsSliver({
     required this.groups,
     required this.pivot,
+    required this.focusedItemId,
     required this.onCheckboxTap,
     required this.onRowBodyTap,
     required this.onProjectTap,
@@ -301,6 +354,7 @@ class _GroupsSliver extends StatelessWidget {
 
   final List<PlanGroup> groups;
   final PlanPivot pivot;
+  final String? focusedItemId;
   final Future<void> Function(ActionItem item) onCheckboxTap;
   final void Function(ActionItem item) onRowBodyTap;
   final ValueChanged<String> onProjectTap;
@@ -317,6 +371,7 @@ class _GroupsSliver extends StatelessWidget {
         title: groups[i].title,
         items: groups[i].items,
         pivot: pivot,
+        focusedItemId: focusedItemId,
         onCheckboxTap: onCheckboxTap,
         onRowBodyTap: onRowBodyTap,
         onProjectTap: onProjectTap,
@@ -334,6 +389,7 @@ class _GroupSection extends StatelessWidget {
     required this.title,
     required this.items,
     required this.pivot,
+    required this.focusedItemId,
     required this.onCheckboxTap,
     required this.onRowBodyTap,
     required this.onProjectTap,
@@ -345,6 +401,7 @@ class _GroupSection extends StatelessWidget {
   final String title;
   final List<ActionItem> items;
   final PlanPivot pivot;
+  final String? focusedItemId;
   final Future<void> Function(ActionItem item) onCheckboxTap;
   final void Function(ActionItem item) onRowBodyTap;
   final ValueChanged<String> onProjectTap;
@@ -381,24 +438,28 @@ class _GroupSection extends StatelessWidget {
           ),
           const SizedBox(height: AppStyles.spacingS),
           for (final item in items)
-            PlanRowSwipeWrapper(
-              key: ValueKey(item.id),
-              item: item,
-              sectionHasMixedSources: mixed,
-              pivot: pivot,
-              onCheckboxTap: () => onCheckboxTap(item),
-              // Row-body tap pushes the in-app detail screen for both Jira
-              // and transcript items — the screen renders only the metadata
-              // each kind actually carries, with a primary "Mark complete"
-              // / "Mark as Done" button.
-              onRowBodyTap: () => onRowBodyTap(item),
-              onProjectTap: item.externalSource?.jiraProjectKey != null
-                  ? () => onProjectTap(item.externalSource!.jiraProjectKey!)
-                  : null,
-              jiraSwipeEnabled: jiraSwipeEnabled,
-              onTransition: () => onTransition(item),
-              onSnooze: () => onSnooze(item),
-              onLongPress: () => onLongPress(item),
+            _FocusPulse(
+              key: _PlanFocusKey(item.id),
+              isFocused: focusedItemId == item.id,
+              child: PlanRowSwipeWrapper(
+                key: ValueKey(item.id),
+                item: item,
+                sectionHasMixedSources: mixed,
+                pivot: pivot,
+                onCheckboxTap: () => onCheckboxTap(item),
+                // Row-body tap pushes the in-app detail screen for both Jira
+                // and transcript items — the screen renders only the metadata
+                // each kind actually carries, with a primary "Mark complete"
+                // / "Mark as Done" button.
+                onRowBodyTap: () => onRowBodyTap(item),
+                onProjectTap: item.externalSource?.jiraProjectKey != null
+                    ? () => onProjectTap(item.externalSource!.jiraProjectKey!)
+                    : null,
+                jiraSwipeEnabled: jiraSwipeEnabled,
+                onTransition: () => onTransition(item),
+                onSnooze: () => onSnooze(item),
+                onLongPress: () => onLongPress(item),
+              ),
             ),
         ],
       ),
@@ -585,6 +646,45 @@ class _EmptyState extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Stable [GlobalObjectKey] keyed by the action-item id. Lets the Plan tab
+/// scroll an arbitrary row into view via `Scrollable.ensureVisible(ctx)` when
+/// HomeNav delivers a focus target. Two equal `_PlanFocusKey('foo')` values
+/// resolve to the same `BuildContext` because [GlobalObjectKey] hashes on
+/// object identity (string interning makes this reliable for dart constants).
+class _PlanFocusKey extends GlobalObjectKey {
+  const _PlanFocusKey(String id) : super(id);
+}
+
+/// Paints a 12%-alpha `brandPrimary` background behind its child for 1500ms
+/// after [isFocused] flips to true, then fades back to transparent. The
+/// `AnimatedContainer` curve is `Curves.easeOut`; reduced-motion users skip
+/// the animation entirely (Flutter handles this via the platform integration).
+///
+/// Triggered by Home brief chip taps that arrive via
+/// `HomeNav.switchToTab(planTabIndex, focusItemId: ...)`. Only one row paints
+/// at a time — see `_PlanScreenState._scheduleFocusHighlight`.
+class _FocusPulse extends StatelessWidget {
+  const _FocusPulse({super.key, required this.isFocused, required this.child});
+
+  final bool isFocused;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 1500),
+      curve: Curves.easeOut,
+      decoration: BoxDecoration(
+        color: isFocused
+            ? AppColors.brandPrimary.withValues(alpha: 0.12)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppStyles.radiusSmall),
+      ),
+      child: child,
     );
   }
 }
