@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/chat/chat_storage.dart';
+import 'package:nooto_v2/dev/typography_settings.dart';
 import 'package:nooto_v2/home/home_storage.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/onboarding/onboarding_chat_provider.dart';
@@ -91,6 +92,8 @@ class DeveloperSettingsScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: AppStyles.spacingL),
+            const SettingsSurfaceCard(child: _SerifBriefBodyToggle()),
           ],
         ),
       ),
@@ -102,5 +105,49 @@ class DeveloperSettingsScreen extends StatelessWidget {
     await HomeBoxes.clearAll();
     await ChatBoxes.clearAll();
     await onboarding.reset();
+  }
+}
+
+/// Toggle for the dogfood serif-body experiment. Lives here (Settings →
+/// Developer) instead of the AppBar kebab so it's discoverable in the right
+/// taxonomy — the kebab is for global quick actions, prefs belong here.
+/// Tolerates an absent provider so the screen renders in widget tests
+/// without forcing every test to install TypographySettings.
+class _SerifBriefBodyToggle extends StatelessWidget {
+  const _SerifBriefBodyToggle();
+
+  @override
+  Widget build(BuildContext context) {
+    final typography = context.watch<TypographySettings?>();
+    final enabled = typography?.useSerifBody ?? false;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingM, vertical: AppStyles.spacingXS),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Serif brief body',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Render brief and plan-guidance prose in Source Serif 4 instead of sans.',
+                  style: TextStyle(fontSize: 13, color: AppColors.textTertiary, height: 1.3),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppStyles.spacingM),
+          Switch.adaptive(
+            value: enabled,
+            onChanged: typography == null ? null : (v) => typography.setUseSerifBody(v),
+            activeThumbColor: AppColors.brandPrimary,
+          ),
+        ],
+      ),
+    );
   }
 }
