@@ -36,7 +36,10 @@ class PlanGuidanceCard extends StatelessWidget {
           BriefRichBody(
             body: guidance.text,
             style: const TextStyle(
-              fontSize: 17,
+              // 16pt to match the morning brief verbatim — both surfaces are
+              // the same chief-of-staff voice, so they should read at the
+              // same volume. DESIGN.md `bodyLarge`.
+              fontSize: 16,
               color: AppColors.textSecondary,
               // Match the brief's chip-rich leading (1.6) so InlineRefChip pills
               // sit comfortably between sentences without crowding the prose.
