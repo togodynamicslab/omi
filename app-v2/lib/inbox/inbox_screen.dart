@@ -114,7 +114,12 @@ class _InboxScreenViewState extends State<_InboxScreenView> {
       return const _SkeletonList();
     }
     if (provider.error != null && provider.messages.isEmpty) {
-      return _ErrorState(title: l.inboxErrorTitle, retryLabel: l.inboxErrorRetry, onRetry: provider.refresh);
+      return _ErrorState(
+        title: l.inboxErrorTitle,
+        detail: provider.error,
+        retryLabel: l.inboxErrorRetry,
+        onRetry: provider.refresh,
+      );
     }
     final filtered = provider.messagesFiltered;
     if (filtered.isEmpty) {
@@ -401,9 +406,15 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.title, required this.retryLabel, required this.onRetry});
+  const _ErrorState({
+    required this.title,
+    required this.retryLabel,
+    required this.onRetry,
+    this.detail,
+  });
 
   final String title;
+  final String? detail;
   final String retryLabel;
   final VoidCallback onRetry;
 
@@ -422,6 +433,14 @@ class _ErrorState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
             ),
+            if (detail != null && detail!.isNotEmpty) ...[
+              const SizedBox(height: AppStyles.spacingS),
+              Text(
+                detail!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: AppColors.textTertiary, height: 1.5),
+              ),
+            ],
             const SizedBox(height: AppStyles.spacingL),
             SizedBox(
               height: AppStyles.touchTargetMinimum,
