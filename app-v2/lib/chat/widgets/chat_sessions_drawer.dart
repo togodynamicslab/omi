@@ -7,6 +7,7 @@ import 'package:nooto_v2/chat/chat_session.dart';
 import 'package:nooto_v2/chat/widgets/session_actions_sheet.dart';
 import 'package:nooto_v2/inbox/inbox_screen.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
+import 'package:nooto_v2/services/notification_service.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 
 /// ChatGPT-style left drawer that lists chat sessions grouped by date bucket.
@@ -121,6 +122,7 @@ class _InboxRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final hasUnread = context.watch<NotificationService>().hasUnreadInbox;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -131,7 +133,26 @@ class _InboxRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingL, vertical: AppStyles.spacingM),
             child: Row(
               children: [
-                const Icon(Icons.inbox_outlined, size: 24, color: AppColors.textPrimary),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.inbox_outlined, size: 24, color: AppColors.textPrimary),
+                    if (hasUnread)
+                      Positioned(
+                        top: -2,
+                        right: -4,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: AppColors.errorColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: AppColors.backgroundPrimary, width: 1),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
                 const SizedBox(width: AppStyles.spacingM),
                 Expanded(
                   child: Text(
