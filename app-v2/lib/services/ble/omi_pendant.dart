@@ -125,7 +125,15 @@ class OmiPendant {
   /// Public start-pair entry. Requests permissions, kicks off scanning, and
   /// connects to the first matching Omi device. UI tap from the pairing
   /// sheet calls this.
+  /// True when the most recent [startPair] attempt failed because the iOS
+  /// Bluetooth adapter was OFF (not the same as denied permission). The
+  /// pendant screen reads this to render a "Turn Bluetooth on in Control
+  /// Center" surface card instead of the generic "couldn't find a pendant"
+  /// timeout copy. Reset to false at the start of every [startPair].
+  bool wasLastPairAttemptBluetoothOff = false;
+
   Future<void> startPair({Duration scanTimeout = const Duration(seconds: 8)}) async {
+    wasLastPairAttemptBluetoothOff = false;
     final blePerm = await _requestBlePermissions();
     final micPerm = await _requestMicPermission();
     if (!blePerm || !micPerm) {
@@ -154,6 +162,17 @@ class OmiPendant {
       await _connect(match.deviceId, match.deviceName);
     } catch (e, st) {
       debugPrint('[OmiPendant] startPair error: $e\n$st');
+      // Detect "Bluetooth is off" specifically — flutter_blue_plus surfaces
+      // this as PlatformException(startScan, "bluetooth must be turned on.
+      // (CBManagerStateUnknown)" / "(CBManagerStatePoweredOff)"). The screen
+      // reads `wasLastPairAttemptBluetoothOff` to render distinct copy.
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('bluetooth must be turned on') ||
+          msg.contains('cbmanagerstateunknown') ||
+          msg.contains('cbmanagerstatepoweredoff') ||
+          msg.contains('cbmanagerstateunauthorized')) {
+        wasLastPairAttemptBluetoothOff = true;
+      }
       _setState(PendantState.unpaired);
     }
   }
@@ -233,86 +252,131 @@ class OmiPendant {
     }
   }
 
+  /// Total budget from `connecting` start to `live`. If we don't make it in
+  /// this window — typically because `setNotifyValue` for the audio CCCD
+  /// hangs without an ACK from the pendant, or service discovery stalls —
+  /// the user would otherwise stare at the ceremony's "Setting up." beat
+  /// indefinitely. Forcing `unpaired` lets the screen surface a clear
+  /// ceremony failure ("Something interrupted the connection. Let's try
+  /// once more.") instead of an indefinite hang.
+  static const Duration connectTimeout = Duration(seconds: 15);
+
   Future<void> _connect(String deviceId, String? deviceName) async {
+    debugPrint('[BLE-DBG] _connect: ENTRY id=$deviceId name=$deviceName');
     _setState(PendantState.connecting, deviceId: deviceId, deviceName: deviceName);
     try {
-      await _ble.connectDevice(deviceId);
-      _connectedDeviceId = deviceId;
-
-      // Wire connection state listener for transport disconnect.
-      await _connectionSub?.cancel();
-      _connectionSub = _ble.deviceConnectionState(deviceId).listen((connected) {
-        if (!connected) {
-          _onTransportDisconnect();
-        }
-      });
-
-      final services = await _ble.discoverServices(deviceId);
-
-      // Find audio + codec characteristics.
-      final audio = _findCharacteristic(services, omiServiceUuid, audioDataCharacteristicUuid);
-      final codecChar = _findCharacteristic(services, omiServiceUuid, audioCodecCharacteristicUuid);
-      if (audio == null || codecChar == null) {
-        _setState(PendantState.incompatible);
-        return;
-      }
-
-      // Read codec; unknown byte → incompatible.
-      final codecBytes = await _ble.readCharacteristic(deviceId, codecChar);
-      final codec = _mapCodecByte(codecBytes);
-      if (codec == null) {
-        _setState(PendantState.incompatible);
-        return;
-      }
-
-      _source = BleDeviceSource(codec: codec, deviceId: deviceId, deviceModel: 'omi'); // allow-omi: hardware model identifier, internal label
-
-      // Subscribe to audio.
+      await _connectInner(deviceId, deviceName).timeout(connectTimeout);
+    } on TimeoutException {
+      debugPrint('[BLE-DBG] _connect: TIMEOUT after ${connectTimeout.inSeconds}s — forcing unpaired');
+      // Tear down whatever we partially set up, then fail-fast to `unpaired`
+      // so the screen's `connecting → unpaired` signal emits a ceremony
+      // failure with the BLE error card. Bypasses `_onTransportDisconnect`
+      // so we don't enter the reconnect loop during initial pair.
       await _audioSub?.cancel();
-      await _ble.setNotifyValue(deviceId, audio, true);
-      _audioSub = _ble.characteristicStream(deviceId, audio).listen(_onAudioBytes);
-
-      // Subscribe to battery (initial read + listener).
-      final battery = _findCharacteristic(services, batteryServiceUuid, batteryCharacteristicUuid);
-      if (battery != null) {
-        try {
-          final initial = await _ble.readCharacteristic(deviceId, battery);
-          if (initial.isNotEmpty) {
-            _info.value = _info.value.copyWith(batteryPercent: initial.first);
-          }
-          await _batterySub?.cancel();
-          await _ble.setNotifyValue(deviceId, battery, true);
-          _batterySub = _ble.characteristicStream(deviceId, battery).listen((value) {
-            if (value.isNotEmpty) {
-              _info.value = _info.value.copyWith(batteryPercent: value.first);
-            }
-          });
-        } catch (e) {
-          debugPrint('[OmiPendant] battery setup error: $e');
-        }
-      }
-
-      // Persist deviceId now that connect succeeded.
-      final box = await _resolveBox();
-      await box.put(_hiveKeyDeviceId, deviceId);
-      if (deviceName != null && deviceName.isNotEmpty) {
-        await box.put(_hiveKeyDeviceName, deviceName);
-      }
-
-      _backoffIndex = 0;
-      _reconnectStartedAt = null;
-      _info.value = _info.value.copyWith(
-        state: PendantState.live,
-        deviceId: deviceId,
-        deviceName: deviceName,
-        codec: codec,
-        clearOfflineSince: true,
-        droppedPacketsLastInterrupt: 0,
-      );
+      _audioSub = null;
+      await _batterySub?.cancel();
+      _batterySub = null;
+      await _connectionSub?.cancel();
+      _connectionSub = null;
+      final id = _connectedDeviceId ?? deviceId;
+      try {
+        await _ble.disconnectDevice(id);
+      } catch (_) {}
+      _connectedDeviceId = null;
+      _source = null;
+      _setState(PendantState.unpaired);
     } catch (e, st) {
       debugPrint('[OmiPendant] connect error: $e\n$st');
       _onTransportDisconnect();
     }
+  }
+
+  /// Body of the connect flow, extracted so the outer [_connect] can apply a
+  /// total-time `.timeout()` budget that catches hung BLE awaits.
+  Future<void> _connectInner(String deviceId, String? deviceName) async {
+    debugPrint('[BLE-DBG] _connect: calling _ble.connectDevice');
+    await _ble.connectDevice(deviceId);
+    debugPrint('[BLE-DBG] _connect: connectDevice resolved');
+    _connectedDeviceId = deviceId;
+
+    // Wire connection state listener for transport disconnect.
+    await _connectionSub?.cancel();
+    _connectionSub = _ble.deviceConnectionState(deviceId).listen((connected) {
+      if (!connected) {
+        _onTransportDisconnect();
+      }
+    });
+
+    debugPrint('[BLE-DBG] _connect: discoverServices');
+    final services = await _ble.discoverServices(deviceId);
+    debugPrint('[BLE-DBG] _connect: discoverServices done, ${services.length} services');
+
+    // Find audio + codec characteristics.
+    final audio = _findCharacteristic(services, omiServiceUuid, audioDataCharacteristicUuid);
+    final codecChar = _findCharacteristic(services, omiServiceUuid, audioCodecCharacteristicUuid);
+    if (audio == null || codecChar == null) {
+      debugPrint('[BLE-DBG] _connect: incompatible — audio=$audio codec=$codecChar');
+      _setState(PendantState.incompatible);
+      return;
+    }
+
+    // Read codec; unknown byte → incompatible.
+    debugPrint('[BLE-DBG] _connect: reading codec characteristic');
+    final codecBytes = await _ble.readCharacteristic(deviceId, codecChar);
+    final codec = _mapCodecByte(codecBytes);
+    debugPrint('[BLE-DBG] _connect: codec bytes=$codecBytes mapped=$codec');
+    if (codec == null) {
+      _setState(PendantState.incompatible);
+      return;
+    }
+
+    _source = BleDeviceSource(codec: codec, deviceId: deviceId, deviceModel: 'omi'); // allow-omi: hardware model identifier, internal label
+
+    // Subscribe to audio.
+    debugPrint('[BLE-DBG] _connect: setNotifyValue(audio, true)');
+    await _audioSub?.cancel();
+    await _ble.setNotifyValue(deviceId, audio, true);
+    debugPrint('[BLE-DBG] _connect: setNotifyValue done, listening for audio frames');
+    _audioSub = _ble.characteristicStream(deviceId, audio).listen(_onAudioBytes);
+
+    // Subscribe to battery (initial read + listener).
+    final battery = _findCharacteristic(services, batteryServiceUuid, batteryCharacteristicUuid);
+    if (battery != null) {
+      try {
+        final initial = await _ble.readCharacteristic(deviceId, battery);
+        if (initial.isNotEmpty) {
+          _info.value = _info.value.copyWith(batteryPercent: initial.first);
+        }
+        await _batterySub?.cancel();
+        await _ble.setNotifyValue(deviceId, battery, true);
+        _batterySub = _ble.characteristicStream(deviceId, battery).listen((value) {
+          if (value.isNotEmpty) {
+            _info.value = _info.value.copyWith(batteryPercent: value.first);
+          }
+        });
+      } catch (e) {
+        debugPrint('[OmiPendant] battery setup error: $e');
+      }
+    }
+
+    // Persist deviceId now that connect succeeded.
+    final box = await _resolveBox();
+    await box.put(_hiveKeyDeviceId, deviceId);
+    if (deviceName != null && deviceName.isNotEmpty) {
+      await box.put(_hiveKeyDeviceName, deviceName);
+    }
+
+    _backoffIndex = 0;
+    _reconnectStartedAt = null;
+    debugPrint('[BLE-DBG] _connect: SUCCESS — state → live');
+    _info.value = _info.value.copyWith(
+      state: PendantState.live,
+      deviceId: deviceId,
+      deviceName: deviceName,
+      codec: codec,
+      clearOfflineSince: true,
+      droppedPacketsLastInterrupt: 0,
+    );
   }
 
   void _onAudioBytes(List<int> raw) {
