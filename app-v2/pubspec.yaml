@@ -29,6 +29,14 @@ dependencies:
   google_sign_in: 6.2.2
   sign_in_with_apple: ^6.1.1
 
+  # Push notifications (FCM + local banner) — legacy `app/` parity for the
+  # notifications-as-chat Inbox feature. Wake-up channel only; the Inbox
+  # feed itself is fetched server-side. `flutter_timezone` is needed by
+  # FCM token persistence to send the device tz.
+  firebase_messaging: 15.2.5
+  flutter_local_notifications: ^17.2.3
+  flutter_timezone: 3.0.1
+
   # Networking
   http: ^1.2.2
 
