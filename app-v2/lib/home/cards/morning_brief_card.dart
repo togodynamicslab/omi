@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:nooto_v2/home/cards/card_entrance.dart';
 import 'package:nooto_v2/home/companion_card.dart';
+import 'package:nooto_v2/home/widgets/brief_rich_body.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 
 /// Synthesized daily brief, voice grammar (no chrome). Sits between the
@@ -97,21 +98,23 @@ class _MorningBriefView extends StatelessWidget {
             if (hasGreeting) ...[
               Text(
                 card.greeting,
-                style: brandEmphasis(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
+                style: brandAccent(
+                  fontSize: 24,
                   color: AppColors.textPrimary,
-                  height: 1.25,
+                  height: 1.35,
                 ),
               ),
               const SizedBox(height: AppStyles.spacingM),
             ],
-            Text(
-              card.body,
+            BriefRichBody(
+              body: card.body,
               style: const TextStyle(
                 fontSize: 16,
                 color: AppColors.textSecondary,
-                height: 1.45,
+                // Bumped 1.45 → 1.6 (2026-05-05) — chip-rich prose felt cramped
+                // because 24pt-tall chips eat into the leading. 1.6 gives the
+                // surrounding text room to breathe around the inline chips.
+                height: 1.6,
               ),
             ),
             const SizedBox(height: AppStyles.spacingS),
