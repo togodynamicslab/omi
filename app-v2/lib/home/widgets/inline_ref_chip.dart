@@ -76,7 +76,7 @@ class InlineRefChip extends StatelessWidget {
   }) {
     return InlineRefChip._(
       kind: BriefRefKind.conversation,
-      label: title.trim(),
+      label: _trimTitle(title),
       leading: const Icon(Icons.chat_bubble_outline_rounded, size: 12, color: AppColors.textTertiary),
       onTap: onTap,
       semanticsLabel: '$title, conversation, double tap to view',
@@ -85,10 +85,11 @@ class InlineRefChip extends StatelessWidget {
   }
 
   /// Plan reference — an action item from `ActionItemsProvider`. The label is
-  /// the full item title; the chip widget below has `maxLines: 1` +
-  /// `TextOverflow.ellipsis` as a layout-time safety net for pathological
-  /// titles, but typical action-item descriptions render in full. Leading
-  /// dot is emerald to read as "ours" against the Jira-blue ticket variant.
+  /// the item title, capped at ~32 chars at a word boundary so very long
+  /// user-typed descriptions don't dominate the prose. Single-line chip
+  /// preserves the sentence-level pill grammar; multi-line chips read as
+  /// blocks. Leading dot is emerald to read as "ours" against Jira-blue
+  /// ticket variant.
   factory InlineRefChip.plan({
     required String title,
     required VoidCallback onTap,
@@ -96,7 +97,7 @@ class InlineRefChip extends StatelessWidget {
   }) {
     return InlineRefChip._(
       kind: BriefRefKind.plan,
-      label: title.trim(),
+      label: _trimTitle(title),
       leading: Container(
         width: 6,
         height: 6,
@@ -142,16 +143,14 @@ class InlineRefChip extends StatelessWidget {
             children: [
               leading,
               const SizedBox(width: AppStyles.spacingXS),
-              // Flexible so the Text honors the parent's max-width constraint.
-              // Without this, Text takes its intrinsic width regardless of the
-              // available line width and the chip overflows on long titles
-              // (e.g. "Plan one weekly social activity involving marriage…").
-              //
-              // `maxLines: 2` lets very long titles render in full across two
-              // lines instead of ellipsizing. The WidgetSpan reports the
-              // chip's full height to Text.rich, so the surrounding prose
-              // line stretches to accommodate. `height: 1.15` keeps the two
-              // lines from feeling crushed.
+              // Flexible so the Text honors the parent's max-width constraint
+              // — without it, Text takes intrinsic width and the chip overflows
+              // the line on long titles. With Flexible the Text gets the
+              // available width and TextOverflow.ellipsis kicks in when there's
+              // genuinely no room. Stays single-line — multi-line chips read
+              // as blocks in the middle of prose and break the sentence-level
+              // pill grammar. Long titles are trimmed at word boundary on the
+              // factory side (see `_trimTitle`).
               Flexible(
                 child: Text(
                   label,
@@ -159,9 +158,9 @@ class InlineRefChip extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: AppColors.textSecondary,
-                    height: 1.15,
+                    height: 1.0,
                   ),
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -199,6 +198,20 @@ String _firstName(String fullName) {
   if (trimmed.isEmpty) return 'Someone';
   final space = trimmed.indexOf(' ');
   return space < 0 ? trimmed : trimmed.substring(0, space);
+}
+
+/// Trim long action-item / conversation titles to keep the chip a sentence-
+/// level pill, not a block. Cap at 32 chars at the last word boundary so we
+/// never produce mid-syllable cuts ("Plan full weekly schedu…"). Below the
+/// cap, render as-is. Above it, fall back to a hard char cut only when the
+/// first word itself is longer than 12 chars (a single very long token).
+String _trimTitle(String title) {
+  final trimmed = title.trim();
+  const cap = 32;
+  if (trimmed.length <= cap) return trimmed;
+  final lastSpace = trimmed.lastIndexOf(' ', cap);
+  final cut = lastSpace >= 12 ? lastSpace : cap;
+  return '${trimmed.substring(0, cut)}…';
 }
 
 /// First+last initial of a display name, uppercased. Falls back to a single
