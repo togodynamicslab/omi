@@ -387,5 +387,77 @@
   "settingsNotificationsStateOpenSettings": "Open Settings to enable",
   "@settingsNotificationsStateOpenSettings": {
     "description": "Notifications denied at OS level — directs user to Settings"
+  },
+  "settingsCategoryAccount": "Account",
+  "@settingsCategoryAccount": {
+    "description": "Settings category label: account/sign-in/sign-out."
+  },
+  "settingsCategoryAccountDescription": "Sign-in, identity",
+  "@settingsCategoryAccountDescription": {
+    "description": "Settings category one-liner under Account (used by search match, not currently rendered as a row subtitle)."
+  },
+  "settingsCategoryPermissions": "Permissions",
+  "@settingsCategoryPermissions": {
+    "description": "Settings category label: OS permissions."
+  },
+  "settingsCategoryPermissionsDescription": "Microphone, Bluetooth, Notifications, Location",
+  "@settingsCategoryPermissionsDescription": {
+    "description": "Settings category one-liner under Permissions."
+  },
+  "settingsCategoryPendant": "Pendant",
+  "@settingsCategoryPendant": {
+    "description": "Settings category label: pendant diagnostics."
+  },
+  "settingsCategoryPendantDescription": "Connection status, codec, battery",
+  "@settingsCategoryPendantDescription": {
+    "description": "Settings category one-liner under Pendant."
+  },
+  "settingsCategoryNotifications": "Notifications",
+  "@settingsCategoryNotifications": {
+    "description": "Settings category label: notifications-as-chat toggle."
+  },
+  "settingsCategoryNotificationsDescription": "Apps and Brief alerts",
+  "@settingsCategoryNotificationsDescription": {
+    "description": "Settings category one-liner under Notifications."
+  },
+  "settingsCategoryAbout": "About",
+  "@settingsCategoryAbout": {
+    "description": "Settings category label: app info."
+  },
+  "settingsCategoryAboutDescription": "Build version, support",
+  "@settingsCategoryAboutDescription": {
+    "description": "Settings category one-liner under About."
+  },
+  "settingsCategoryDeveloper": "Developer",
+  "@settingsCategoryDeveloper": {
+    "description": "Settings category label: developer/debug surface."
+  },
+  "settingsCategoryDeveloperDescription": "Diagnostics and reset",
+  "@settingsCategoryDeveloperDescription": {
+    "description": "Settings category one-liner under Developer."
+  },
+  "settingsSearchPlaceholder": "Search settings",
+  "@settingsSearchPlaceholder": {
+    "description": "Placeholder text inside the iOS-style search field at the top of Settings."
+  },
+  "settingsSearchEmpty": "No matching settings",
+  "@settingsSearchEmpty": {
+    "description": "Empty-state copy when the Settings search query matches nothing."
+  },
+  "settingsNotificationsDescription": "Apps and Brief send proactive messages to your Inbox. Turn off to silence the device push without losing the in-app feed.",
+  "@settingsNotificationsDescription": {
+    "description": "Long-form description below the Notifications toggle on the Notifications sub-page."
+  },
+  "settingsAccountSignOut": "Sign out",
+  "@settingsAccountSignOut": {
+    "description": "Sign-out button on the Account sub-page."
+  },
+  "settingsDeveloperResetOnboarding": "Reset onboarding",
+  "@settingsDeveloperResetOnboarding": {
+    "description": "Reset onboarding button on the Developer sub-page."
+  },
+  "settingsDeveloperOpenSystemSettings": "Open iOS Settings",
+  "@settingsDeveloperOpenSystemSettings": {
+    "description": "Open system Settings shortcut button on the Developer sub-page."
   }
 }
