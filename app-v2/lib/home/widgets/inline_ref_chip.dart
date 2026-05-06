@@ -76,7 +76,7 @@ class InlineRefChip extends StatelessWidget {
   }) {
     return InlineRefChip._(
       kind: BriefRefKind.conversation,
-      label: _trimTitle(title),
+      label: title.trim(),
       leading: const Icon(Icons.chat_bubble_outline_rounded, size: 12, color: AppColors.textTertiary),
       onTap: onTap,
       semanticsLabel: '$title, conversation, double tap to view',
@@ -85,9 +85,10 @@ class InlineRefChip extends StatelessWidget {
   }
 
   /// Plan reference — an action item from `ActionItemsProvider`. The label is
-  /// the item's [title], truncated to 24 chars (same rule as conversation).
-  /// Leading dot is emerald (see [_planGreen]) to read as "ours" against the
-  /// Jira-blue ticket variant.
+  /// the full item title; the chip widget below has `maxLines: 1` +
+  /// `TextOverflow.ellipsis` as a layout-time safety net for pathological
+  /// titles, but typical action-item descriptions render in full. Leading
+  /// dot is emerald to read as "ours" against the Jira-blue ticket variant.
   factory InlineRefChip.plan({
     required String title,
     required VoidCallback onTap,
@@ -95,7 +96,7 @@ class InlineRefChip extends StatelessWidget {
   }) {
     return InlineRefChip._(
       kind: BriefRefKind.plan,
-      label: _trimTitle(title),
+      label: title.trim(),
       leading: Container(
         width: 6,
         height: 6,
@@ -199,15 +200,3 @@ String briefPersonInitials(String name) {
   return (parts.first.substring(0, 1) + parts.last.substring(0, 1)).toUpperCase();
 }
 
-String _trimTitle(String title) {
-  final trimmed = title.trim();
-  if (trimmed.length <= 24) return trimmed;
-  // Cut at the last word boundary within the cap so we never produce a
-  // mid-syllable trim like "Plan full weekly schedu…" — that read as a
-  // broken chip in dogfood. Falls back to a hard char cut when no
-  // reasonable word break exists (e.g., a single very long token).
-  const cap = 23;
-  final lastSpace = trimmed.lastIndexOf(' ', cap);
-  final cut = lastSpace >= 12 ? lastSpace : cap;
-  return '${trimmed.substring(0, cut)}…';
-}
