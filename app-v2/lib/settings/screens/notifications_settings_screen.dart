@@ -145,7 +145,13 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
       _testError = null;
     });
     try {
-      await context.read<NotificationService>().sendTestNotification();
+      final service = context.read<NotificationService>();
+      await service.sendTestNotification();
+      // Bump the chat-tab badge immediately so the user sees the dot before
+      // the FCM round-trip lands. The foreground handler is idempotent — if
+      // the FCM also fires while in the foreground, it bumps again (which is
+      // accurate: two events occurred). Cleared on next Inbox open.
+      await service.bumpUnreadInboxBadge();
       if (!mounted) return;
       setState(() {
         _testStatus = _TestStatus.sent;
