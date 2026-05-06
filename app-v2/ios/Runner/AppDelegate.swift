@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -12,6 +13,14 @@ import UIKit
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // Wire UNUserNotificationCenter so the Firebase Messaging plugin can
+    // forward foreground notifications + tap callbacks. The actual APNS
+    // token plumbing is handled by the firebase_messaging plugin's method
+    // swizzling — we just need the delegate set and remote notifications
+    // registered. Authorization is requested from Dart (notification_service)
+    // so we don't double-prompt.
+    UNUserNotificationCenter.current().delegate = self
+    application.registerForRemoteNotifications()
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
