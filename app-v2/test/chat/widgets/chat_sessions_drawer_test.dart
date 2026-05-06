@@ -14,6 +14,7 @@ import 'package:nooto_v2/chat/widgets/chat_sessions_drawer.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/services/api_client.dart';
 import 'package:nooto_v2/services/chat_service.dart';
+import 'package:nooto_v2/services/notification_service.dart';
 
 class _FakePathProvider extends PathProviderPlatform {
   _FakePathProvider(this.tempDir);
@@ -45,13 +46,26 @@ class _StubChatService extends ChatService {
 }
 
 /// Wraps the drawer in a Scaffold + ChangeNotifierProvider so the test can
-/// open it via a `GlobalKey<ScaffoldState>`.
+/// open it via a `GlobalKey<ScaffoldState>`. The Inbox row reads
+/// NotificationService for its unread badge — provide a real (no-op) instance
+/// rather than mocking; constructing it doesn't boot Firebase.
 Widget _harness(ChatProvider provider, GlobalKey<ScaffoldState> scaffoldKey) {
+  final notifications = NotificationService(
+    client: ApiClient(
+      httpClient: MockClient((_) async => http.Response('', 200)),
+      getIdToken: ({bool forceRefresh = false}) async => 'tok',
+      signOut: () async {},
+      baseUrl: 'https://example.test/',
+    ),
+  );
   return MaterialApp(
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
-    home: ChangeNotifierProvider<ChatProvider>.value(
-      value: provider,
+    home: MultiProvider(
+      providers: [
+        ChangeNotifierProvider<ChatProvider>.value(value: provider),
+        ChangeNotifierProvider<NotificationService>.value(value: notifications),
+      ],
       child: Scaffold(
         key: scaffoldKey,
         drawer: const ChatSessionsDrawer(),
