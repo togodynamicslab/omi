@@ -122,10 +122,7 @@ class _InboxScreenViewState extends State<_InboxScreenView> {
         title: l.inboxEmptyTitle,
         description: l.inboxEmptyDescription,
         actionLabel: l.inboxEmptyAction,
-        onAction: () {
-          // v0: no apps page route exists yet; ghost button is a no-op.
-          // Tracked as TODO in scope; will wire when AppsScreen lands.
-        },
+        onAction: null,
       );
     }
     return RefreshIndicator(
@@ -360,7 +357,7 @@ class _EmptyState extends StatelessWidget {
   final String title;
   final String description;
   final String actionLabel;
-  final VoidCallback onAction;
+  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -383,17 +380,19 @@ class _EmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.5),
             ),
-            const SizedBox(height: AppStyles.spacingL),
-            SizedBox(
-              height: AppStyles.touchTargetMinimum,
-              child: TextButton(
-                onPressed: onAction,
-                child: Text(
-                  actionLabel,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.brandPrimary),
+            if (onAction != null) ...[
+              const SizedBox(height: AppStyles.spacingL),
+              SizedBox(
+                height: AppStyles.touchTargetMinimum,
+                child: TextButton(
+                  onPressed: onAction,
+                  child: Text(
+                    actionLabel,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.brandPrimary),
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
       ),
