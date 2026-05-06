@@ -317,6 +317,13 @@ class PlanRow extends StatelessWidget {
     // prefix entirely and render only the age — repeating the source
     // across six rows in a single-source group is decorative noise.
     if (ext == null) {
+      // Suppress the createdAt age on overdue transcript rows — the
+      // trailing "overdue Xd" label already names the time pressure, and
+      // showing both ("2mo ago" + "overdue 72d") makes the eye reconcile
+      // two dimensions of time per row. /design-review F-003.
+      final due = item.dueAt;
+      final isOverdue = due != null && due.isBefore(DateTime.now());
+      if (isOverdue) return segments;
       final created = item.createdAt;
       if (created != null) {
         final age = DateTime.now().difference(created);
