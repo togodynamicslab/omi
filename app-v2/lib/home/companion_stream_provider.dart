@@ -475,8 +475,9 @@ class CompanionStreamProvider extends ChangeNotifier {
 /// id. Shape: `{ overdue: [...], due_soon: [...], stuck_jira: [...], plan_remaining_count: N }`.
 /// Empty arrays are kept (not omitted) so the prompt can deterministically
 /// branch on each bucket. Pure function — no provider/state dependencies —
-/// so unit tests pin the bucketing rules without spinning up Hive.
-@visibleForTesting
+/// so unit tests pin the bucketing rules without spinning up Hive. Also used
+/// by the Plan tab's `PlanGuidanceProvider` (same shape, same backend
+/// grounding contract).
 Map<String, dynamic> buildTodayContext(Iterable<ActionItem> items, {required DateTime now}) {
   final dueSoonCutoff = now.add(_dueSoonWindow);
   final overdue = <Map<String, dynamic>>[];
@@ -531,7 +532,7 @@ Map<String, dynamic> buildTodayContext(Iterable<ActionItem> items, {required Dat
 
 /// True when no actionable items exist (overdue/due-soon/stuck all empty).
 /// Used as the empty-state gate that skips the brief LLM call entirely.
-@visibleForTesting
+/// Also used by the Plan tab to suppress the guidance LLM call on calm days.
 bool isTodayContextEmpty(Map<String, dynamic> ctx) {
   final overdue = (ctx['overdue'] as List?)?.isEmpty ?? true;
   final dueSoon = (ctx['due_soon'] as List?)?.isEmpty ?? true;
