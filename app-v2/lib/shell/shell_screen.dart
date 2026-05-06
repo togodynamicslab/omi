@@ -76,6 +76,10 @@ class _ShellScreenState extends State<ShellScreen> {
         ),
         elevation: 0,
         titleSpacing: 16,
+        // Left-align tab titles. HIG default on iOS centers titles, but our
+        // identity belongs at the leading edge to match the home screen's
+        // wordmark and the brand-emphasis grammar in DESIGN.md.
+        centerTitle: false,
         title: isHome
             ? null
             : Text(
