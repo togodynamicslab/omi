@@ -6,6 +6,7 @@ import 'package:nooto_v2/inbox/inbox_message_bubble.dart';
 import 'package:nooto_v2/inbox/inbox_provider.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/services/api_client.dart';
+import 'package:nooto_v2/services/notification_service.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 
 /// Notifications-as-chat surface (v0). Reads messages from
@@ -57,6 +58,12 @@ class _InboxScreenViewState extends State<_InboxScreenView> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    // Clear the chat-tab unread dot — opening Inbox is the user's "I've
+    // seen these" signal in v0 (no per-message read state).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<NotificationService>().markInboxRead();
+    });
   }
 
   @override
@@ -406,12 +413,7 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({
-    required this.title,
-    required this.retryLabel,
-    required this.onRetry,
-    this.detail,
-  });
+  const _ErrorState({required this.title, required this.retryLabel, required this.onRetry, this.detail});
 
   final String title;
   final String? detail;
