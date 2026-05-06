@@ -34,10 +34,14 @@ class NotificationsSettingsScreen extends StatefulWidget {
   State<NotificationsSettingsScreen> createState() => _NotificationsSettingsScreenState();
 }
 
+enum _TestStatus { idle, sending, sent, failed }
+
 class _NotificationsSettingsScreenState extends State<NotificationsSettingsScreen> with WidgetsBindingObserver {
   bool? _toggleEnabled;
   PermissionStatus? _osStatus;
-  bool _sendingTest = false;
+  _TestStatus _testStatus = _TestStatus.idle;
+  String? _testError;
+  Timer? _revertTimer;
 
   PermissionResolver get _resolve => widget.permissionResolver ?? defaultPermissionResolver;
   Future<bool> Function() get _openSettings => widget.openAppSettings ?? defaultOpenAppSettings;
@@ -52,6 +56,7 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
 
   @override
   void dispose() {
+    _revertTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -98,25 +103,75 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
     return os != null && (os.isDenied || os.isPermanentlyDenied || os.isRestricted);
   }
 
+  Widget _buildTestRowLabel(AppLocalizations l) {
+    switch (_testStatus) {
+      case _TestStatus.sent:
+        return Text(
+          l.settingsNotificationsTestSent,
+          style: const TextStyle(fontSize: 16, color: AppColors.successColor, fontWeight: FontWeight.w500),
+        );
+      case _TestStatus.failed:
+        return Text(
+          l.settingsNotificationsTestFailed,
+          style: const TextStyle(fontSize: 16, color: AppColors.errorColor, fontWeight: FontWeight.w500),
+        );
+      case _TestStatus.sending:
+      case _TestStatus.idle:
+        return Text(
+          l.settingsNotificationsTestAction,
+          style: const TextStyle(fontSize: 16, color: AppColors.brandPrimary),
+        );
+    }
+  }
+
+  Widget _buildTestRowTrailing() {
+    switch (_testStatus) {
+      case _TestStatus.sending:
+        return const SizedBox(width: 18, height: 18, child: CupertinoActivityIndicator(color: AppColors.textTertiary));
+      case _TestStatus.sent:
+        return const Icon(Icons.check_circle, color: AppColors.successColor, size: 20);
+      case _TestStatus.failed:
+        return const Icon(Icons.error_outline, color: AppColors.errorColor, size: 20);
+      case _TestStatus.idle:
+        return const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 20);
+    }
+  }
+
   Future<void> _onSendTest() async {
-    if (_sendingTest) return;
-    setState(() => _sendingTest = true);
-    final l = AppLocalizations.of(context);
-    final messenger = ScaffoldMessenger.of(context);
+    if (_testStatus == _TestStatus.sending) return;
+    _revertTimer?.cancel();
+    setState(() {
+      _testStatus = _TestStatus.sending;
+      _testError = null;
+    });
     try {
       await context.read<NotificationService>().sendTestNotification();
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(l.settingsNotificationsTestSent)));
+      setState(() {
+        _testStatus = _TestStatus.sent;
+        _testError = null;
+      });
     } on ApiError catch (e) {
       if (!mounted) return;
       final detail = (e.detail != null && e.detail!.isNotEmpty) ? e.detail! : 'HTTP ${e.statusCode}';
-      messenger.showSnackBar(SnackBar(content: Text(detail)));
+      setState(() {
+        _testStatus = _TestStatus.failed;
+        _testError = detail;
+      });
     } catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(content: Text(l.settingsNotificationsTestFailed)));
-    } finally {
-      if (mounted) setState(() => _sendingTest = false);
+      setState(() {
+        _testStatus = _TestStatus.failed;
+        _testError = e.toString();
+      });
     }
+    _revertTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      setState(() {
+        _testStatus = _TestStatus.idle;
+        _testError = null;
+      });
+    });
   }
 
   @override
@@ -187,30 +242,29 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
             const SizedBox(height: AppStyles.spacingXL),
             SettingsSurfaceCard(
               child: InkWell(
-                onTap: _sendingTest ? null : _onSendTest,
+                onTap: _testStatus == _TestStatus.sending ? null : _onSendTest,
                 borderRadius: BorderRadius.circular(AppStyles.radiusLarge),
                 child: SizedBox(
                   height: AppStyles.touchTargetMinimum,
                   child: Row(
                     children: [
-                      Expanded(
-                        child: Text(
-                          l.settingsNotificationsTestAction,
-                          style: const TextStyle(fontSize: 16, color: AppColors.brandPrimary),
-                        ),
-                      ),
-                      _sendingTest
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CupertinoActivityIndicator(color: AppColors.textTertiary),
-                            )
-                          : const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 20),
+                      Expanded(child: _buildTestRowLabel(l)),
+                      _buildTestRowTrailing(),
                     ],
                   ),
                 ),
               ),
             ),
+            if (_testError != null) ...[
+              const SizedBox(height: AppStyles.spacingS),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingS),
+                child: Text(
+                  _testError!,
+                  style: const TextStyle(fontSize: 12, color: AppColors.errorColor, height: 1.45),
+                ),
+              ),
+            ],
             const SizedBox(height: AppStyles.spacingS),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingS),
