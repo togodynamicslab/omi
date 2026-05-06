@@ -1,15 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:nooto_v2/audio/codec.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/providers/pendant_provider.dart';
+import 'package:nooto_v2/services/api_client.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
+import 'package:nooto_v2/services/notification_service.dart';
 import 'package:nooto_v2/settings/settings_screen.dart';
 
 import '../test_helpers/fake_pendant_provider.dart';
+
+ApiClient _stubApiClient() => ApiClient(
+      httpClient: MockClient((_) async => http.Response('{}', 200)),
+      getIdToken: ({bool forceRefresh = false}) async => 'tok',
+      signOut: () async {},
+      baseUrl: 'https://example.test/',
+    );
 
 Widget _harness({
   required FakePendantProvider pendant,
@@ -18,8 +30,16 @@ Widget _harness({
   String? Function()? emailResolver,
   Future<void> Function(BuildContext)? onResetOnboarding,
 }) {
-  return ChangeNotifierProvider<PendantProvider>.value(
-    value: pendant,
+  // SharedPreferences in-memory backing for the NotificationsCard toggle
+  // hydration. Tests that pump this harness don't trigger FCM I/O — they
+  // just read the toggle value once on first frame.
+  SharedPreferences.setMockInitialValues(const {});
+  final notifications = NotificationService(client: _stubApiClient());
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider<PendantProvider>.value(value: pendant),
+      ChangeNotifierProvider<NotificationService>.value(value: notifications),
+    ],
     child: MaterialApp(
       locale: const Locale('en'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
