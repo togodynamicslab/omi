@@ -21,18 +21,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def delete_token(uid: str, device_key: str) -> bool:
+def delete_token(uid: str, device_key: str) -> None:
     """Delete a single device's FCM token from users/{uid}/fcm_tokens/{device_key}.
 
-    Returns True if the document existed and was deleted, False if it did not exist.
+    Idempotent: Firestore delete on a missing document is a no-op, so we don't
+    pre-check existence (saves a round trip).
     """
-    user_ref = db.collection('users').document(uid)
-    token_ref = user_ref.collection('fcm_tokens').document(device_key)
-    snapshot = token_ref.get()
-    if not snapshot.exists:
-        return False
-    token_ref.delete()
-    return True
+    db.collection('users').document(uid).collection('fcm_tokens').document(device_key).delete()
 
 
 def save_token(uid: str, data: dict):
