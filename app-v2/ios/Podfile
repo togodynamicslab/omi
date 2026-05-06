@@ -38,5 +38,20 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    # permission_handler iOS configuration. Without these preprocessor
+    # macros the corresponding permission code is COMPILED OUT and every
+    # `Permission.X.request()` call returns `permanentlyDenied` silently.
+    # Mirrors `app/ios/Podfile` so v2 actually gets native iOS permission
+    # prompts. Adding new permissions later? Add the matching flag here.
+    target.build_configurations.each do |config|
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+        '$(inherited)',
+        'PERMISSION_NOTIFICATIONS=1',
+        'PERMISSION_BLUETOOTH=1',
+        'PERMISSION_MICROPHONE=1',
+        'PERMISSION_LOCATION=1',
+        'PERMISSION_LOCATION_WHENINUSE=1',
+      ]
+    end
   end
 end
