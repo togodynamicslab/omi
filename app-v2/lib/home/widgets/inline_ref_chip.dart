@@ -202,5 +202,12 @@ String briefPersonInitials(String name) {
 String _trimTitle(String title) {
   final trimmed = title.trim();
   if (trimmed.length <= 24) return trimmed;
-  return '${trimmed.substring(0, 23)}…';
+  // Cut at the last word boundary within the cap so we never produce a
+  // mid-syllable trim like "Plan full weekly schedu…" — that read as a
+  // broken chip in dogfood. Falls back to a hard char cut when no
+  // reasonable word break exists (e.g., a single very long token).
+  const cap = 23;
+  final lastSpace = trimmed.lastIndexOf(' ', cap);
+  final cut = lastSpace >= 12 ? lastSpace : cap;
+  return '${trimmed.substring(0, cut)}…';
 }
