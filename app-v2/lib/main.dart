@@ -28,6 +28,7 @@ import 'package:nooto_v2/services/app_links_service.dart';
 import 'package:nooto_v2/services/ble/omi_pendant.dart';
 import 'package:nooto_v2/services/ble/socket_streamer.dart';
 import 'package:nooto_v2/services/chat_service.dart';
+import 'package:nooto_v2/services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +54,12 @@ Future<void> main() async {
   await localeProvider.hydrate();
   final apiClient = ApiClient();
   final chatService = ChatService(client: apiClient);
+  final notificationService = NotificationService(client: apiClient);
+  // Initialize FCM listeners + capture any cold-start deep-link payload
+  // before runApp(). Token registration waits until sign-in (onSignIn).
+  if (kEnableFirebaseAuth) {
+    unawaited(notificationService.initialize());
+  }
   final appLinksService = AppLinksService();
   // Process-level singletons for the pendant recording stack (Lane C).
   // Per Decision 1C in the eng-review test plan, OmiPendant and
@@ -99,7 +106,9 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthChangeProvider()),
+        Provider<ApiClient>.value(value: apiClient),
+        ChangeNotifierProvider<NotificationService>.value(value: notificationService),
+        ChangeNotifierProvider(create: (_) => AuthChangeProvider(notificationService: notificationService)),
         ChangeNotifierProvider(create: (_) => OnboardingChatProvider()),
         ChangeNotifierProvider.value(value: localeProvider),
         ChangeNotifierProvider(create: (_) => ActionItemsProvider(client: apiClient)),
