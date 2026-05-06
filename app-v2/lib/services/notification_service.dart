@@ -77,6 +77,29 @@ class NotificationService extends ChangeNotifier {
   static const String _toggleKey = 'notifications.enabled';
   static const String _deviceIdKey = 'notifications.device_id';
   static const String _lastTokenKey = 'notifications.last_token';
+  static const String _unreadInboxKey = 'notifications.unread_inbox_count';
+
+  /// Cached unread count for the Inbox surface. Hydrated from prefs on
+  /// [initialize] so a cold start doesn't show 0 until the first FCM event.
+  int _unreadInboxCount = 0;
+  int get unreadInboxCount => _unreadInboxCount;
+  bool get hasUnreadInbox => _unreadInboxCount > 0;
+
+  /// Cleared by [InboxScreen] on mount. Persists across app restarts.
+  Future<void> markInboxRead() async {
+    if (_unreadInboxCount == 0) return;
+    _unreadInboxCount = 0;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_unreadInboxKey, 0);
+    notifyListeners();
+  }
+
+  Future<void> _bumpUnreadInbox() async {
+    _unreadInboxCount += 1;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_unreadInboxKey, _unreadInboxCount);
+    notifyListeners();
+  }
 
   Future<bool> isToggleEnabled() async {
     final prefs = await SharedPreferences.getInstance();
@@ -94,6 +117,11 @@ class NotificationService extends ChangeNotifier {
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
+
+    // Hydrate the unread badge counter so the chat tab dot survives cold start.
+    final prefs = await SharedPreferences.getInstance();
+    _unreadInboxCount = prefs.getInt(_unreadInboxKey) ?? 0;
+    if (_unreadInboxCount > 0) notifyListeners();
 
     // Local notifications channel — used by the foreground handler to render
     // an in-app banner since iOS suppresses the OS banner while the app is
@@ -123,6 +151,8 @@ class NotificationService extends ChangeNotifier {
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
       pendingDeepLink = _extractDeepLink(initialMessage);
+      // The user is heading to Inbox; the screen will mark-read on mount,
+      // so don't bump the badge here.
     }
 
     // Token refresh: re-persist on rotation. Backend upserts by device_key
@@ -252,6 +282,12 @@ class NotificationService extends ChangeNotifier {
   }
 
   Future<void> _onForegroundMessage(RemoteMessage message) async {
+    // Bump the inbox badge on every inbound push regardless of toggle state —
+    // even with OS push silenced, the message landed in the user's inbox feed
+    // and the tab dot is the in-app signal that something new arrived.
+    if (_isInboxBound(message)) {
+      await _bumpUnreadInbox();
+    }
     // Respect the user's in-app toggle: if notifications are off the OS push
     // never arrives, but the FCM stream can still fire (e.g. if the toggle
     // was flipped after permission was already granted).
@@ -307,6 +343,11 @@ class NotificationService extends ChangeNotifier {
     final raw = message.data['deep_link'];
     if (raw is String && raw.isNotEmpty) return raw;
     return null;
+  }
+
+  bool _isInboxBound(RemoteMessage message) {
+    final raw = message.data['deep_link'];
+    return raw is String && raw == 'inbox';
   }
 
   String? _extractDeepLinkFromPayload(String? payload) {
