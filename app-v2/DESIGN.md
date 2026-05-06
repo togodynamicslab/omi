@@ -59,12 +59,15 @@ Brand emphasis comes from **weight + size + letter-spacing**, never from a diffe
 
 **Why no custom font:** Apple licensing prevents shipping SF Pro in non-iOS builds. Loading a custom sans like Inter would fight HIG on iOS *and* introduce a font-loading flash. Custom serif (e.g. Playfair) was tried and explicitly rejected — too literary for the chief-of-staff role and out of step with the rest of the product surface.
 
+**Allowed exception (added 2026-05-05): Source Serif 4 Regular as a single editorial accent face.** Reintroduced after 5 weeks of sans-only dogfood. Used via `brandAccent()` at exactly one site — the morning brief greeting line. Source Serif 4 is humanist, neutral, and expressly *not* cursive (which is why Playfair was rejected). Single weight (400 Regular), bundled at `assets/fonts/SourceSerif4-Regular.otf`, no italic. The accent earns its existence by appearing exactly once per screen.
+
 **Hard blacklist — never reintroduce:**
-- Any serif face (Playfair, Times, Georgia, etc.). Serif emphasis is permanently off the table for this product.
-- Italic as a brand-emphasis lever (italic was the wrapper we used for serif; without serif there's no reason to italicize for brand).
+- Playfair Display, Libre Caslon Display, or any *display-style* serif. Editorial gravity = good; literary affectation = rejected.
+- Italic as a brand-emphasis lever. The accent works because it's restrained, not because it's tilted.
 - Custom sans (Inter, Roboto, Poppins, Space Grotesk) as primary brand font.
 - Cursive, handwritten, or decorative display faces.
-- The previous `brandSerif()` helper. Use `brandEmphasis()` instead.
+- The previous `brandSerif()` helper (uses Playfair italic). Use `brandAccent()` for editorial accent and `brandEmphasis()` for sans-serif weight emphasis.
+- Adding `brandAccent` to a second surface without a fresh design pass. Restraint = power; one surface keeps the accent meaningful.
 
 ## Color
 
@@ -160,6 +163,8 @@ Two card kinds with different chrome:
 
 This is the most important visual decision in the system. Stacking multiple surface cards = dashboard mode (anti-pattern, hard rejection from `/plan-design-review`). The hierarchy on Home is: voice first, surface below, max one surface per content domain.
 
+**Inline ref chip exception:** voice cards forbid chrome at the **container** level. Inline ref chips (`InlineRefChip` — ticket, person, conversation, plan) are exempt because they are sentence-level elements analogous to inline links in prose, not card-level chrome. They render inside voice cards (e.g., `morning_brief_card`) via `WidgetSpan` baseline-aligned with surrounding text. This is a deliberate carveout, not a violation. Decided in `/plan-design-review` 2026-05-05.
+
 ## Accessibility
 
 - All tap targets meet 44pt minimum (enforced by `AppStyles.touchTargetMinimum`).
@@ -198,4 +203,8 @@ The following are explicit rejections — flag during review if any appear:
 | 2026-04-30 | One accent color (brand blue) | Restraint; lets red mean real failure |
 | 2026-04-30 | Playfair Display Italic for brand serif | Editorial gravity without script informality; matches `desktop-v2` |
 | 2026-04-30 | **Serif reversed — no serif anywhere, ever** | Founder dogfeed rejected Playfair on sight ("I hate serif fonts"). Brand emphasis switches to sans-serif weight + size only; `brandSerif()` deleted; google_fonts dropped from pubspec; permanent blacklist added to anti-patterns |
+| 2026-05-05 | Inline ref chips exempt from voice card "no chrome" rule | Adding inline action chips to the brief voice card (Home redesign) needed reconciliation with the voice/surface grammar. Chips are sentence-level elements, not card-level chrome — analogous to links in prose. Carveout documented in Card Grammar section. |
+| 2026-05-05 | InlineRefChip family promoted to 24pt + 14pt label | Plan chip joins the family at 24pt; existing ticket/person/conversation chips bump from 22pt/13pt to match. Eliminates line-jitter when paragraph mixes kinds. Single chip metric, no competing focal points. |
+| 2026-05-05 | Priority-1 chip emphasis reserved for real urgency | Only chips representing OVERDUE or DUE-SOON-WITHIN-4H items get the `brandPrimary` border. Stuck Jira and plan refs stay quiet. Honors the "when accent appears, it means real urgency" restraint. |
+| 2026-05-05 | **Serif partial re-entry — Source Serif 4 Regular at ONE site** | The 2026-04-30 "no serif anywhere, ever" decision was an overcorrection driven by Playfair's literary feel. After 5 weeks of dogfood, the home screen greeting felt sterile in pure sans. Source Serif 4 Regular (humanist, non-cursive, non-decorative) reintroduced via `brandAccent()` at exactly one site: the morning brief greeting. Bundled (no `google_fonts` dependency). Italic and display serifs remain blacklisted; the accent's value is its restraint. |
 | 2026-04-30 | Light mode out of scope | Dark-only inherited from upstream + pendant-glance use case |
