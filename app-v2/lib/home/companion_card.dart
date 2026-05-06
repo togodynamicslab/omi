@@ -42,11 +42,15 @@ abstract base class CompanionCard {
 enum CardKind {
   welcome,
   brief,
-  actionItem,
 
-  /// Proactive heads-up when Jira items pile up (3+ stuck >3d) or any with
-  /// `due_at` within the next 24h. Generator: `JiraStuckIssuesCard`.
+  /// Retired 2026-05-05 (brief-as-coordinator redesign). Stream no longer
+  /// emits these; their data folds into the brief's `today_context` payload.
+  /// Kept in the enum so cached entries from prior versions deserialize to
+  /// null in `_fromJson` and silently purge on next hydrate. Do not reuse
+  /// these names without a fresh design pass.
+  actionItem,
   jiraStuckIssues,
+
   // Day 30+ kinds, declared here so the enum stays exhaustive even before
   // the generators ship. Subclasses land alongside the generator.
   commitmentCapture,
