@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
+import 'package:nooto_v2/services/api_client.dart';
 import 'package:nooto_v2/services/notification_service.dart';
 import 'package:nooto_v2/settings/settings_seams.dart';
 import 'package:nooto_v2/settings/widgets/surface_card.dart';
@@ -35,6 +37,7 @@ class NotificationsSettingsScreen extends StatefulWidget {
 class _NotificationsSettingsScreenState extends State<NotificationsSettingsScreen> with WidgetsBindingObserver {
   bool? _toggleEnabled;
   PermissionStatus? _osStatus;
+  bool _sendingTest = false;
 
   PermissionResolver get _resolve => widget.permissionResolver ?? defaultPermissionResolver;
   Future<bool> Function() get _openSettings => widget.openAppSettings ?? defaultOpenAppSettings;
@@ -93,6 +96,27 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
   bool get _isDeniedOsSide {
     final os = _osStatus;
     return os != null && (os.isDenied || os.isPermanentlyDenied || os.isRestricted);
+  }
+
+  Future<void> _onSendTest() async {
+    if (_sendingTest) return;
+    setState(() => _sendingTest = true);
+    final l = AppLocalizations.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await context.read<NotificationService>().sendTestNotification();
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(l.settingsNotificationsTestSent)));
+    } on ApiError catch (e) {
+      if (!mounted) return;
+      final detail = (e.detail != null && e.detail!.isNotEmpty) ? e.detail! : 'HTTP ${e.statusCode}';
+      messenger.showSnackBar(SnackBar(content: Text(detail)));
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text(l.settingsNotificationsTestFailed)));
+    } finally {
+      if (mounted) setState(() => _sendingTest = false);
+    }
   }
 
   @override
@@ -158,6 +182,41 @@ class _NotificationsSettingsScreenState extends State<NotificationsSettingsScree
               child: Text(
                 l.settingsNotificationsDescription,
                 style: const TextStyle(fontSize: 13, color: AppColors.textTertiary, height: 1.45),
+              ),
+            ),
+            const SizedBox(height: AppStyles.spacingXL),
+            SettingsSurfaceCard(
+              child: InkWell(
+                onTap: _sendingTest ? null : _onSendTest,
+                borderRadius: BorderRadius.circular(AppStyles.radiusLarge),
+                child: SizedBox(
+                  height: AppStyles.touchTargetMinimum,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          l.settingsNotificationsTestAction,
+                          style: const TextStyle(fontSize: 16, color: AppColors.brandPrimary),
+                        ),
+                      ),
+                      _sendingTest
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CupertinoActivityIndicator(color: AppColors.textTertiary),
+                            )
+                          : const Icon(Icons.chevron_right, color: AppColors.textTertiary, size: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppStyles.spacingS),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingS),
+              child: Text(
+                l.settingsNotificationsTestHint,
+                style: const TextStyle(fontSize: 12, color: AppColors.textTertiary, height: 1.45),
               ),
             ),
           ],
