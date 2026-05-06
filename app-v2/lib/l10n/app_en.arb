@@ -327,5 +327,65 @@
   "pendantScreenBackLabel": "Back",
   "@pendantScreenBackLabel": {
     "description": "Generic back button label on the pendant screen, used as a TextButton.icon at the top-left of the settled-paired layout. Matches the in-constellation failure-overlay back link."
+  },
+  "inboxEmptyTitle": "Nothing here yet",
+  "@inboxEmptyTitle": {
+    "description": "Inbox empty state title"
+  },
+  "inboxEmptyDescription": "Your apps will message you here. Connect an app to get started.",
+  "@inboxEmptyDescription": {
+    "description": "Inbox empty state subtitle"
+  },
+  "inboxEmptyAction": "Browse apps",
+  "@inboxEmptyAction": {
+    "description": "Inbox empty state ghost button label"
+  },
+  "inboxErrorTitle": "Can't reach server",
+  "@inboxErrorTitle": {
+    "description": "Inbox network error title"
+  },
+  "inboxErrorRetry": "Retry",
+  "@inboxErrorRetry": {
+    "description": "Retry button label on inbox error state"
+  },
+  "inboxScreenTitle": "Inbox",
+  "@inboxScreenTitle": {
+    "description": "Inbox screen header title"
+  },
+  "inboxFilterAll": "All",
+  "@inboxFilterAll": {
+    "description": "Inbox sender filter chip label for the unfiltered (all) view"
+  },
+  "inboxBubbleCopy": "Copy",
+  "@inboxBubbleCopy": {
+    "description": "Copy action in the inbox message long-press menu"
+  },
+  "inboxBubbleShare": "Share",
+  "@inboxBubbleShare": {
+    "description": "Share action in the inbox message long-press menu"
+  },
+  "inboxBubbleCancel": "Cancel",
+  "@inboxBubbleCancel": {
+    "description": "Cancel action in the inbox message long-press menu"
+  },
+  "drawerInboxLabel": "Inbox",
+  "@drawerInboxLabel": {
+    "description": "Label for the Inbox row pinned at the top of the chat sessions drawer"
+  },
+  "settingsNotificationsLabel": "Notifications",
+  "@settingsNotificationsLabel": {
+    "description": "Notifications row label in Settings"
+  },
+  "settingsNotificationsStateOn": "On",
+  "@settingsNotificationsStateOn": {
+    "description": "Notifications enabled sub-label"
+  },
+  "settingsNotificationsStateOff": "Off — tap to enable",
+  "@settingsNotificationsStateOff": {
+    "description": "Notifications disabled sub-label"
+  },
+  "settingsNotificationsStateOpenSettings": "Open Settings to enable",
+  "@settingsNotificationsStateOpenSettings": {
+    "description": "Notifications denied at OS level — directs user to Settings"
   }
 }

@@ -865,6 +865,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Back'**
   String get pendantScreenBackLabel;
+
+  /// Inbox empty state title
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing here yet'**
+  String get inboxEmptyTitle;
+
+  /// Inbox empty state subtitle
+  ///
+  /// In en, this message translates to:
+  /// **'Your apps will message you here. Connect an app to get started.'**
+  String get inboxEmptyDescription;
+
+  /// Inbox empty state ghost button label
+  ///
+  /// In en, this message translates to:
+  /// **'Browse apps'**
+  String get inboxEmptyAction;
+
+  /// Inbox network error title
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t reach server'**
+  String get inboxErrorTitle;
+
+  /// Retry button label on inbox error state
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get inboxErrorRetry;
+
+  /// Inbox screen header title
+  ///
+  /// In en, this message translates to:
+  /// **'Inbox'**
+  String get inboxScreenTitle;
+
+  /// Inbox sender filter chip label for the unfiltered (all) view
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get inboxFilterAll;
+
+  /// Copy action in the inbox message long-press menu
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get inboxBubbleCopy;
+
+  /// Share action in the inbox message long-press menu
+  ///
+  /// In en, this message translates to:
+  /// **'Share'**
+  String get inboxBubbleShare;
+
+  /// Cancel action in the inbox message long-press menu
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get inboxBubbleCancel;
+
+  /// Label for the Inbox row pinned at the top of the chat sessions drawer
+  ///
+  /// In en, this message translates to:
+  /// **'Inbox'**
+  String get drawerInboxLabel;
+
+  /// Notifications row label in Settings
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get settingsNotificationsLabel;
+
+  /// Notifications enabled sub-label
+  ///
+  /// In en, this message translates to:
+  /// **'On'**
+  String get settingsNotificationsStateOn;
+
+  /// Notifications disabled sub-label
+  ///
+  /// In en, this message translates to:
+  /// **'Off — tap to enable'**
+  String get settingsNotificationsStateOff;
+
+  /// Notifications denied at OS level — directs user to Settings
+  ///
+  /// In en, this message translates to:
+  /// **'Open Settings to enable'**
+  String get settingsNotificationsStateOpenSettings;
 }
 
 class _AppLocalizationsDelegate

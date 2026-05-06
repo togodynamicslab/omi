@@ -449,4 +449,51 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get pendantScreenBackLabel => 'Voltar';
+
+  @override
+  String get inboxEmptyTitle => 'Nada por aqui ainda';
+
+  @override
+  String get inboxEmptyDescription =>
+      'Seus apps vão te enviar mensagens aqui. Conecte um app para começar.';
+
+  @override
+  String get inboxEmptyAction => 'Ver apps';
+
+  @override
+  String get inboxErrorTitle => 'Não foi possível conectar ao servidor';
+
+  @override
+  String get inboxErrorRetry => 'Tentar novamente';
+
+  @override
+  String get inboxScreenTitle => 'Caixa de entrada';
+
+  @override
+  String get inboxFilterAll => 'Todos';
+
+  @override
+  String get inboxBubbleCopy => 'Copiar';
+
+  @override
+  String get inboxBubbleShare => 'Compartilhar';
+
+  @override
+  String get inboxBubbleCancel => 'Cancelar';
+
+  @override
+  String get drawerInboxLabel => 'Caixa de entrada';
+
+  @override
+  String get settingsNotificationsLabel => 'Notificações';
+
+  @override
+  String get settingsNotificationsStateOn => 'Ativadas';
+
+  @override
+  String get settingsNotificationsStateOff => 'Desativadas — toque para ativar';
+
+  @override
+  String get settingsNotificationsStateOpenSettings =>
+      'Abra Configurações para ativar';
 }

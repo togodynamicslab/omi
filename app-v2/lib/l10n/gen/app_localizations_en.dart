@@ -446,4 +446,51 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pendantScreenBackLabel => 'Back';
+
+  @override
+  String get inboxEmptyTitle => 'Nothing here yet';
+
+  @override
+  String get inboxEmptyDescription =>
+      'Your apps will message you here. Connect an app to get started.';
+
+  @override
+  String get inboxEmptyAction => 'Browse apps';
+
+  @override
+  String get inboxErrorTitle => 'Can\'t reach server';
+
+  @override
+  String get inboxErrorRetry => 'Retry';
+
+  @override
+  String get inboxScreenTitle => 'Inbox';
+
+  @override
+  String get inboxFilterAll => 'All';
+
+  @override
+  String get inboxBubbleCopy => 'Copy';
+
+  @override
+  String get inboxBubbleShare => 'Share';
+
+  @override
+  String get inboxBubbleCancel => 'Cancel';
+
+  @override
+  String get drawerInboxLabel => 'Inbox';
+
+  @override
+  String get settingsNotificationsLabel => 'Notifications';
+
+  @override
+  String get settingsNotificationsStateOn => 'On';
+
+  @override
+  String get settingsNotificationsStateOff => 'Off — tap to enable';
+
+  @override
+  String get settingsNotificationsStateOpenSettings =>
+      'Open Settings to enable';
 }

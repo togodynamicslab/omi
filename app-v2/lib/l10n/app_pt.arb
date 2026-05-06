@@ -327,5 +327,20 @@
   "pendantScreenBackLabel": "Voltar",
   "@pendantScreenBackLabel": {
     "description": "Generic back button label on the pendant screen."
-  }
+  },
+  "inboxEmptyTitle": "Nada por aqui ainda",
+  "inboxEmptyDescription": "Seus apps vão te enviar mensagens aqui. Conecte um app para começar.",
+  "inboxEmptyAction": "Ver apps",
+  "inboxErrorTitle": "Não foi possível conectar ao servidor",
+  "inboxErrorRetry": "Tentar novamente",
+  "inboxScreenTitle": "Caixa de entrada",
+  "inboxFilterAll": "Todos",
+  "inboxBubbleCopy": "Copiar",
+  "inboxBubbleShare": "Compartilhar",
+  "inboxBubbleCancel": "Cancelar",
+  "drawerInboxLabel": "Caixa de entrada",
+  "settingsNotificationsLabel": "Notificações",
+  "settingsNotificationsStateOn": "Ativadas",
+  "settingsNotificationsStateOff": "Desativadas — toque para ativar",
+  "settingsNotificationsStateOpenSettings": "Abra Configurações para ativar"
 }
