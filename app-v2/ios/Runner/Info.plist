@@ -39,10 +39,13 @@
 	<string>Nooto uses Bluetooth to communicate with your Omi pendant.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Nooto can tag conversations with where they happened. Optional — you can skip this.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Nooto sends you proactive notifications when your apps and ecosystem have something to say.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
 		<string>bluetooth-central</string>
+		<string>remote-notification</string>
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
