@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from typing import Tuple, Optional
 
 from database.redis_db import get_enabled_apps, r as redis_client
-from database.chat import add_integration_chat_message
+from database.chat import add_integration_chat_message, add_test_inbox_message, TEST_INBOX_APP_ID
 from utils.apps import get_available_app_by_id, verify_api_key
 from utils.app_integrations import send_app_notification
 import database.notifications as notification_db
@@ -14,6 +14,10 @@ from models.other import SaveFcmTokenRequest
 from utils.notifications import send_notification
 from utils.other import endpoints as auth
 from models.app import App
+
+# Hourly cap on the in-app "Send test notification" affordance so a button-mash
+# can't flood the user's device. Independent of MAX_NOTIFICATIONS_PER_HOUR.
+TEST_NOTIFICATIONS_PER_HOUR = int(os.getenv('TEST_NOTIFICATIONS_PER_HOUR', '5'))
 
 # logger = logging.getLogger('uvicorn.error')
 # logger.setLevel(logging.DEBUG)
@@ -88,6 +92,32 @@ def delete_token(
     device_hash = x_device_id_hash or 'default'
     device_key = f"{platform}_{device_hash}"
     notification_db.delete_token(uid, device_key)
+    return {'status': 'Ok'}
+
+
+@router.post('/v1/users/test-notification')
+def send_test_notification(uid: str = Depends(auth.get_current_user_uid)):
+    """In-app dogfood affordance: send the signed-in user a test notification
+    that exercises the full inbox path (writes an integration message + fires
+    an FCM push with deep_link='inbox'). Rate-limited per uid via Redis using
+    TEST_INBOX_APP_ID as the bucket key — 5/hour default."""
+    now = datetime.utcnow()
+    hour_key = f"notification_rate_limit:{TEST_INBOX_APP_ID}:{uid}:{now.strftime('%Y-%m-%d-%H')}"
+    count = redis_client.get(hour_key)
+    count = int(count) if count is not None else 0
+    if count >= TEST_NOTIFICATIONS_PER_HOUR:
+        return JSONResponse(
+            status_code=429,
+            content={'detail': f'Test rate limit reached ({TEST_NOTIFICATIONS_PER_HOUR}/hour). Try again later.'},
+        )
+    if count == 0:
+        redis_client.setex(hour_key, RATE_LIMIT_PERIOD, 1)
+    else:
+        redis_client.incr(hour_key)
+
+    body = f"This is a test notification sent at {now.strftime('%H:%M:%S UTC')}. Tap to open Inbox."
+    add_test_inbox_message(uid, body)
+    send_notification(uid, 'Test notification', body, data={'deep_link': 'inbox'})
     return {'status': 'Ok'}
 
 
