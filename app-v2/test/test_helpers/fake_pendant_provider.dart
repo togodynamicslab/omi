@@ -22,11 +22,14 @@ import 'package:nooto_v2/services/ble/socket_streamer.dart';
 class FakePendantProvider extends PendantProvider {
   FakePendantProvider({PendantInfo? initial})
     : _info = initial ?? const PendantInfo.unpaired(),
-      super(pendant: OmiPendant(), socket: SocketStreamer());
+      // Skip the audio-activity periodic Timer — flutter_test treats
+      // unfinished periodic timers as a fail signal under pumpAndSettle.
+      super(pendant: OmiPendant(), socket: SocketStreamer(), startAudioActivityTracker: false);
 
   PendantInfo _info;
   int startPairCallCount = 0;
   int reconnectCallCount = 0;
+  int disconnectCallCount = 0;
 
   @override
   PendantInfo get info => _info;
@@ -39,13 +42,40 @@ class FakePendantProvider extends PendantProvider {
     notifyListeners();
   }
 
+  /// Convenience setter — replace just the [PendantState] and re-notify.
+  void setState(PendantState state) {
+    setInfo(
+      PendantInfo(
+        state: state,
+        deviceId: _info.deviceId,
+        deviceName: _info.deviceName,
+        batteryPercent: _info.batteryPercent,
+        codec: _info.codec,
+        offlineSince: _info.offlineSince,
+        droppedPacketsLastInterrupt: _info.droppedPacketsLastInterrupt,
+      ),
+    );
+  }
+
   @override
   Future<void> startPair() async {
     startPairCallCount++;
   }
 
+  /// Test seam — set to true to simulate the iOS "Bluetooth is off" failure
+  /// path so the screen renders the BluetoothOff surface card.
+  bool fakeWasLastPairAttemptBluetoothOff = false;
+
+  @override
+  bool get wasLastPairAttemptBluetoothOff => fakeWasLastPairAttemptBluetoothOff;
+
   @override
   Future<void> reconnect() async {
     reconnectCallCount++;
+  }
+
+  @override
+  Future<void> disconnect() async {
+    disconnectCallCount++;
   }
 }
