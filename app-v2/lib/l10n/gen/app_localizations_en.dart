@@ -493,4 +493,62 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsNotificationsStateOpenSettings =>
       'Open Settings to enable';
+
+  @override
+  String get settingsCategoryAccount => 'Account';
+
+  @override
+  String get settingsCategoryAccountDescription => 'Sign-in, identity';
+
+  @override
+  String get settingsCategoryPermissions => 'Permissions';
+
+  @override
+  String get settingsCategoryPermissionsDescription =>
+      'Microphone, Bluetooth, Notifications, Location';
+
+  @override
+  String get settingsCategoryPendant => 'Pendant';
+
+  @override
+  String get settingsCategoryPendantDescription =>
+      'Connection status, codec, battery';
+
+  @override
+  String get settingsCategoryNotifications => 'Notifications';
+
+  @override
+  String get settingsCategoryNotificationsDescription =>
+      'Apps and Brief alerts';
+
+  @override
+  String get settingsCategoryAbout => 'About';
+
+  @override
+  String get settingsCategoryAboutDescription => 'Build version, support';
+
+  @override
+  String get settingsCategoryDeveloper => 'Developer';
+
+  @override
+  String get settingsCategoryDeveloperDescription => 'Diagnostics and reset';
+
+  @override
+  String get settingsSearchPlaceholder => 'Search settings';
+
+  @override
+  String get settingsSearchEmpty => 'No matching settings';
+
+  @override
+  String get settingsNotificationsDescription =>
+      'Apps and Brief send proactive messages to your Inbox. Turn off to silence the device push without losing the in-app feed.';
+
+  @override
+  String get settingsAccountSignOut => 'Sign out';
+
+  @override
+  String get settingsDeveloperResetOnboarding => 'Reset onboarding';
+
+  @override
+  String get settingsDeveloperOpenSystemSettings => 'Open iOS Settings';
 }

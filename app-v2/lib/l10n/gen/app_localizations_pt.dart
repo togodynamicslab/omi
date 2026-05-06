@@ -496,4 +496,62 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get settingsNotificationsStateOpenSettings =>
       'Abra Configurações para ativar';
+
+  @override
+  String get settingsCategoryAccount => 'Conta';
+
+  @override
+  String get settingsCategoryAccountDescription => 'Login, identidade';
+
+  @override
+  String get settingsCategoryPermissions => 'Permissões';
+
+  @override
+  String get settingsCategoryPermissionsDescription =>
+      'Microfone, Bluetooth, Notificações, Localização';
+
+  @override
+  String get settingsCategoryPendant => 'Pendant';
+
+  @override
+  String get settingsCategoryPendantDescription =>
+      'Status de conexão, codec, bateria';
+
+  @override
+  String get settingsCategoryNotifications => 'Notificações';
+
+  @override
+  String get settingsCategoryNotificationsDescription =>
+      'Alertas de apps e do Brief';
+
+  @override
+  String get settingsCategoryAbout => 'Sobre';
+
+  @override
+  String get settingsCategoryAboutDescription => 'Versão do build, suporte';
+
+  @override
+  String get settingsCategoryDeveloper => 'Desenvolvedor';
+
+  @override
+  String get settingsCategoryDeveloperDescription => 'Diagnósticos e reinício';
+
+  @override
+  String get settingsSearchPlaceholder => 'Buscar configurações';
+
+  @override
+  String get settingsSearchEmpty => 'Nenhuma configuração encontrada';
+
+  @override
+  String get settingsNotificationsDescription =>
+      'Apps e Brief enviam mensagens proativas para sua Caixa de entrada. Desative para silenciar o push do dispositivo sem perder o feed dentro do app.';
+
+  @override
+  String get settingsAccountSignOut => 'Sair';
+
+  @override
+  String get settingsDeveloperResetOnboarding => 'Reiniciar onboarding';
+
+  @override
+  String get settingsDeveloperOpenSystemSettings => 'Abrir Ajustes do iOS';
 }

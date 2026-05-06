@@ -955,6 +955,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open Settings to enable'**
   String get settingsNotificationsStateOpenSettings;
+
+  /// Settings category label: account/sign-in/sign-out.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get settingsCategoryAccount;
+
+  /// Settings category one-liner under Account (used by search match, not currently rendered as a row subtitle).
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in, identity'**
+  String get settingsCategoryAccountDescription;
+
+  /// Settings category label: OS permissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Permissions'**
+  String get settingsCategoryPermissions;
+
+  /// Settings category one-liner under Permissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Microphone, Bluetooth, Notifications, Location'**
+  String get settingsCategoryPermissionsDescription;
+
+  /// Settings category label: pendant diagnostics.
+  ///
+  /// In en, this message translates to:
+  /// **'Pendant'**
+  String get settingsCategoryPendant;
+
+  /// Settings category one-liner under Pendant.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection status, codec, battery'**
+  String get settingsCategoryPendantDescription;
+
+  /// Settings category label: notifications-as-chat toggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get settingsCategoryNotifications;
+
+  /// Settings category one-liner under Notifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Apps and Brief alerts'**
+  String get settingsCategoryNotificationsDescription;
+
+  /// Settings category label: app info.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get settingsCategoryAbout;
+
+  /// Settings category one-liner under About.
+  ///
+  /// In en, this message translates to:
+  /// **'Build version, support'**
+  String get settingsCategoryAboutDescription;
+
+  /// Settings category label: developer/debug surface.
+  ///
+  /// In en, this message translates to:
+  /// **'Developer'**
+  String get settingsCategoryDeveloper;
+
+  /// Settings category one-liner under Developer.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagnostics and reset'**
+  String get settingsCategoryDeveloperDescription;
+
+  /// Placeholder text inside the iOS-style search field at the top of Settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Search settings'**
+  String get settingsSearchPlaceholder;
+
+  /// Empty-state copy when the Settings search query matches nothing.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching settings'**
+  String get settingsSearchEmpty;
+
+  /// Long-form description below the Notifications toggle on the Notifications sub-page.
+  ///
+  /// In en, this message translates to:
+  /// **'Apps and Brief send proactive messages to your Inbox. Turn off to silence the device push without losing the in-app feed.'**
+  String get settingsNotificationsDescription;
+
+  /// Sign-out button on the Account sub-page.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get settingsAccountSignOut;
+
+  /// Reset onboarding button on the Developer sub-page.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset onboarding'**
+  String get settingsDeveloperResetOnboarding;
+
+  /// Open system Settings shortcut button on the Developer sub-page.
+  ///
+  /// In en, this message translates to:
+  /// **'Open iOS Settings'**
+  String get settingsDeveloperOpenSystemSettings;
 }
 
 class _AppLocalizationsDelegate
