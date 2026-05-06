@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:nooto_v2/chat/chat_provider.dart';
 import 'package:nooto_v2/chat/chat_session.dart';
 import 'package:nooto_v2/chat/widgets/session_actions_sheet.dart';
+import 'package:nooto_v2/inbox/inbox_screen.dart';
+import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 
 /// ChatGPT-style left drawer that lists chat sessions grouped by date bucket.
@@ -31,9 +33,7 @@ class ChatSessionsDrawer extends StatelessWidget {
       child: Drawer(
         backgroundColor: AppColors.backgroundPrimary,
         elevation: 0,
-        shape: const Border(
-          right: BorderSide(color: Color(0x0FFFFFFF), width: 0.5),
-        ),
+        shape: const Border(right: BorderSide(color: Color(0x0FFFFFFF), width: 0.5)),
         child: SafeArea(
           child: Column(
             children: [
@@ -43,6 +43,13 @@ class ChatSessionsDrawer extends StatelessWidget {
                   Navigator.pop(context);
                 },
               ),
+              _InboxRow(
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context, rootNavigator: true).push(InboxScreen.route());
+                },
+              ),
+              const _DrawerDivider(),
               Expanded(
                 child: provider.sessions.isEmpty
                     ? const _EmptyState()
@@ -84,25 +91,52 @@ class _Header extends StatelessWidget {
           onTap: onNewChat,
           borderRadius: BorderRadius.circular(AppStyles.radiusMedium),
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppStyles.spacingM,
-              vertical: AppStyles.spacingM,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingM, vertical: AppStyles.spacingM),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.edit_outlined,
-                  size: 18,
-                  color: AppColors.textPrimary,
-                ),
+                Icon(Icons.edit_outlined, size: 18, color: AppColors.textPrimary),
                 const SizedBox(width: AppStyles.spacingM),
                 Text(
                   'New chat',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textPrimary,
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pinned "Inbox" entry above the sessions list. Notifications-as-chat
+/// surface — taps push InboxScreen at the root navigator so the drawer
+/// closes and the inbox lives above the shell tabs (matches design doc).
+class _InboxRow extends StatelessWidget {
+  const _InboxRow({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: AppStyles.touchTargetMinimum),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingL, vertical: AppStyles.spacingM),
+            child: Row(
+              children: [
+                const Icon(Icons.inbox_outlined, size: 24, color: AppColors.textPrimary),
+                const SizedBox(width: AppStyles.spacingM),
+                Expanded(
+                  child: Text(
+                    l.drawerInboxLabel,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                   ),
                 ),
               ],
@@ -110,6 +144,18 @@ class _Header extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _DrawerDivider extends StatelessWidget {
+  const _DrawerDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingL),
+      child: Container(height: 1, color: Colors.white.withValues(alpha: 0.06)),
     );
   }
 }
@@ -127,21 +173,13 @@ class _EmptyState extends StatelessWidget {
           children: [
             Text(
               'No chats yet',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
             ),
             SizedBox(height: AppStyles.spacingS),
             Text(
               'Start a conversation to see it here.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textTertiary,
-                height: 1.5,
-              ),
+              style: TextStyle(fontSize: 14, color: AppColors.textTertiary, height: 1.5),
             ),
           ],
         ),
@@ -261,10 +299,7 @@ class _SessionRow extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 56),
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppStyles.spacingL,
-                vertical: AppStyles.spacingM,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingL, vertical: AppStyles.spacingM),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -272,21 +307,14 @@ class _SessionRow extends StatelessWidget {
                   Row(
                     children: [
                       if (session.pinned) ...[
-                        const Icon(
-                          Icons.push_pin_rounded,
-                          size: 14,
-                          color: AppColors.textTertiary,
-                        ),
+                        const Icon(Icons.push_pin_rounded, size: 14, color: AppColors.textTertiary),
                         const SizedBox(width: 4),
                       ],
                       if (isStreaming) ...[
                         Container(
                           width: 6,
                           height: 6,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.brandPrimary,
-                          ),
+                          decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.brandPrimary),
                         ),
                         const SizedBox(width: 6),
                       ],
@@ -298,9 +326,7 @@ class _SessionRow extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: isActive
-                                ? AppColors.brandPrimary
-                                : AppColors.textPrimary,
+                            color: isActive ? AppColors.brandPrimary : AppColors.textPrimary,
                           ),
                         ),
                       ),
@@ -322,10 +348,7 @@ class _SessionRow extends StatelessWidget {
                       session.preview!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textTertiary,
-                      ),
+                      style: const TextStyle(fontSize: 13, color: AppColors.textTertiary),
                     ),
                   ],
                 ],
@@ -396,16 +419,13 @@ List<_Group> _groupSessions(List<ChatSession> sessions, DateTime now) {
     }
   }
 
-  int byUpdatedDesc(ChatSession a, ChatSession b) =>
-      b.updatedAt.compareTo(a.updatedAt);
+  int byUpdatedDesc(ChatSession a, ChatSession b) => b.updatedAt.compareTo(a.updatedAt);
 
   for (final g in [pinned, today, yesterday, thisWeek, older]) {
     g.sessions.sort(byUpdatedDesc);
   }
 
-  return [pinned, today, yesterday, thisWeek, older]
-      .where((g) => g.sessions.isNotEmpty)
-      .toList();
+  return [pinned, today, yesterday, thisWeek, older].where((g) => g.sessions.isNotEmpty).toList();
 }
 
 /// Returns "TODAY" / "YESTERDAY" / "THIS WEEK" / "OLDER" for a session's
@@ -430,9 +450,6 @@ String _relativeTime(DateTime t) {
   if (diff.inMinutes < 60) return '${diff.inMinutes}m';
   if (diff.inHours < 24) return '${diff.inHours}h';
   if (diff.inDays < 7) return '${diff.inDays}d';
-  const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return '${months[t.month - 1]} ${t.day}';
 }
