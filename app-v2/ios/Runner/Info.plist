@@ -31,6 +31,8 @@
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Nooto needs your microphone to capture a short voice sample during onboarding so it can recognize you later.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Nooto previews live transcription on the connected pendant screen so you can see what's being heard.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Nooto needs Bluetooth to connect to your Omi pendant and stream audio for your AI companion.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
