@@ -39,7 +39,7 @@ class _StubChatService extends ChatService {
         );
 
   @override
-  Stream<ChatStreamEvent> streamChat(String prompt) =>
+  Stream<ChatStreamEvent> streamChat(String prompt, {Map<String, dynamic>? todayContext}) =>
       const Stream<ChatStreamEvent>.empty();
 }
 

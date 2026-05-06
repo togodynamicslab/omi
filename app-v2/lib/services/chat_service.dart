@@ -40,10 +40,18 @@ class ChatService {
   /// sending an arbitrary string makes the chat pipeline error, so we call
   /// the bare endpoint. Tagging brief vs chat traffic on the server is a
   /// follow-up.
-  Stream<ChatStreamEvent> streamChat(String prompt) async* {
+  ///
+  /// [todayContext] is optional structured grounding for the morning brief —
+  /// the backend renders it as a `<today_context>` system block. Chat-tab
+  /// traffic passes null and the field is omitted from the wire body.
+  Stream<ChatStreamEvent> streamChat(String prompt, {Map<String, dynamic>? todayContext}) async* {
     final stream = await _client.stream(
       'v2/messages',
-      body: {'text': prompt, 'file_ids': null},
+      body: {
+        'text': prompt,
+        'file_ids': null,
+        if (todayContext != null) 'today_context': todayContext,
+      },
     );
 
     final controller = StreamController<ChatStreamEvent>();
@@ -86,12 +94,18 @@ class ChatService {
   /// text. Tool-use chips are dropped — the brief surface doesn't show them.
   /// Times out at [timeout] for the entire fetch — protects against backend
   /// stalls poisoning the 24h cache.
+  ///
+  /// [todayContext] is the structured grounding the brief LLM uses to emit
+  /// inline chip refs (`<plan id="..."/>`, `<ticket id="..."/>`) by id. Shape:
+  /// `{ overdue: [...], due_soon: [...], stuck_jira: [...], plan_remaining_count: N }`.
+  /// When omitted, the brief is ungrounded (legacy behavior).
   Future<String> fetchBrief({
     required String prompt,
+    Map<String, dynamic>? todayContext,
     Duration timeout = const Duration(seconds: 30),
   }) async {
     final buffer = StringBuffer();
-    await for (final event in streamChat(prompt).timeout(timeout)) {
+    await for (final event in streamChat(prompt, todayContext: todayContext).timeout(timeout)) {
       if (event is ChatStreamText) buffer.write(event.text);
     }
     return buffer.toString();

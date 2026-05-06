@@ -119,5 +119,48 @@ void main() {
       expect(capturedPath, contains('v2/messages'));
       expect(jsonDecode(capturedBody!)['text'], 'brief me');
     });
+
+    test('omits today_context from body when null', () async {
+      String? capturedBody;
+      final mock = MockClient.streaming((req, body) async {
+        capturedBody = utf8.decode(await body.expand((b) => b).toList());
+        return _streamed(['data: ok', 'done: ${base64.encode(utf8.encode("{}"))}']);
+      });
+      final svc = ChatService(client: _client(mock));
+
+      await svc.fetchBrief(prompt: 'brief me');
+
+      final decoded = jsonDecode(capturedBody!) as Map<String, dynamic>;
+      expect(decoded.containsKey('today_context'), isFalse);
+    });
+
+    test('sends today_context when provided, verbatim shape', () async {
+      String? capturedBody;
+      final mock = MockClient.streaming((req, body) async {
+        capturedBody = utf8.decode(await body.expand((b) => b).toList());
+        return _streamed(['data: ok', 'done: ${base64.encode(utf8.encode("{}"))}']);
+      });
+      final svc = ChatService(client: _client(mock));
+
+      await svc.fetchBrief(
+        prompt: 'brief me',
+        todayContext: {
+          'overdue': [
+            {'id': 'plan-1', 'title': 'Plan the week', 'dueAt': '2026-05-04T23:59:00Z'},
+          ],
+          'due_soon': [],
+          'stuck_jira': [
+            {'id': 'WPNG-2951', 'title': 'CSV import', 'ageInDays': 5},
+          ],
+          'plan_remaining_count': 27,
+        },
+      );
+
+      final decoded = jsonDecode(capturedBody!) as Map<String, dynamic>;
+      final ctx = decoded['today_context'] as Map<String, dynamic>;
+      expect(ctx['plan_remaining_count'], 27);
+      expect((ctx['overdue'] as List).first['id'], 'plan-1');
+      expect((ctx['stuck_jira'] as List).first['id'], 'WPNG-2951');
+    });
   });
 }
