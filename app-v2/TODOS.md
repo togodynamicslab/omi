@@ -154,3 +154,41 @@ Deferred work captured during planning. Add to a sprint when picking up.
 **Context:** Surfaced during `/plan-eng-review` of the notifications-as-chat design (2026-05-06). Design doc at `~/.gstack/projects/togodynamicslab-omi/matheusoliviera-main-design-notifications-as-chat-20260506-010606.md` — see Open Questions item 7 and v1 backlog. Per learning `app-v2-chat-is-hive-local`: app-v2 chat is Hive-local; backend `/v2/messages` doesn't accept client session_id.
 
 **Depends on:** Completion of notifications-as-chat v0 (to validate the Inbox-bypass-Hive shape works for read-only flows). Triggered when v1 work begins on plugin replies, per-app drill-down with persistence, or multi-device read sync.
+
+## Inbox sender cache: switch from in-process LRU to cross-pod Redis
+
+**What:** Replace the ad-hoc 60s in-process LRU in `backend/utils/inbox_senders.py` (`_CACHE`, `_LOCK`, `_cache_get`, `_cache_put`, `_MAX_ENTRIES`) with the existing `database.redis_db.get_app_cache_by_id` / `set_app_cache_by_id` helpers, or with `database.cache.get_memory_cache().get_or_fetch(key, fn, ttl)`.
+
+**Why:** Every backend pod currently warms its own copy of the apps catalog while Redis already caches it cross-pod via the `apps:{app_id}` key. The existing helpers also have a `delete_app_cache_by_id` invalidation hook on app updates that the inbox sender path bypasses today — meaning a renamed app keeps its old display name in Inbox feed responses for up to 60s per pod.
+
+**Pros:**
+- Cross-pod cache consistency (one warm copy, not N).
+- Free invalidation when apps are updated.
+- Removes ~30 LOC of bespoke cache bookkeeping.
+
+**Cons:**
+- Introduces a Redis dependency at the inbox feed hot path (already present everywhere else in backend).
+- Test isolation argument that justified the standalone module needs a stub for Redis (similar to existing patterns in `utils/apps.py` test paths).
+
+**Context:** Surfaced during `/simplify` review of the notifications-as-chat feature (2026-05-06). Three reviewers independently flagged the duplication. The standalone module was deliberate (test isolation per the agent's deviation note) but the rationale is fixable with stubs rather than a forked resolution path. Defer until the feature has shipped and the audit-gated rate-limit + default flip have landed — replacing the cache during initial dogfood would conflate two changes.
+
+**Depends on:** Notifications-as-chat v0 in production for ~1 week to confirm the existing module works end-to-end before refactoring.
+
+## AppColors.borderSubtle token + replace `Colors.white.withValues(alpha: 0.06)` literals
+
+**What:** Add `AppColors.borderSubtle` token (value: `Color(0x0FFFFFFF)`, equivalent to `Colors.white.withValues(alpha: 0.06)`) to `app-v2/lib/theme/app_theme.dart`. Replace existing literals in `chat_sessions_drawer.dart`, `chat_screen.dart`, `inbox_screen.dart` with the token. Update DESIGN.md to document the token.
+
+**Why:** DESIGN.md prescribes this exact alpha for surface-card and divider chrome ("Borders at `Colors.white.withValues(alpha: 0.06)` are the most chrome we add"). The literal is repeated across 5+ files. CLAUDE.md forbids hardcoded `Color(0xXX...)` literals — a token is the project convention.
+
+**Pros:**
+- One source of truth for the subtle border treatment.
+- DESIGN.md and code stay aligned.
+- Zero behavior change (same alpha).
+
+**Cons:**
+- Touches multiple files (chat_sessions_drawer, chat_screen, inbox_screen, possibly more).
+- Pure cosmetic / convention compliance — no user-visible impact.
+
+**Context:** Surfaced during `/simplify` review of the notifications-as-chat feature (2026-05-06). Pre-existing duplication that Lane C extended rather than introduced. Out of scope for the inbox feature ship; reasonable to bundle with any future theme-token cleanup.
+
+**Depends on:** None. Trivially actionable any time.
