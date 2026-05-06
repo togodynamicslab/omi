@@ -145,6 +145,7 @@ class _PivotPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Same shrink-the-paint, keep-the-touch-zone pattern as `_FilterChip`.
     return Semantics(
       button: true,
       label: 'Plan pivot: ${pivot.label}',
@@ -152,25 +153,33 @@ class _PivotPill extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(AppStyles.radiusPill),
         onTap: () => _open(context),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: AppStyles.touchTargetMinimum),
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingM, vertical: AppStyles.spacingS),
-          decoration: BoxDecoration(
-            color: AppColors.backgroundSecondary,
-            borderRadius: BorderRadius.circular(AppStyles.radiusPill),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                pivot.label,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.brandPrimary),
+        child: SizedBox(
+          height: AppStyles.touchTargetMinimum,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingM, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundSecondary,
+                borderRadius: BorderRadius.circular(AppStyles.radiusPill),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
               ),
-              const SizedBox(width: AppStyles.spacingXS),
-              const Icon(Icons.arrow_drop_down_rounded, size: 16, color: AppColors.brandPrimary),
-            ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    pivot.label,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.brandPrimary,
+                      height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(width: AppStyles.spacingXS),
+                  const Icon(Icons.arrow_drop_down_rounded, size: 14, color: AppColors.brandPrimary),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -204,24 +213,29 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final bg = selected ? AppColors.brandPrimary : AppColors.backgroundSecondary;
     final fg = selected ? AppColors.textPrimary : AppColors.textSecondary;
+    // Visible pill is intentionally smaller than the 44pt touch target. The
+    // outer InkWell + SizedBox holds the HIG-compliant tap zone; the painted
+    // pill sits centered inside at ~30pt. Earlier dogfood found the pills at
+    // 44pt visible height shouted louder than the voice card.
     return InkWell(
       borderRadius: BorderRadius.circular(AppStyles.radiusPill),
       onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(
-          minHeight: AppStyles.touchTargetMinimum,
-          minWidth: AppStyles.touchTargetMinimum,
-        ),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingL, vertical: AppStyles.spacingS),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(AppStyles.radiusPill),
-          border: Border.all(color: selected ? AppColors.brandPrimary : Colors.white.withValues(alpha: 0.06)),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: fg),
+      child: SizedBox(
+        height: AppStyles.touchTargetMinimum,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingM, vertical: 6),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(AppStyles.radiusPill),
+              border:
+                  Border.all(color: selected ? AppColors.brandPrimary : Colors.white.withValues(alpha: 0.06)),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: fg, height: 1.0),
+            ),
+          ),
         ),
       ),
     );
