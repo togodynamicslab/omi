@@ -14,6 +14,9 @@ class NotificationMessage(BaseModel):
     notification_type: str
     text: Optional[str] = ""
     navigate_to: Optional[str] = None
+    # app-v2 reads this; legacy app/ reads navigate_to. Keep both populated so
+    # both clients route correctly without a regression in legacy.
+    deep_link: Optional[str] = None
 
     @staticmethod
     def get_message_as_dict(
@@ -28,5 +31,8 @@ class NotificationMessage(BaseModel):
 
         if message.navigate_to is None:
             del message_dict['navigate_to']
+
+        if message.deep_link is None:
+            del message_dict['deep_link']
 
         return message_dict
