@@ -13,7 +13,15 @@ import 'package:nooto_v2/services/auth_service.dart';
 class AuthChangeProvider extends ChangeNotifier {
   AuthChangeProvider() {
     if (kEnableFirebaseAuth) {
-      _sub = FirebaseAuth.instance.authStateChanges().listen((_) => notifyListeners());
+      // Guarded so widget tests can construct this provider without booting
+      // a Firebase app — Firebase.initializeApp() is only called in the real
+      // app entry points. In tests, fakes that extend this class still need
+      // super() to run, but they do not need a live Firebase subscription.
+      try {
+        _sub = FirebaseAuth.instance.authStateChanges().listen((_) => notifyListeners());
+      } catch (_) {
+        _sub = null;
+      }
     }
   }
 
