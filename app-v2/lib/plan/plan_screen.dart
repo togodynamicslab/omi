@@ -5,11 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/apps/apps_provider.dart' hide LaunchUrlFn;
+import 'package:nooto_v2/home/companion_stream_provider.dart' show buildTodayContext, isTodayContextEmpty;
 import 'package:nooto_v2/home/home_nav.dart';
 import 'package:nooto_v2/plan/plan_detail_screen.dart';
 import 'package:nooto_v2/plan/plan_grouping.dart';
+import 'package:nooto_v2/plan/plan_guidance_provider.dart';
 import 'package:nooto_v2/plan/widgets/plan_action_sheet.dart';
 import 'package:nooto_v2/plan/widgets/plan_filter_rail.dart';
+import 'package:nooto_v2/plan/widgets/plan_guidance_card.dart';
 import 'package:nooto_v2/plan/widgets/plan_pivot_picker.dart';
 import 'package:nooto_v2/plan/widgets/plan_row.dart';
 import 'package:nooto_v2/providers/action_items_provider.dart';
@@ -127,6 +130,16 @@ class _PlanScreenState extends State<PlanScreen> {
 
     final items = _applyFilters(allItems);
 
+    // Kick off / refresh plan guidance whenever the action-item set materially
+    // changes. PlanGuidanceProvider is content-keyed and TTL-gated, so this is
+    // safe to call on every build — it dedupes internally.
+    final todayContext = buildTodayContext(allItems, now: DateTime.now());
+    if (!isTodayContextEmpty(todayContext)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.read<PlanGuidanceProvider>().refreshIfStale(todayContext);
+      });
+    }
+
     final topInset = MediaQuery.of(context).padding.top + AppStyles.spacingS;
     return RefreshIndicator(
       onRefresh: () => provider.fetchAll(),
@@ -135,6 +148,7 @@ class _PlanScreenState extends State<PlanScreen> {
       child: CustomScrollView(
         slivers: [
           SliverPadding(padding: EdgeInsets.only(top: topInset)),
+          const SliverToBoxAdapter(child: PlanGuidanceCard()),
           SliverPersistentHeader(
             pinned: true,
             delegate: _StickyFilterHeader(
