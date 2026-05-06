@@ -48,6 +48,13 @@ class _PlanScreenState extends State<PlanScreen> {
   PlanFilter _filter = PlanFilter.all;
   late PlanPivot _pivot;
 
+  /// Voice-led-by-default toggle. The Plan tab opens to a single voice card
+  /// (assistant guidance) plus a "Show all N items" button — the list and
+  /// filter rail stay hidden until the user explicitly opts in. Mirrors the
+  /// Home tab's "summary first, drill-down on demand" grammar. Reset every
+  /// time the tab unmounts so re-entry always lands on the calm view.
+  bool _showList = false;
+
   /// Transient project filter set by tapping a project pill on a Jira chip.
   /// Cleared when the user taps the chip again or switches tabs (we hook
   /// into deactivate for the tab-switch case).
@@ -110,6 +117,11 @@ class _PlanScreenState extends State<PlanScreen> {
     // Plan starts clean. Permanent filter / pivot state persists via Hive
     // (pivot, owned by Shell) and via the lifetime of this State (filter).
     _projectFilter = null;
+    // Same idea for the list-reveal toggle: a fresh tab open should always
+    // land on the calm voice-led view, even if the user expanded the list
+    // last time. Persisting "show me everything" across tab switches
+    // would relitigate the dogfood call we deliberately made.
+    _showList = false;
     super.deactivate();
   }
 
@@ -140,6 +152,16 @@ class _PlanScreenState extends State<PlanScreen> {
       });
     }
 
+    // Voice-led default: when guidance is ready and non-empty, hide the list
+    // + filter rail behind a "Show all" button so the assistant prose is the
+    // only thing on screen. Fall through to the legacy list view in every
+    // other state (loading first fetch, error, or no items to summarize) so
+    // the user is never stranded looking at an empty screen.
+    final guidance = context.watch<PlanGuidanceProvider>();
+    final hasGuidance =
+        guidance.status == PlanGuidanceStatus.ready && guidance.text.trim().isNotEmpty;
+    final showList = _showList || !hasGuidance;
+
     final topInset = MediaQuery.of(context).padding.top + AppStyles.spacingS;
     return RefreshIndicator(
       onRefresh: () => provider.fetchAll(),
@@ -149,50 +171,59 @@ class _PlanScreenState extends State<PlanScreen> {
         slivers: [
           SliverPadding(padding: EdgeInsets.only(top: topInset)),
           const SliverToBoxAdapter(child: PlanGuidanceCard()),
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: _StickyFilterHeader(
-              child: Container(
-                color: AppColors.backgroundPrimary,
-                child: PlanFilterRail(
-                  selected: _filter,
-                  onChanged: (f) => setState(() => _filter = f),
-                  pivot: _pivot,
-                  onPivotChanged: (p) async {
-                    setState(() => _pivot = p);
-                    await PlanPivotPicker.persist(p);
-                  },
-                  activeProjectFilter: _projectFilter,
-                  onClearProjectFilter: () => setState(() => _projectFilter = null),
+          if (!showList && allItems.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _ShowAllButton(
+                count: allItems.length,
+                onTap: () => setState(() => _showList = true),
+              ),
+            ),
+          if (showList) ...[
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _StickyFilterHeader(
+                child: Container(
+                  color: AppColors.backgroundPrimary,
+                  child: PlanFilterRail(
+                    selected: _filter,
+                    onChanged: (f) => setState(() => _filter = f),
+                    pivot: _pivot,
+                    onPivotChanged: (p) async {
+                      setState(() => _pivot = p);
+                      await PlanPivotPicker.persist(p);
+                    },
+                    activeProjectFilter: _projectFilter,
+                    onClearProjectFilter: () => setState(() => _projectFilter = null),
+                  ),
                 ),
               ),
             ),
-          ),
-          if (items.isEmpty)
-            const SliverFillRemaining(hasScrollBody: false, child: _EmptyState())
-          else
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                AppStyles.spacingL,
-                AppStyles.spacingS,
-                AppStyles.spacingL,
-                AppStyles.spacingXL,
+            if (items.isEmpty)
+              const SliverFillRemaining(hasScrollBody: false, child: _EmptyState())
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppStyles.spacingL,
+                  AppStyles.spacingS,
+                  AppStyles.spacingL,
+                  AppStyles.spacingXL,
+                ),
+                sliver: _GroupsSliver(
+                  groups: PlanGrouping.group(items, pivot: _pivot),
+                  pivot: _pivot,
+                  focusedItemId: _focusedItemId,
+                  onCheckboxTap: (item) => _onCheckboxTap(item, twoWaySync: twoWaySync),
+                  onRowBodyTap: _onRowBodyTap,
+                  onProjectTap: (project) {
+                    setState(() => _projectFilter = _projectFilter == project ? null : project);
+                  },
+                  jiraSwipeEnabled: twoWaySync,
+                  onTransition: _onTransition,
+                  onSnooze: _onSnooze,
+                  onLongPress: (item) => _onLongPress(item, twoWaySync: twoWaySync),
+                ),
               ),
-              sliver: _GroupsSliver(
-                groups: PlanGrouping.group(items, pivot: _pivot),
-                pivot: _pivot,
-                focusedItemId: _focusedItemId,
-                onCheckboxTap: (item) => _onCheckboxTap(item, twoWaySync: twoWaySync),
-                onRowBodyTap: _onRowBodyTap,
-                onProjectTap: (project) {
-                  setState(() => _projectFilter = _projectFilter == project ? null : project);
-                },
-                jiraSwipeEnabled: twoWaySync,
-                onTransition: _onTransition,
-                onSnooze: _onSnooze,
-                onLongPress: (item) => _onLongPress(item, twoWaySync: twoWaySync),
-              ),
-            ),
+          ],
         ],
       ),
     );
@@ -630,6 +661,52 @@ class _Loading extends StatelessWidget {
         width: 28,
         height: 28,
         child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brandPrimary),
+      ),
+    );
+  }
+}
+
+/// Quiet "Show all N items" affordance rendered below the voice card on the
+/// default Plan view. Sized like a 14pt label, padded as a 44pt touch target,
+/// brand blue text. Tap reveals the filter rail + grouped list. Hidden once
+/// the list is shown (the rail itself is the wayfinding from then on).
+class _ShowAllButton extends StatelessWidget {
+  const _ShowAllButton({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppStyles.spacingL,
+        0,
+        AppStyles.spacingL,
+        AppStyles.spacingL,
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppStyles.radiusSmall),
+        child: Container(
+          alignment: Alignment.centerLeft,
+          constraints: const BoxConstraints(minHeight: AppStyles.touchTargetMinimum),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Show all $count',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.brandPrimary,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.brandPrimary),
+            ],
+          ),
+        ),
       ),
     );
   }
