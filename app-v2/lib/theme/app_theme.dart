@@ -38,8 +38,8 @@ class AppStyles {
 }
 
 /// Brand emphasis: system sans-serif with weight + size as the only emphasis
-/// levers. Used for greetings, the Nooto wordmark, and voice card text.
-/// No serif anywhere in this product — see DESIGN.md.
+/// levers. Used for the brief body, voice card prose, anywhere we want
+/// distinct-but-not-decorative emphasis. See DESIGN.md.
 TextStyle brandEmphasis({
   double fontSize = 16,
   FontWeight fontWeight = FontWeight.w600,
@@ -52,6 +52,31 @@ TextStyle brandEmphasis({
     color: color,
     height: height,
     letterSpacing: -0.2,
+  );
+}
+
+/// Brand accent: Source Serif 4 Regular — the single editorial accent face
+/// in the system. Reintroduced 2026-05-05 (reversing the 2026-04-30 "no serif
+/// anywhere" decision) for use on the morning brief greeting line. Source
+/// Serif is humanist + neutral — explicitly NOT cursive, NOT decorative.
+/// Avoid italic; the value of this face is its restraint.
+///
+/// Hard usage rule: ONE place per screen. The accent earns its existence by
+/// appearing exactly once. Adding it to a second surface dilutes the signal.
+/// Today's only call site is the morning brief greeting; future use cases
+/// require a fresh design pass.
+TextStyle brandAccent({
+  double fontSize = 22,
+  Color color = AppColors.textPrimary,
+  double? height,
+}) {
+  return TextStyle(
+    fontFamily: 'SourceSerif4',
+    fontSize: fontSize,
+    fontWeight: FontWeight.w400,
+    color: color,
+    height: height,
+    letterSpacing: -0.1,
   );
 }
 
