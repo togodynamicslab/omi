@@ -1,5 +1,6 @@
 import copy
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
@@ -269,21 +270,28 @@ def get_inbox_messages(uid: str, limit: int = 50, before: Optional[datetime] = N
     integration_q = integration_q.order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit)
     summary_q = summary_q.order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit)
 
+    # Run both Firestore queries in parallel — independent reads, halves
+    # round-trip latency in the common path.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        integration_docs = pool.submit(lambda: list(integration_q.stream()))
+        summary_docs = pool.submit(lambda: list(summary_q.stream()))
+        integration_results = integration_docs.result()
+        summary_results = summary_docs.result()
+
     merged: Dict[str, Dict[str, Any]] = {}
-    for doc in integration_q.stream():
+    for doc in integration_results:
         data = doc.to_dict()
         if not data or data.get('reported') is True:
             continue
         msg_id = data.get('id') or doc.id
         merged[msg_id] = data
 
-    for doc in summary_q.stream():
+    for doc in summary_results:
         data = doc.to_dict()
         if not data or data.get('reported') is True:
             continue
         msg_id = data.get('id') or doc.id
-        # Both queries can in principle match the same doc (impossible today but
-        # cheap to defend against). Last-write-wins is fine — payload is the same.
+        # Defensive dedupe — same doc could match both filters.
         merged.setdefault(msg_id, data)
 
     items = list(merged.values())
