@@ -25,13 +25,23 @@ import 'package:nooto_v2/services/ble/socket_streamer.dart';
 /// thin adapter, instantiated once at app boot — it does not own the
 /// underlying singletons and does not dispose them.
 class PendantProvider extends ChangeNotifier {
-  PendantProvider({OmiPendant? pendant, SocketStreamer? socket})
+  PendantProvider({OmiPendant? pendant, SocketStreamer? socket, bool startAudioActivityTracker = true})
     : _pendant = pendant ?? OmiPendant.instance,
       _socket = socket ?? SocketStreamer() {
     _pendant.info.addListener(_onInfoChanged);
-    _audioSub = _pendant.audioBytes.listen(_socket.send);
+    _audioSub = _pendant.audioBytes.listen((bytes) {
+      _socket.send(bytes);
+      _audioByteAccumulator += bytes.length;
+    });
     _eventsSub = _socket.events.listen(_onSocketEvent);
     _info = _pendant.info.value;
+    // Tick audio activity at 4Hz in production. Tests pass false so the
+    // periodic Timer doesn't leak into pumpAndSettle / pumpFrames; tests
+    // that need a non-zero audioActivity value can poke `audioActivity.value`
+    // directly via the FakePendantProvider seam.
+    if (startAudioActivityTracker) {
+      _audioActivityTimer = Timer.periodic(_audioActivityWindow, _tickAudioActivity);
+    }
   }
 
   final OmiPendant _pendant;
@@ -44,9 +54,55 @@ class PendantProvider extends ChangeNotifier {
   StreamSubscription<SocketEvent>? _eventsSub;
   PendantState? _lastState;
 
+  // ---------------------------------------------------------------------------
+  // Audio activity (0..1) — proxy for "the mic is hearing something."
+  //
+  // Surfaced for the post-pair settled UI so the breathing orb / particle
+  // field can pulse with what the pendant is capturing (per 2026-05-05
+  // dogfood: "visualize the waves of the mic so feel it alive"). We don't
+  // have an Opus decoder on-device, so this approximates amplitude with
+  // byte-rate: Opus DTX cuts bytes during silence, so byte-rate-per-window
+  // is a reasonable "is speech happening" signal even without sample
+  // amplitude. Smoothed with exponential decay so the visual doesn't
+  // jitter every 250ms.
+  // ---------------------------------------------------------------------------
+
+  /// Audio activity 0..1, ticked at 4Hz from the BLE audio stream byte rate.
+  /// Listeners (e.g. PendantOrb in settled mode) read this to drive
+  /// audio-reactive scale/alpha.
+  final ValueNotifier<double> audioActivity = ValueNotifier<double>(0);
+
+  // (Live transcript was briefly fed from backend Deepgram via the
+  // SocketTranscript event piping. Reverted 2026-05-05: per dogfood, the
+  // UX preview takes the on-device "Pendant → BLE Opus → iOS STT" path
+  // owned by `PendantSttProvider`. The SocketTranscript event class still
+  // exists in `socket_streamer.dart` for future consumers but nothing
+  // listens to it here.)
+
+  static const Duration _audioActivityWindow = Duration(milliseconds: 250);
+  // Opus speech ≈ 4-5 KB/s, so ~1.0-1.25 KB / 250ms window. Cap at 1500
+  // bytes for headroom on louder/varying bitrate streams.
+  static const double _audioActivityMaxBytesPerWindow = 1500;
+
+  int _audioByteAccumulator = 0;
+  Timer? _audioActivityTimer;
+
+  void _tickAudioActivity(Timer _) {
+    final raw = (_audioByteAccumulator / _audioActivityMaxBytesPerWindow).clamp(0.0, 1.0);
+    // Exponential smoothing — 0.4 weight on history makes ramp-up + decay
+    // span roughly 4 windows (1s) instead of jumping window-to-window.
+    audioActivity.value = 0.4 * audioActivity.value + 0.6 * raw;
+    _audioByteAccumulator = 0;
+  }
+
   /// Public action — used by the pairing sheet's Pair button and the
   /// onboarding chat turn.
   Future<void> startPair() => _pendant.startPair();
+
+  /// Mirrors `OmiPendant.wasLastPairAttemptBluetoothOff`. The screen reads
+  /// this on `pairing → unpaired` transitions to differentiate "Bluetooth
+  /// off" from "no pendant nearby" and pick the right surface-card copy.
+  bool get wasLastPairAttemptBluetoothOff => _pendant.wasLastPairAttemptBluetoothOff;
 
   /// Public action — used by the status pill and the voice card on tap
   /// when the pendant is offline.
@@ -125,6 +181,8 @@ class PendantProvider extends ChangeNotifier {
       // user as `offline` (pill turns red, voice card appears at >5min).
       _pendant.forceOffline();
     }
+    // SocketTranscript is intentionally unhandled — see comment near
+    // `liveTranscript` field. UX preview pipes via PendantSttProvider.
   }
 
   @override
@@ -132,6 +190,8 @@ class PendantProvider extends ChangeNotifier {
     _pendant.info.removeListener(_onInfoChanged);
     _audioSub?.cancel();
     _eventsSub?.cancel();
+    _audioActivityTimer?.cancel();
+    audioActivity.dispose();
     super.dispose();
   }
 }
