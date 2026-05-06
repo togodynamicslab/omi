@@ -26,6 +26,7 @@ from models.chat import (
 from models.conversation import Conversation
 from routers.sync import retrieve_file_paths, decode_files_to_wav
 from utils.apps import get_available_app_by_id
+from utils.inbox_senders import brief_sender_dict, resolve_senders_for_app_ids
 from utils.chat import (
     process_voice_message_segment,
     process_voice_message_segment_stream,
@@ -329,6 +330,90 @@ def get_messages(
     if not messages:
         return [initial_message_util(uid, compat_app_id)]
     return messages
+
+
+@router.get('/v2/chat/inbox/feed', tags=['chat'])
+def get_inbox_feed(
+    limit: int = 50,
+    before: Optional[str] = None,
+    uid: str = Depends(auth.get_current_user_uid),
+):
+    """Chronologically merged inbox feed of integration-authored messages
+    (``from_external_integration=True``) and Brief day_summary messages.
+
+    Pagination via ``before`` (ISO 8601 timestamp cursor). Each item carries a
+    server-resolved sender (display_name + avatar_url + type).
+    """
+    if limit <= 0:
+        limit = 1
+    if limit > 200:
+        limit = 200
+
+    before_dt: Optional[datetime] = None
+    if before:
+        try:
+            # Accept "Z" suffix and offsets.
+            normalized = before.replace('Z', '+00:00') if before.endswith('Z') else before
+            before_dt = datetime.fromisoformat(normalized)
+            if before_dt.tzinfo is None:
+                before_dt = before_dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            raise HTTPException(status_code=400, detail='Invalid `before` cursor; expected ISO 8601 timestamp')
+
+    raw_messages = chat_db.get_inbox_messages(uid, limit=limit, before=before_dt)
+
+    # Collect distinct app_ids from the merged page (excluding day_summary
+    # rows). Firestore-on-disk uses plugin_id; Pydantic Message exposes both.
+    app_ids: List[str] = []
+    seen_ids: set = set()
+    for msg in raw_messages:
+        if msg.get('type') == 'day_summary':
+            continue
+        candidate = msg.get('app_id') or msg.get('plugin_id')
+        if candidate and candidate not in seen_ids:
+            seen_ids.add(candidate)
+            app_ids.append(candidate)
+
+    sender_lookup = resolve_senders_for_app_ids(app_ids)
+
+    items: List[dict] = []
+    for msg in raw_messages:
+        msg_type = msg.get('type') or 'text'
+        app_id = msg.get('app_id') or msg.get('plugin_id')
+        if msg_type == 'day_summary':
+            sender = {**brief_sender_dict(), 'type': 'brief'}
+        else:
+            resolved = sender_lookup.get(app_id) if app_id else None
+            sender = {
+                'display_name': (resolved or {}).get('display_name') or 'App',
+                'avatar_url': (resolved or {}).get('avatar_url'),
+                'type': 'app',
+            }
+        created_at = msg.get('created_at')
+        if isinstance(created_at, datetime):
+            created_iso = created_at.isoformat()
+        else:
+            created_iso = created_at
+
+        items.append(
+            {
+                'id': msg.get('id'),
+                'text': msg.get('text', ''),
+                'created_at': created_iso,
+                'app_id': app_id,
+                'type': msg_type,
+                'sender': sender,
+            }
+        )
+
+    next_cursor: Optional[str] = None
+    if len(items) >= limit and items:
+        # Cursor is the created_at of the last (oldest) returned item. Caller
+        # passes it back as `before` for the next page.
+        last_created = items[-1]['created_at']
+        next_cursor = last_created if isinstance(last_created, str) else None
+
+    return {'items': items, 'next_cursor': next_cursor}
 
 
 @router.post("/v2/voice-messages")
