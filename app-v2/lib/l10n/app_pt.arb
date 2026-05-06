@@ -342,5 +342,77 @@
   "settingsNotificationsLabel": "Notificações",
   "settingsNotificationsStateOn": "Ativadas",
   "settingsNotificationsStateOff": "Desativadas — toque para ativar",
-  "settingsNotificationsStateOpenSettings": "Abra Configurações para ativar"
+  "settingsNotificationsStateOpenSettings": "Abra Configurações para ativar",
+  "settingsCategoryAccount": "Conta",
+  "@settingsCategoryAccount": {
+    "description": "Settings category label: account/sign-in/sign-out."
+  },
+  "settingsCategoryAccountDescription": "Login, identidade",
+  "@settingsCategoryAccountDescription": {
+    "description": "Settings category one-liner under Account (used by search match, not currently rendered as a row subtitle)."
+  },
+  "settingsCategoryPermissions": "Permissões",
+  "@settingsCategoryPermissions": {
+    "description": "Settings category label: OS permissions."
+  },
+  "settingsCategoryPermissionsDescription": "Microfone, Bluetooth, Notificações, Localização",
+  "@settingsCategoryPermissionsDescription": {
+    "description": "Settings category one-liner under Permissions."
+  },
+  "settingsCategoryPendant": "Pendant",
+  "@settingsCategoryPendant": {
+    "description": "Settings category label: pendant diagnostics."
+  },
+  "settingsCategoryPendantDescription": "Status de conexão, codec, bateria",
+  "@settingsCategoryPendantDescription": {
+    "description": "Settings category one-liner under Pendant."
+  },
+  "settingsCategoryNotifications": "Notificações",
+  "@settingsCategoryNotifications": {
+    "description": "Settings category label: notifications-as-chat toggle."
+  },
+  "settingsCategoryNotificationsDescription": "Alertas de apps e do Brief",
+  "@settingsCategoryNotificationsDescription": {
+    "description": "Settings category one-liner under Notifications."
+  },
+  "settingsCategoryAbout": "Sobre",
+  "@settingsCategoryAbout": {
+    "description": "Settings category label: app info."
+  },
+  "settingsCategoryAboutDescription": "Versão do build, suporte",
+  "@settingsCategoryAboutDescription": {
+    "description": "Settings category one-liner under About."
+  },
+  "settingsCategoryDeveloper": "Desenvolvedor",
+  "@settingsCategoryDeveloper": {
+    "description": "Settings category label: developer/debug surface."
+  },
+  "settingsCategoryDeveloperDescription": "Diagnósticos e reinício",
+  "@settingsCategoryDeveloperDescription": {
+    "description": "Settings category one-liner under Developer."
+  },
+  "settingsSearchPlaceholder": "Buscar configurações",
+  "@settingsSearchPlaceholder": {
+    "description": "Placeholder text inside the iOS-style search field at the top of Settings."
+  },
+  "settingsSearchEmpty": "Nenhuma configuração encontrada",
+  "@settingsSearchEmpty": {
+    "description": "Empty-state copy when the Settings search query matches nothing."
+  },
+  "settingsNotificationsDescription": "Apps e Brief enviam mensagens proativas para sua Caixa de entrada. Desative para silenciar o push do dispositivo sem perder o feed dentro do app.",
+  "@settingsNotificationsDescription": {
+    "description": "Long-form description below the Notifications toggle on the Notifications sub-page."
+  },
+  "settingsAccountSignOut": "Sair",
+  "@settingsAccountSignOut": {
+    "description": "Sign-out button on the Account sub-page."
+  },
+  "settingsDeveloperResetOnboarding": "Reiniciar onboarding",
+  "@settingsDeveloperResetOnboarding": {
+    "description": "Reset onboarding button on the Developer sub-page."
+  },
+  "settingsDeveloperOpenSystemSettings": "Abrir Ajustes do iOS",
+  "@settingsDeveloperOpenSystemSettings": {
+    "description": "Open system Settings shortcut button on the Developer sub-page."
+  }
 }
