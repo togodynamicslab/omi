@@ -111,6 +111,66 @@ class ChatService {
     return buffer.toString();
   }
 
+  /// One-shot fetch for the Plan tab guidance card. Hits
+  /// `POST /v2/plan/guidance`, accumulates the text/event-stream response.
+  /// Wire shape mirrors the brief (`data: <chunk>` lines), so the existing
+  /// SSE parser handles it without special-casing.
+  ///
+  /// [todayContext] is the same shape the brief uses (overdue / due_soon /
+  /// stuck_jira / plan_remaining_count) — built once on the Flutter side and
+  /// passed to both surfaces. The endpoint is grounded only on this payload;
+  /// it does NOT read items server-side.
+  Future<String> fetchPlanGuidance({
+    required Map<String, dynamic> todayContext,
+    DateTime? now,
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    final stream = await _client.stream(
+      'v2/plan/guidance',
+      body: {
+        'today_context': todayContext,
+        if (now != null) 'now_iso': now.toUtc().toIso8601String(),
+      },
+    );
+
+    final buffer = StringBuffer();
+    String pending = '';
+
+    final completer = Completer<String>();
+    late StreamSubscription<String> sub;
+    sub = stream.transform(utf8.decoder).timeout(timeout).listen(
+      (chunk) {
+        pending += chunk;
+        var idx = pending.indexOf('\n');
+        while (idx != -1) {
+          final line = pending.substring(0, idx);
+          pending = pending.substring(idx + 1);
+          final parsed = _parseLine(line);
+          if (parsed is ChatStreamText) buffer.write(parsed.text);
+          if (parsed is _Done) {
+            sub.cancel();
+            if (!completer.isCompleted) completer.complete(buffer.toString());
+            return;
+          }
+          idx = pending.indexOf('\n');
+        }
+      },
+      onError: (e, st) {
+        if (!completer.isCompleted) completer.completeError(e, st);
+      },
+      onDone: () {
+        if (pending.isNotEmpty) {
+          final parsed = _parseLine(pending);
+          if (parsed is ChatStreamText) buffer.write(parsed.text);
+        }
+        if (!completer.isCompleted) completer.complete(buffer.toString());
+      },
+      cancelOnError: true,
+    );
+
+    return completer.future;
+  }
+
   /// Returns one of: [ChatStreamText], [ChatStreamToolStart], [_Done], or null.
   static Object? _parseLine(String raw) {
     if (raw.startsWith('data: ')) {
