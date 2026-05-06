@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/chat/chat_storage.dart';
+import 'package:nooto_v2/dev/typography_settings.dart';
 import 'package:nooto_v2/home/home_storage.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/onboarding/onboarding_chat_provider.dart';
@@ -25,6 +26,8 @@ class _AppBarKebabMenuState extends State<AppBarKebabMenu> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
+    final typography = context.watch<TypographySettings?>();
+    final useSerifBody = typography?.useSerifBody ?? false;
     return PopupMenuButton<String>(
       tooltip: 'More',
       icon: const Icon(Icons.more_vert, color: AppColors.textTertiary, size: 20),
@@ -38,6 +41,8 @@ class _AppBarKebabMenuState extends State<AppBarKebabMenu> {
           await context.read<AuthChangeProvider>().signOut();
         } else if (v == 'reset') {
           await _confirmReset();
+        } else if (v == 'toggle_serif') {
+          await context.read<TypographySettings>().toggleSerifBody();
         }
       },
       itemBuilder: (_) => [
@@ -49,6 +54,21 @@ class _AppBarKebabMenuState extends State<AppBarKebabMenu> {
           value: 'pendant',
           child: Text(l.pendantScreenMenuItem, style: const TextStyle(color: AppColors.textPrimary)),
         ),
+        if (typography != null)
+          PopupMenuItem(
+            value: 'toggle_serif',
+            child: Row(
+              children: [
+                Icon(
+                  useSerifBody ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+                  size: 18,
+                  color: AppColors.textPrimary,
+                ),
+                const SizedBox(width: 8),
+                const Text('Serif brief body', style: TextStyle(color: AppColors.textPrimary)),
+              ],
+            ),
+          ),
         const PopupMenuItem(
           value: 'signout',
           child: Text('Sign out', style: TextStyle(color: AppColors.textPrimary)),
