@@ -98,7 +98,14 @@ class NotificationService extends ChangeNotifier {
     _unreadInboxCount += 1;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_unreadInboxKey, _unreadInboxCount);
+    debugPrint('[NotificationService] unread bumped → $_unreadInboxCount');
     notifyListeners();
+  }
+
+  /// Public bump used by [sendTestNotification] to give immediate UX feedback
+  /// (don't wait for the FCM round-trip to render the chat-tab dot).
+  Future<void> bumpUnreadInboxBadge() async {
+    await _bumpUnreadInbox();
   }
 
   Future<bool> isToggleEnabled() async {
@@ -282,11 +289,17 @@ class NotificationService extends ChangeNotifier {
   }
 
   Future<void> _onForegroundMessage(RemoteMessage message) async {
+    debugPrint(
+      '[NotificationService] onMessage fired: data=${message.data} '
+      'notification=${message.notification?.title}',
+    );
     // Bump the inbox badge on every inbound push regardless of toggle state —
     // even with OS push silenced, the message landed in the user's inbox feed
     // and the tab dot is the in-app signal that something new arrived.
     if (_isInboxBound(message)) {
       await _bumpUnreadInbox();
+    } else {
+      debugPrint('[NotificationService] inbound push not inbox-bound, deep_link=${message.data['deep_link']}');
     }
     // Respect the user's in-app toggle: if notifications are off the OS push
     // never arrives, but the FCM stream can still fire (e.g. if the toggle
