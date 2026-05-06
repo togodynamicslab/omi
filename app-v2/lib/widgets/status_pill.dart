@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/pendant/pendant_screen.dart';
 import 'package:nooto_v2/providers/pendant_provider.dart';
+import 'package:nooto_v2/providers/pendant_stt_provider.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 
@@ -80,14 +81,21 @@ class _StatusPillState extends State<StatusPill> with SingleTickerProviderStateM
     final l = AppLocalizations.of(context);
     final visual = _visualFor(state, info, l);
 
+    // When live, the pill doubles as a live-transcription readout. Tapping
+    // it routes to the Pendant screen for the full view. The dot keeps the
+    // recording-active signal even while the label morphs into "… words".
+    final showTranscript = state == PendantState.live;
+    final liveTappable = showTranscript || visual.tappable;
+    final transcriptStream = showTranscript ? context.watch<PendantSttProvider>().liveTranscript : null;
+
     return Semantics(
       label: visual.semanticsLabel,
-      button: visual.tappable,
+      button: liveTappable,
       container: true,
       child: SizedBox(
         height: AppStyles.touchTargetMinimum,
         child: InkWell(
-          onTap: visual.tappable ? () => Navigator.of(context).push(PendantScreen.route()) : null,
+          onTap: liveTappable ? () => Navigator.of(context).push(PendantScreen.route()) : null,
           customBorder: const StadiumBorder(),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingM, vertical: AppStyles.spacingS),
@@ -96,10 +104,16 @@ class _StatusPillState extends State<StatusPill> with SingleTickerProviderStateM
               children: [
                 _PulsingDot(color: visual.dotColor, controller: _pulseController),
                 const SizedBox(width: AppStyles.spacingS),
-                Text(
-                  visual.label,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
-                ),
+                if (transcriptStream != null)
+                  ValueListenableBuilder<String>(
+                    valueListenable: transcriptStream,
+                    builder: (context, transcript, _) {
+                      final tail = _tailWords(transcript);
+                      return _PillLabel(text: tail.isEmpty ? visual.label : tail);
+                    },
+                  )
+                else
+                  _PillLabel(text: visual.label),
               ],
             ),
           ),
@@ -108,14 +122,29 @@ class _StatusPillState extends State<StatusPill> with SingleTickerProviderStateM
     );
   }
 
+  /// Show the last 3 words with a leading "…" so the pill fits in the
+  /// AppBar without crowding the kebab. 3 words is the largest that still
+  /// reads at a glance — anything more turns the header into a teleprompter.
+  String _tailWords(String full) {
+    final words = full.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (words.isEmpty) return '';
+    const maxWords = 3;
+    final start = words.length > maxWords ? words.length - maxWords : 0;
+    final tail = words.sublist(start).join(' ');
+    return start > 0 ? '… $tail' : tail;
+  }
+
   _PillVisual _visualFor(PendantState state, PendantInfo info, AppLocalizations l) {
     switch (state) {
       case PendantState.live:
         return _PillVisual(
           dotColor: AppColors.brandPrimary,
           label: l.pendantPillLive,
-          tappable: false,
-          semanticsLabel: 'Recording active. Pendant connected.',
+          // tappable here is for screen-reader semantics fallback; the
+          // live-state tap target is wired in build() because it depends
+          // on the transcript stream, not the pill visual.
+          tappable: true,
+          semanticsLabel: 'Recording active. Double-tap to open pendant.',
         );
       case PendantState.connecting:
       case PendantState.pairing:
@@ -182,6 +211,28 @@ class _PillVisual {
   final String label;
   final bool tappable;
   final String semanticsLabel;
+}
+
+/// Bounded text used inside the pill. Constrains width so a long
+/// transcript can't shove the kebab off-screen, single line, ellipsizes
+/// at the end (front-trim already happens upstream via `_tailWords`).
+class _PillLabel extends StatelessWidget {
+  const _PillLabel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 140),
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+      ),
+    );
+  }
 }
 
 class _PulsingDot extends StatelessWidget {
