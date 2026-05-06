@@ -5,6 +5,7 @@ import 'package:nooto_v2/home/home_nav.dart';
 import 'package:nooto_v2/home/widgets/brief_inline_parser.dart';
 import 'package:nooto_v2/home/widgets/inline_ref_chip.dart';
 import 'package:nooto_v2/home/widgets/inline_ref_sheet.dart';
+import 'package:nooto_v2/dev/typography_settings.dart';
 import 'package:nooto_v2/library/conversations_provider.dart';
 import 'package:nooto_v2/providers/action_items_provider.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
@@ -26,8 +27,20 @@ class BriefRichBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final segments = parseBriefBody(body);
     final hasRefs = segments.any((s) => s is BriefRefSegment);
+    // Dogfood toggle: when enabled, the prose body switches to Source Serif 4
+    // (`brandAccent`) at the same size/color/height as the requested style.
+    // DESIGN.md restricts the serif accent to one site today (the brief
+    // greeting); the toggle exists so we can taste-test before committing.
+    final useSerifBody = context.watch<TypographySettings?>()?.useSerifBody ?? false;
+    final effectiveStyle = useSerifBody
+        ? brandAccent(
+            fontSize: style.fontSize ?? 16,
+            color: style.color ?? AppColors.textSecondary,
+            height: style.height,
+          )
+        : style;
     if (!hasRefs) {
-      return Text(body, style: style);
+      return Text(body, style: effectiveStyle);
     }
     // Tolerate absent providers — the card has shipped in widget tests
     // without ActionItemsProvider/ConversationsProvider in scope. Missing
@@ -43,12 +56,16 @@ class BriefRichBody extends StatelessWidget {
     // Brand-emphasis style is sans-serif weight 600 with −0.2 letter spacing
     // (DESIGN.md `brandEmphasis`). We thread the surrounding prose's font
     // size + color so the emphasis run inherits paragraph metrics — only
-    // weight + spacing change, keeping rhythm with body copy.
-    final emphasisStyle = brandEmphasis(
-      fontSize: style.fontSize ?? 16,
-      color: style.color ?? AppColors.textPrimary,
-      height: style.height,
-    );
+    // weight + spacing change, keeping rhythm with body copy. When the
+    // serif-body toggle is on, emphasis falls back to a heavier-weight
+    // serif so the inline contrast still reads.
+    final emphasisStyle = useSerifBody
+        ? (effectiveStyle.copyWith(fontWeight: FontWeight.w600))
+        : brandEmphasis(
+            fontSize: style.fontSize ?? 16,
+            color: style.color ?? AppColors.textPrimary,
+            height: style.height,
+          );
     final spans = <InlineSpan>[
       for (final segment in segments)
         switch (segment) {
@@ -67,7 +84,7 @@ class BriefRichBody extends StatelessWidget {
           ),
         },
     ];
-    return Text.rich(TextSpan(style: style, children: spans));
+    return Text.rich(TextSpan(style: effectiveStyle, children: spans));
   }
 
   InlineSpan _resolveRef(
