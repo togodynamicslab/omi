@@ -60,6 +60,7 @@ class _ShellScreenState extends State<ShellScreen> {
     final isHome = _index == 0;
     final isChat = _index == 1;
     final isLibrary = _index == 2;
+    final hasUnreadInbox = context.watch<NotificationService>().hasUnreadInbox;
     return Scaffold(
       backgroundColor: AppColors.backgroundPrimary,
       extendBodyBehindAppBar: !isHome,
@@ -68,8 +69,15 @@ class _ShellScreenState extends State<ShellScreen> {
         backgroundColor: Colors.transparent,
         toolbarHeight: shellToolbarHeight,
         // Drawer hamburger only on Chat tab; default leading is null on the
-        // others so the AppBar doesn't render an unsupported menu icon.
-        automaticallyImplyLeading: isChat,
+        // others so the AppBar doesn't render an unsupported menu icon. We
+        // provide a custom leading so we can paint an unread dot overlay.
+        automaticallyImplyLeading: false,
+        leading: isChat
+            ? Builder(
+                builder: (ctx) =>
+                    _DrawerHamburger(hasUnread: hasUnreadInbox, onPressed: () => Scaffold.of(ctx).openDrawer()),
+              )
+            : null,
         flexibleSpace: ClipRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
@@ -124,7 +132,7 @@ class _ShellScreenState extends State<ShellScreen> {
         labels: tabs.map((t) => t.label).toList(),
         // Tab 1 = Chat (drawer hosts the Inbox entry). Red dot when unread
         // FCM messages have arrived since the last Inbox open.
-        badges: [false, context.watch<NotificationService>().hasUnreadInbox, false, false, false],
+        badges: [false, hasUnreadInbox, false, false, false],
       ),
     );
   }
@@ -134,4 +142,41 @@ class _Tab {
   final String label;
   final IconData icon;
   const _Tab({required this.label, required this.icon});
+}
+
+/// Hamburger button for the Chat tab's app bar. Renders the standard menu
+/// glyph plus a red dot overlay when there are unread inbox messages.
+class _DrawerHamburger extends StatelessWidget {
+  const _DrawerHamburger({required this.hasUnread, required this.onPressed});
+
+  final bool hasUnread;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: MaterialLocalizations.of(context).openAppDrawerTooltip,
+      onPressed: onPressed,
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.menu, color: AppColors.textPrimary),
+          if (hasUnread)
+            Positioned(
+              top: -2,
+              right: -4,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: AppColors.errorColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.backgroundPrimary, width: 1),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
