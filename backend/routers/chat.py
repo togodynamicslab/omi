@@ -392,8 +392,13 @@ def get_inbox_feed(
         created_at = msg.get('created_at')
         if isinstance(created_at, datetime):
             created_iso = created_at.isoformat()
-        else:
+        elif isinstance(created_at, str):
             created_iso = created_at
+        else:
+            # Skip messages with no parseable created_at — pagination cursor
+            # depends on a string ISO timestamp, and emitting None here would
+            # leak non-string types to the client.
+            continue
 
         items.append(
             {
@@ -409,9 +414,9 @@ def get_inbox_feed(
     next_cursor: Optional[str] = None
     if len(items) >= limit and items:
         # Cursor is the created_at of the last (oldest) returned item. Caller
-        # passes it back as `before` for the next page.
-        last_created = items[-1]['created_at']
-        next_cursor = last_created if isinstance(last_created, str) else None
+        # passes it back as `before` for the next page. Always a string per
+        # the filter above.
+        next_cursor = items[-1]['created_at']
 
     return {'items': items, 'next_cursor': next_cursor}
 
