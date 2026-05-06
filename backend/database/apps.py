@@ -43,6 +43,19 @@ def get_app_by_id_db(app_id: str):
     return None
 
 
+def get_apps_by_ids_db(app_ids: List[str]) -> List[dict]:
+    """Batch fetch apps by id via Firestore get_all (one round trip, no IN-30 limit)."""
+    if not app_ids:
+        return []
+    refs = [db.collection(apps_collection).document(app_id) for app_id in app_ids]
+    docs = db.get_all(refs)
+    out = []
+    for doc in docs:
+        if doc.exists:
+            out.append(doc.to_dict())
+    return out
+
+
 def get_audio_apps_count(app_ids: List[str]):
     if not app_ids or len(app_ids) == 0:
         return 0
