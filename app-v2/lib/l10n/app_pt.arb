@@ -212,7 +212,7 @@
   "@pendantScreenPairCta": {
     "description": "Primary CTA on the pendant screen when no pendant is paired."
   },
-  "pendantScreenPairHint": "Mantenha seu pendant perto do telefone.",
+  "pendantScreenPairHint": "Deixe seu pendant perto.",
   "@pendantScreenPairHint": {
     "description": "Hint shown under the pair CTA on the pendant screen."
   },
@@ -228,7 +228,7 @@
   "@pendantScreenReconnectCta": {
     "description": "Button on the pendant screen to reconnect when offline."
   },
-  "pendantScreenInterruptedExplain": "A gravação está pausada enquanto uma ligação ou outra sessão de áudio está ativa.",
+  "pendantScreenInterruptedExplain": "Pausado enquanto outra sessão de áudio está ativa.",
   "@pendantScreenInterruptedExplain": {
     "description": "Explanation shown when the pendant is in interrupted state."
   },
@@ -281,5 +281,51 @@
   "pendantScreenDefaultDeviceName": "Pendant Nooto",
   "@pendantScreenDefaultDeviceName": {
     "description": "Default device name shown in PendantScreen when info.deviceName is null"
+  },
+  "pendantCeremonySearching": "Procurando.",
+  "@pendantCeremonySearching": {
+    "description": "First beat of the pendant pairing ceremony, shown while scanning for the pendant. AI-voiced first-person calm register."
+  },
+  "pendantCeremonyFound": "Encontrei você.",
+  "@pendantCeremonyFound": {
+    "description": "Second beat of the pendant pairing ceremony, shown when a pendant has been discovered and is connecting. AI-voiced first-person calm register."
+  },
+  "pendantCeremonySettingUp": "Conectando.",
+  "@pendantCeremonySettingUp": {
+    "description": "Third beat of the pendant pairing ceremony, shown while the pendant is finalizing connection. AI-voiced first-person calm register."
+  },
+  "pendantCeremonyGreetingNamed": "Olá, {name}.",
+  "@pendantCeremonyGreetingNamed": {
+    "description": "Personalized greeting shown on the final beat of the pendant pairing ceremony, when the user's display name is available.",
+    "placeholders": {
+      "name": {
+        "type": "String",
+        "example": "Matheus"
+      }
+    }
+  },
+  "pendantCeremonyGreetingFallback": "Olá.",
+  "@pendantCeremonyGreetingFallback": {
+    "description": "Greeting shown on the final beat of the pendant pairing ceremony, when no user display name is available."
+  },
+  "pendantCeremonyTimeout": "Não consigo ver seu pendant daqui. Deixe ele perto e vamos tentar de novo.",
+  "@pendantCeremonyTimeout": {
+    "description": "Failure copy shown when the pendant pairing ceremony times out without finding a pendant. AI-voiced first-person register matches the ceremony beats."
+  },
+  "pendantCeremonyBleError": "Algo interrompeu a conexão. Vamos tentar mais uma vez.",
+  "@pendantCeremonyBleError": {
+    "description": "Failure copy shown when a BLE error interrupts the pendant pairing ceremony mid-connect. AI-voiced first-person register matches the ceremony beats."
+  },
+  "pendantCeremonyIncompatible": "Este pendant não fala minha língua. Verifique se o firmware está atualizado.",
+  "@pendantCeremonyIncompatible": {
+    "description": "Failure copy shown when an incompatible pendant is detected mid-ceremony. AI-voiced first-person register matches the ceremony beats. Pre-pair incompatible (no ceremony lead-in) keeps the existing functional copy in pendantPairIncompatible."
+  },
+  "pendantCeremonyBluetoothOff": "Bluetooth está desligado. Ative no Centro de Controle e vamos tentar de novo.",
+  "@pendantCeremonyBluetoothOff": {
+    "description": "AI-voiced ceremony failure surface card shown when iOS reports the Bluetooth adapter is OFF during scan."
+  },
+  "pendantScreenBackLabel": "Voltar",
+  "@pendantScreenBackLabel": {
+    "description": "Generic back button label on the pendant screen."
   }
 }

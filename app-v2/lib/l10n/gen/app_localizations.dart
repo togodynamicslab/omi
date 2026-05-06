@@ -635,7 +635,7 @@ abstract class AppLocalizations {
   /// Hint shown under the pair CTA on the pendant screen.
   ///
   /// In en, this message translates to:
-  /// **'Hold your pendant near your phone.'**
+  /// **'Hold your pendant close.'**
   String get pendantScreenPairHint;
 
   /// Header on the pendant screen when the pendant is live.
@@ -659,7 +659,7 @@ abstract class AppLocalizations {
   /// Explanation shown when the pendant is in interrupted state.
   ///
   /// In en, this message translates to:
-  /// **'Recording is paused while a phone call or other audio session is active.'**
+  /// **'Paused while another audio session is active.'**
   String get pendantScreenInterruptedExplain;
 
   /// Battery percentage row label on the pendant screen.
@@ -805,6 +805,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Nooto pendant'**
   String get pendantScreenDefaultDeviceName;
+
+  /// First beat of the pendant pairing ceremony, shown while scanning for the pendant. AI-voiced first-person calm register.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching.'**
+  String get pendantCeremonySearching;
+
+  /// Second beat of the pendant pairing ceremony, shown when a pendant has been discovered and is connecting. AI-voiced first-person calm register.
+  ///
+  /// In en, this message translates to:
+  /// **'Found you.'**
+  String get pendantCeremonyFound;
+
+  /// Third beat of the pendant pairing ceremony, shown while the pendant is finalizing connection. AI-voiced first-person calm register.
+  ///
+  /// In en, this message translates to:
+  /// **'Setting up.'**
+  String get pendantCeremonySettingUp;
+
+  /// Personalized greeting shown on the final beat of the pendant pairing ceremony, when the user's display name is available.
+  ///
+  /// In en, this message translates to:
+  /// **'Hello, {name}.'**
+  String pendantCeremonyGreetingNamed(String name);
+
+  /// Greeting shown on the final beat of the pendant pairing ceremony, when no user display name is available.
+  ///
+  /// In en, this message translates to:
+  /// **'Hello.'**
+  String get pendantCeremonyGreetingFallback;
+
+  /// Failure copy shown when the pendant pairing ceremony times out without finding a pendant. AI-voiced first-person register matches the ceremony beats.
+  ///
+  /// In en, this message translates to:
+  /// **'I can\'t see your pendant from here. Hold it close and let\'s try again.'**
+  String get pendantCeremonyTimeout;
+
+  /// Failure copy shown when a BLE error interrupts the pendant pairing ceremony mid-connect. AI-voiced first-person register matches the ceremony beats.
+  ///
+  /// In en, this message translates to:
+  /// **'Something interrupted the connection. Let\'s try once more.'**
+  String get pendantCeremonyBleError;
+
+  /// Failure copy shown when an incompatible pendant is detected mid-ceremony. AI-voiced first-person register matches the ceremony beats. Pre-pair incompatible (no ceremony lead-in) keeps the existing functional copy in pendantPairIncompatible.
+  ///
+  /// In en, this message translates to:
+  /// **'This pendant doesn\'t speak my language. Make sure your firmware is up to date.'**
+  String get pendantCeremonyIncompatible;
+
+  /// AI-voiced ceremony failure surface card shown when iOS reports the Bluetooth adapter is OFF (CBManagerStateUnknown / PoweredOff) during scan. Distinct from the generic timeout copy — directs the user to Control Center.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth\'s off. Turn it on in Control Center and let\'s try again.'**
+  String get pendantCeremonyBluetoothOff;
+
+  /// Generic back button label on the pendant screen, used as a TextButton.icon at the top-left of the settled-paired layout. Matches the in-constellation failure-overlay back link.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get pendantScreenBackLabel;
 }
 
 class _AppLocalizationsDelegate

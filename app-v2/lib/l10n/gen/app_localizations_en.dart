@@ -318,7 +318,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pendantScreenPairCta => 'Pair pendant';
 
   @override
-  String get pendantScreenPairHint => 'Hold your pendant near your phone.';
+  String get pendantScreenPairHint => 'Hold your pendant close.';
 
   @override
   String get pendantScreenConnectedHeader => 'Connected';
@@ -331,7 +331,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pendantScreenInterruptedExplain =>
-      'Recording is paused while a phone call or other audio session is active.';
+      'Paused while another audio session is active.';
 
   @override
   String pendantScreenBatteryLabel(int percent) {
@@ -410,4 +410,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pendantScreenDefaultDeviceName => 'Nooto pendant';
+
+  @override
+  String get pendantCeremonySearching => 'Searching.';
+
+  @override
+  String get pendantCeremonyFound => 'Found you.';
+
+  @override
+  String get pendantCeremonySettingUp => 'Setting up.';
+
+  @override
+  String pendantCeremonyGreetingNamed(String name) {
+    return 'Hello, $name.';
+  }
+
+  @override
+  String get pendantCeremonyGreetingFallback => 'Hello.';
+
+  @override
+  String get pendantCeremonyTimeout =>
+      'I can\'t see your pendant from here. Hold it close and let\'s try again.';
+
+  @override
+  String get pendantCeremonyBleError =>
+      'Something interrupted the connection. Let\'s try once more.';
+
+  @override
+  String get pendantCeremonyIncompatible =>
+      'This pendant doesn\'t speak my language. Make sure your firmware is up to date.';
+
+  @override
+  String get pendantCeremonyBluetoothOff =>
+      'Bluetooth\'s off. Turn it on in Control Center and let\'s try again.';
+
+  @override
+  String get pendantScreenBackLabel => 'Back';
 }
