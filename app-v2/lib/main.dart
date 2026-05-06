@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
@@ -22,6 +21,7 @@ import 'package:nooto_v2/providers/action_items_provider.dart';
 import 'package:nooto_v2/providers/auth_provider.dart';
 import 'package:nooto_v2/providers/locale_provider.dart';
 import 'package:nooto_v2/providers/pendant_provider.dart';
+import 'package:nooto_v2/providers/pendant_stt_provider.dart';
 import 'package:nooto_v2/services/api_client.dart';
 import 'package:nooto_v2/services/app_links_service.dart';
 import 'package:nooto_v2/services/ble/omi_pendant.dart';
@@ -44,6 +44,10 @@ Future<void> main() async {
     Hive.openBox<dynamic>(PlanBoxes.prefs),
     Hive.openBox<dynamic>(OmiPendant.hiveBoxName),
   ]);
+  // One-shot sweep of action-log entries from retired card kinds (today/jira-stuck).
+  // Idempotent — safe to run every launch. See lib/home/home_storage.dart.
+  final swept = await sweepRetiredHomeActionLogEntries();
+  if (swept > 0) debugPrint('[HomeStorage] swept $swept retired action-log entries');
   final localeProvider = LocaleProvider();
   await localeProvider.hydrate();
   final apiClient = ApiClient();
@@ -104,6 +108,19 @@ Future<void> main() async {
         Provider<ChatService>.value(value: chatService),
         ChangeNotifierProvider(create: (_) => ChatProvider(service: chatService)),
         ChangeNotifierProvider<PendantProvider>.value(value: pendantProvider),
+        // On-device live-transcription pipe: Pendant Opus → Dart decode →
+        // method channel → iOS SFSpeechRecognizer (see PendantSttProvider).
+        // Driven by PendantProvider.state (start on `live`, stop elsewhere)
+        // and LocaleProvider (drives SFSpeechRecognizer's locale, e.g.
+        // `en_US` vs `pt_BR`).
+        ChangeNotifierProxyProvider2<PendantProvider, LocaleProvider, PendantSttProvider>(
+          create: (_) => PendantSttProvider(),
+          update: (_, pendant, locale, stt) {
+            stt!.onLocaleChanged(locale.locale);
+            stt.onPendantStateChanged(pendant.info.state, pendant.info.codec);
+            return stt;
+          },
+        ),
       ],
       child: const MobileApp(),
     ),
