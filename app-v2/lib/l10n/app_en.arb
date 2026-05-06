@@ -459,5 +459,9 @@
   "settingsDeveloperOpenSystemSettings": "Open iOS Settings",
   "@settingsDeveloperOpenSystemSettings": {
     "description": "Open system Settings shortcut button on the Developer sub-page."
-  }
+  },
+  "settingsNotificationsTestAction": "Send test notification",
+  "settingsNotificationsTestHint": "Writes a test message to your Inbox and fires an OS push (5 per hour).",
+  "settingsNotificationsTestSent": "Test notification sent. Check Inbox.",
+  "settingsNotificationsTestFailed": "Test notification failed."
 }

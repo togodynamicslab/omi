@@ -1063,6 +1063,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open iOS Settings'**
   String get settingsDeveloperOpenSystemSettings;
+
+  /// No description provided for @settingsNotificationsTestAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Send test notification'**
+  String get settingsNotificationsTestAction;
+
+  /// No description provided for @settingsNotificationsTestHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Writes a test message to your Inbox and fires an OS push (5 per hour).'**
+  String get settingsNotificationsTestHint;
+
+  /// No description provided for @settingsNotificationsTestSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Test notification sent. Check Inbox.'**
+  String get settingsNotificationsTestSent;
+
+  /// No description provided for @settingsNotificationsTestFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Test notification failed.'**
+  String get settingsNotificationsTestFailed;
 }
 
 class _AppLocalizationsDelegate

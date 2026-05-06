@@ -554,4 +554,19 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get settingsDeveloperOpenSystemSettings => 'Abrir Ajustes do iOS';
+
+  @override
+  String get settingsNotificationsTestAction => 'Enviar notificação de teste';
+
+  @override
+  String get settingsNotificationsTestHint =>
+      'Cria uma mensagem de teste na sua Caixa de entrada e dispara o push do sistema (5 por hora).';
+
+  @override
+  String get settingsNotificationsTestSent =>
+      'Notificação de teste enviada. Veja a Caixa de entrada.';
+
+  @override
+  String get settingsNotificationsTestFailed =>
+      'Falha ao enviar a notificação de teste.';
 }

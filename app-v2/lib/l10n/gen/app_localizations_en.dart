@@ -551,4 +551,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsDeveloperOpenSystemSettings => 'Open iOS Settings';
+
+  @override
+  String get settingsNotificationsTestAction => 'Send test notification';
+
+  @override
+  String get settingsNotificationsTestHint =>
+      'Writes a test message to your Inbox and fires an OS push (5 per hour).';
+
+  @override
+  String get settingsNotificationsTestSent =>
+      'Test notification sent. Check Inbox.';
+
+  @override
+  String get settingsNotificationsTestFailed => 'Test notification failed.';
 }
