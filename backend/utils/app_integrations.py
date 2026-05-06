@@ -618,6 +618,9 @@ def send_app_notification(user_id: str, app_name: str, app_id: str, message: str
         type='text',
         notification_type='plugin',
         navigate_to=navigate_to,
+        # app-v2 reads deep_link='inbox' to land on the Inbox view; legacy app/
+        # keeps reading navigate_to. Both fields coexist intentionally.
+        deep_link='inbox',
     )
 
     send_notification(user_id, app_name + ' says', message, NotificationMessage.get_message_as_dict(ai_message))
