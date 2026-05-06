@@ -3,7 +3,7 @@ import json
 import re
 import os
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field, ValidationError
@@ -390,7 +390,11 @@ def _get_qa_rag_prompt(
 
 
 def _get_agentic_qa_prompt(
-    uid: str, app: Optional[App] = None, messages: List[Message] = None, context: Optional[PageContext] = None
+    uid: str,
+    app: Optional[App] = None,
+    messages: List[Message] = None,
+    context: Optional[PageContext] = None,
+    today_context: Optional[Dict[str, Any]] = None,
 ) -> str:
     """
     Build the system prompt for the agentic chat agent.
@@ -403,6 +407,9 @@ def _get_agentic_qa_prompt(
         app: Optional app/plugin for personalized behavior
         messages: Optional message history for file context
         context: Optional page context (type, id, title)
+        today_context: Optional structured today_context for the morning brief
+            (overdue, due_soon, stuck_jira, plan_remaining_count). When present,
+            renders as a <today_context> system block the brief LLM grounds against.
 
     Returns:
         System prompt string
@@ -486,6 +493,20 @@ Keep these goals in mind when giving advice or suggestions.
 {user_name} is currently viewing: {context.type} - "{safe_title}" (ID: {context.id or 'unknown'})
 Keep this context in mind when answering their question.
 </current_context>
+
+"""
+
+    # Add structured today_context for the morning brief, if provided.
+    # The chat tab does not send today_context — only the brief client sends it.
+    # JSON-serialized so the prompt can ground item ids verbatim for chip emission.
+    if today_context:
+        try:
+            today_context_json = json.dumps(today_context, ensure_ascii=False, default=str)
+        except Exception:
+            today_context_json = "{}"
+        context_section += f"""<today_context>
+{today_context_json}
+</today_context>
 
 """
 

@@ -8,7 +8,7 @@ the requires_context() LLM classification call.
 
 import uuid
 import asyncio
-from typing import List, Optional, AsyncGenerator, Tuple
+from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 from langchain_core.messages import SystemMessage, AIMessage, HumanMessage
 from langchain_openai import ChatOpenAI
@@ -209,6 +209,7 @@ async def execute_chat_stream(
     callback_data: dict = {},
     chat_session: Optional[ChatSession] = None,
     context: Optional[PageContext] = None,
+    today_context: Optional[Dict[str, Any]] = None,
 ) -> AsyncGenerator[str, None]:
     """Route chat requests to the appropriate handler.
 
@@ -236,7 +237,13 @@ async def execute_chat_stream(
     # 3. Default: Anthropic agentic chat
     # Claude decides implicitly whether to use tools — no requires_context() needed
     async for chunk in execute_agentic_chat_stream(
-        uid, messages, app, callback_data=callback_data, chat_session=chat_session, context=context
+        uid,
+        messages,
+        app,
+        callback_data=callback_data,
+        chat_session=chat_session,
+        context=context,
+        today_context=today_context,
     ):
         yield chunk
 

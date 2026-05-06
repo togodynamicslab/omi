@@ -10,7 +10,7 @@ import uuid
 import asyncio
 import contextvars
 import traceback
-from typing import List, Optional, AsyncGenerator, Any, Tuple
+from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 from langchain_core.runnables import RunnableConfig
 
@@ -535,13 +535,14 @@ async def execute_agentic_chat_stream(
     callback_data: dict = None,
     chat_session: Optional[ChatSession] = None,
     context: Optional[PageContext] = None,
+    today_context: Optional[Dict[str, Any]] = None,
 ) -> AsyncGenerator[str, None]:
     """Execute an agentic chat interaction with streaming.
 
     Yields formatted chunks with "data: " or "think: " prefixes.
     """
     # Build system prompt
-    system_prompt = _get_agentic_qa_prompt(uid, app, messages, context=context)
+    system_prompt = _get_agentic_qa_prompt(uid, app, messages, context=context, today_context=today_context)
 
     # Get prompt metadata for tracing/versioning
     prompt_name, prompt_commit, prompt_source = None, None, None

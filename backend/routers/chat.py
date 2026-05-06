@@ -186,6 +186,7 @@ def send_message(
                 callback_data=callback_data,
                 chat_session=chat_session,
                 context=data.context,
+                today_context=data.today_context,
             ):
                 if chunk:
                     msg = chunk.replace("\n", "__CRLF__")
