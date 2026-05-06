@@ -142,16 +142,24 @@ class InlineRefChip extends StatelessWidget {
             children: [
               leading,
               const SizedBox(width: AppStyles.spacingXS),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textSecondary,
-                  height: 1.0,
+              // Flexible so the Text honors the parent's max-width constraint.
+              // Without this, Text takes its intrinsic width regardless of the
+              // available line width and the chip overflows on long titles
+              // (e.g. "Plan one weekly social activity involving marriage…").
+              // With Flexible, the chip renders the full title when it fits
+              // and ellipsizes only when there's genuinely no room.
+              Flexible(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                    height: 1.0,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
