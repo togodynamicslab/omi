@@ -24,7 +24,8 @@ from models.conversation import Conversation, ConversationSource
 from models.notification_message import NotificationMessage
 from utils.apps import get_available_apps
 from utils.notifications import send_notification
-from utils.llm.clients import generate_embedding
+from utils.llm.clients import generate_embedding, llm_mini
+from utils.mentor_notifications import process_mentor_notification
 from utils.llm.proactive_notification import (
     evaluate_relevance,
     generate_notification,
@@ -458,8 +459,6 @@ def _process_proactive_notification(uid: str, app: App, data):
     if 'user_chat' in filter_scopes:
         chat_messages = list(reversed([Message(**msg) for msg in get_app_messages(uid, app.id, limit=10)]))
 
-    from utils.llm.clients import llm_mini
-
     # Build prompt with substitutions
     for param in filter_scopes:
         if param == "user_name":
@@ -518,8 +517,6 @@ def _trigger_realtime_audio_bytes(uid: str, sample_rate: int, data: bytearray):
 
 def _trigger_realtime_integrations(uid: str, segments: List[dict], conversation_id: str | None) -> dict:
     # Process mentor notification first (built-in feature)
-    from utils.mentor_notifications import process_mentor_notification
-
     mentor_results = {}
     conversation_messages = process_mentor_notification(uid, segments)
     if conversation_messages:
