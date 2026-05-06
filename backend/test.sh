@@ -80,6 +80,9 @@ pytest tests/unit/test_jira_sync.py -v
 pytest tests/unit/test_jira_actions.py -v
 pytest tests/unit/test_jira_sync_now.py -v
 pytest tests/unit/test_chat_write_tool_gating.py -v
+pytest tests/unit/test_sender_resolution_batch.py -v
+pytest tests/unit/test_inbox_feed_endpoint.py -v
+pytest tests/unit/test_fcm_token_delete_endpoint.py -v
 
 # Fair-use integration tests (require Redis; skip gracefully if unavailable)
 if redis-cli ping >/dev/null 2>&1; then
