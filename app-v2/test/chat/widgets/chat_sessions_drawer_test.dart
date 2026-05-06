@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:nooto_v2/chat/chat_provider.dart';
 import 'package:nooto_v2/chat/chat_storage.dart';
 import 'package:nooto_v2/chat/widgets/chat_sessions_drawer.dart';
+import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/services/api_client.dart';
 import 'package:nooto_v2/services/chat_service.dart';
 
@@ -47,6 +48,8 @@ class _StubChatService extends ChatService {
 /// open it via a `GlobalKey<ScaffoldState>`.
 Widget _harness(ChatProvider provider, GlobalKey<ScaffoldState> scaffoldKey) {
   return MaterialApp(
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     home: ChangeNotifierProvider<ChatProvider>.value(
       value: provider,
       child: Scaffold(
