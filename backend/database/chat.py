@@ -240,6 +240,63 @@ def get_messages(
     return messages
 
 
+@prepare_for_read(decrypt_func=_prepare_message_for_read)
+def get_inbox_messages(uid: str, limit: int = 50, before: Optional[datetime] = None) -> List[Dict[str, Any]]:
+    """Two-query merge for the inbox feed.
+
+    Firestore can't OR across distinct fields, so we run two separate queries
+    (``from_external_integration == True`` and ``type == 'day_summary'``),
+    merge by ``created_at desc`` in Python, dedupe by message id, and slice to
+    ``limit``.
+
+    Decryption is applied via the ``prepare_for_read`` decorator (matches the
+    enhanced data-protection-level gate that ``add_integration_chat_message``
+    and ``add_summary_message`` write through).
+
+    ``before``: when provided, both queries restrict to ``created_at < before``
+    so paging is stable across the merged stream.
+    """
+    user_ref = db.collection('users').document(uid)
+    messages_ref = user_ref.collection('messages')
+
+    integration_q = messages_ref.where(filter=FieldFilter('from_external_integration', '==', True))
+    summary_q = messages_ref.where(filter=FieldFilter('type', '==', 'day_summary'))
+
+    if before is not None:
+        integration_q = integration_q.where(filter=FieldFilter('created_at', '<', before))
+        summary_q = summary_q.where(filter=FieldFilter('created_at', '<', before))
+
+    integration_q = integration_q.order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit)
+    summary_q = summary_q.order_by('created_at', direction=firestore.Query.DESCENDING).limit(limit)
+
+    merged: Dict[str, Dict[str, Any]] = {}
+    for doc in integration_q.stream():
+        data = doc.to_dict()
+        if not data or data.get('reported') is True:
+            continue
+        msg_id = data.get('id') or doc.id
+        merged[msg_id] = data
+
+    for doc in summary_q.stream():
+        data = doc.to_dict()
+        if not data or data.get('reported') is True:
+            continue
+        msg_id = data.get('id') or doc.id
+        # Both queries can in principle match the same doc (impossible today but
+        # cheap to defend against). Last-write-wins is fine — payload is the same.
+        merged.setdefault(msg_id, data)
+
+    items = list(merged.values())
+    items.sort(
+        key=lambda m: (
+            m.get('created_at') or datetime.min.replace(tzinfo=timezone.utc),
+            m.get('id') or '',
+        ),
+        reverse=True,
+    )
+    return items[:limit]
+
+
 def iter_all_messages(uid: str, batch_size: int = 1000):
     """Yield all chat messages for a user, decrypted, in batches. Used for streaming data export."""
     user_ref = db.collection('users').document(uid)
