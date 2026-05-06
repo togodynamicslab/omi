@@ -5,14 +5,29 @@ import 'package:flutter/scheduler.dart';
 import 'package:hive/hive.dart';
 
 import 'package:nooto_v2/companion/companion_signals.dart';
-import 'package:nooto_v2/home/cards/jira_stuck_issues_card.dart';
 import 'package:nooto_v2/home/cards/morning_brief_card.dart';
-import 'package:nooto_v2/home/cards/today_card.dart';
 import 'package:nooto_v2/home/cards/welcome_card.dart';
 import 'package:nooto_v2/home/companion_card.dart';
 import 'package:nooto_v2/home/home_storage.dart';
 import 'package:nooto_v2/providers/action_items_provider.dart';
 import 'package:nooto_v2/services/chat_service.dart';
+
+/// Coalesce window for brief invalidation after `ActionItemsProvider` notifies.
+/// A flapping Jira poll (sub-minute cadence) would otherwise burn one LLM call
+/// per notify. 5s is below human awareness for "is the brief stale?" while
+/// capping LLM cost worst-case at ~12/min, typical 1–2/min.
+const Duration _briefDebounce = Duration(seconds: 5);
+
+/// Window for "due soon" classification in the today_context. Items with
+/// `dueAt` between now and now+4h surface as `due_soon`; mid-day chip
+/// emphasis (priority-1 brandPrimary border) is reserved for this window
+/// + overdue. Per DESIGN.md decision 7B (2026-05-05).
+const Duration _dueSoonWindow = Duration(hours: 4);
+
+/// Stuck-Jira threshold matching the prior `jiraStuckIssuesCardFor` filter.
+/// An incomplete Jira item whose status hasn't moved in this many days
+/// becomes a `stuck_jira` entry.
+const int _stuckThresholdDays = 3;
 
 /// Screen-scoped provider that owns the Home card stream.
 ///
@@ -42,16 +57,44 @@ class CompanionStreamProvider extends ChangeNotifier {
   bool _ready = false;
   bool _briefInFlight = false;
   bool _disposed = false;
+  Timer? _briefRefreshDebounce;
 
   void _onActionItemsChanged() {
+    // Card list re-runs synchronously — generator output may shift (e.g. the
+    // welcome card's pendant signal is unaffected, but future generators
+    // could read action items).
     _runGenerators();
     _persist();
     notifyListeners();
+    // Debounced brief invalidation. ActionItemsProvider can notify multiple
+    // times in quick succession (Jira poll batches; user marking several
+    // items done in a sweep). Coalesce to one re-fetch after the dust
+    // settles. Visible to user via the "synthesized Nh ago" timestamp.
+    _scheduleBriefRefresh();
+  }
+
+  void _scheduleBriefRefresh() {
+    _briefRefreshDebounce?.cancel();
+    _briefRefreshDebounce = Timer(_briefDebounce, () {
+      if (_disposed) return;
+      _invalidateAndRefetchBrief();
+    });
+  }
+
+  Future<void> _invalidateAndRefetchBrief() async {
+    final dateKey = _todayLocalKey();
+    // Clear today's cached entry so _kickOffMorningBrief proceeds past the
+    // cache short-circuit. The in-flight guard inside the kickoff handles
+    // overlapping calls.
+    await _briefBox.delete(dateKey);
+    if (_disposed) return;
+    await _kickOffMorningBrief();
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _briefRefreshDebounce?.cancel();
     _actionItems.removeListener(_onActionItemsChanged);
     super.dispose();
   }
@@ -107,11 +150,15 @@ class CompanionStreamProvider extends ChangeNotifier {
           _cardsBox.delete(card.id);
           continue;
         }
-        // Same daily-stamping treatment as the brief: a stuck-issues card
-        // older than today is irrelevant — the user has either acted on it
-        // or hasn't, and either way the next pass should freshly evaluate.
-        if (card is JiraStuckIssuesCard && card.dateKey != today) {
+        // Pre-title-schema briefs (no `title=` attribute on inline tags)
+        // render badly when refs go stale (literal `<plan id="ULID"/>`
+        // visible to user). Detect and discard at hydration so the next
+        // brief fetch repopulates with the new format. Mirrors the same
+        // check in `_cachedBriefCard` for the parallel briefBox.
+        if (card is MorningBriefCard && _briefBodyMissingTitleAttribute(card.body)) {
+          debugPrint('[CompanionStream] discarding pre-title-schema brief from cardsBox at hydration');
           _cardsBox.delete(card.id);
+          _briefBox.delete(card.dateKey);
           continue;
         }
         _cards.add(card);
@@ -125,53 +172,97 @@ class CompanionStreamProvider extends ChangeNotifier {
   /// Runs every registered generator and emits new cards into the stream.
   /// Idempotent — skips emit if a card with the same id already exists or is
   /// dismissed in `home.actions.v1`.
+  ///
+  /// Post brief-as-coordinator redesign (2026-05-05), the Home stream emits
+  /// only voice cards: welcome (priority 1000) and brief (750). The retired
+  /// JiraStuckIssuesCard (800) and TodayCard (500) data folds into the brief
+  /// generator's `today_context` payload — see `_buildTodayContext`.
   void _runGenerators() {
     _maybeEmit(welcomeCardFor(_signals));
     _replaceOrEmit(_cachedBriefCard());
-    _replaceOrEmit(todayCardFor(_actionItems));
-    // Stuck-issues card is one-emit-per-day — a `_maybeEmit` so the user
-    // can dismiss it and not see it reappear when the action-items list
-    // changes for an unrelated reason during the same session.
-    _maybeEmit(jiraStuckIssuesCardFor(_actionItems));
   }
 
   /// Synchronous read of today's brief from Hive. Network fetch lives in
   /// [_kickOffMorningBrief]; this just surfaces an already-cached entry so
   /// generator passes don't flicker the brief in/out.
+  ///
+  /// Briefs cached before the 2026-05-05 chip-title schema change emit
+  /// inline tags WITHOUT the `title=` attribute. Those bodies render badly
+  /// when refs go stale (literal `<plan id="ULID"/>` text). Detect and
+  /// discard them so the next `_kickOffMorningBrief` repopulates with the
+  /// new format.
   MorningBriefCard? _cachedBriefCard() {
-    final raw = _briefBox.get(_todayLocalKey());
+    final dateKey = _todayLocalKey();
+    final raw = _briefBox.get(dateKey);
     if (raw == null) return null;
     try {
-      return MorningBriefCard.fromJson(Map<String, dynamic>.from(raw));
+      final card = MorningBriefCard.fromJson(Map<String, dynamic>.from(raw));
+      if (_briefBodyMissingTitleAttribute(card.body)) {
+        debugPrint('[CompanionStream] discarding pre-title-schema brief, will refetch');
+        _briefBox.delete(dateKey);
+        return null;
+      }
+      return card;
     } catch (_) {
       return null;
     }
   }
 
-  /// Cache contract: one network call per device per day. The cache hit at
-  /// the top short-circuits every subsequent call same-day; the miss path
-  /// writes to Hive immediately on success so even a fast second mount
-  /// (e.g. screen rebuild during the in-flight fetch) sees the entry.
-  /// Errors are NOT cached — including the backend's `agentic.py` fallback
-  /// string, which we detect and discard so a failed fetch doesn't poison
-  /// the next 24h of opens.
+  /// True when the body contains at least one `<plan/>` or `<ticket/>` tag
+  /// without a `title=` attribute. Plain-prose bodies (zero tags) and new-
+  /// format bodies (every tag has `title=`) both return false.
+  static final RegExp _oldFormatTag = RegExp(
+    r'<\s*(ticket|plan)\s+id\s*=\s*"[^"]+"\s*/\s*>',
+  );
+  bool _briefBodyMissingTitleAttribute(String body) {
+    return _oldFormatTag.hasMatch(body);
+  }
+
+  /// Cache contract: one network call per device per day under steady state.
+  /// The cache hit at the top short-circuits every subsequent same-day call;
+  /// `_invalidateAndRefetchBrief` deletes the entry on debounced action-item
+  /// notifies, allowing this method to fetch a fresh brief reflecting the
+  /// new state. The miss path writes to Hive immediately on success so a
+  /// fast second mount (screen rebuild during the in-flight fetch) sees the
+  /// entry. Errors are NOT cached — including the backend's `agentic.py`
+  /// fallback string, which we detect and discard so a failed fetch doesn't
+  /// poison the next 24h of opens.
+  ///
+  /// Empty-state gate: when [_buildTodayContext] returns no actionable items,
+  /// the brief is skipped entirely. Home renders welcome + composer only
+  /// (per DESIGN.md state-variants table — silence is the empowerment signal).
   Future<void> _kickOffMorningBrief() async {
     final dateKey = _todayLocalKey();
     if (_briefBox.get(dateKey) != null) return;
     if (_briefInFlight) return;
+
+    final todayContext = _buildTodayContext();
+    if (_isContextEmpty(todayContext)) {
+      // Nothing to brief on. Skip the LLM call. Welcome card carries the day.
+      return;
+    }
+
     _briefInFlight = true;
     try {
-      final body = await _chatService.fetchBrief(prompt: _briefPrompt);
+      final body = await _chatService.fetchBrief(
+        prompt: _briefPrompt,
+        todayContext: todayContext,
+      );
       if (_disposed) return;
       final trimmed = body.trim();
-      if (trimmed.isEmpty) return;
+      if (trimmed.isEmpty) {
+        _emitFallbackBrief(dateKey, todayContext);
+        return;
+      }
       if (_looksLikeBackendError(trimmed)) {
         debugPrint(
           '[CompanionStream] brief returned backend fallback, '
           'not caching: $trimmed',
         );
+        _emitFallbackBrief(dateKey, todayContext);
         return;
       }
+      _logVoiceViolations(trimmed);
       final card = MorningBriefCard(
         dateKey: dateKey,
         greeting: _greetingFor(_signals.preferredName),
@@ -185,10 +276,31 @@ class CompanionStreamProvider extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('[CompanionStream] brief fetch failed: $e');
+      if (!_disposed) _emitFallbackBrief(dateKey, todayContext);
     } finally {
       _briefInFlight = false;
     }
   }
+
+  /// On generator failure (LLM throws, returns empty, returns the backend
+  /// error sentinel), render a plain non-coordinated brief: a descriptive
+  /// list of items as plain text, no narrative wrapper. NOT cached — the
+  /// next mount or the next debounced refresh will retry the real fetch.
+  /// Per DESIGN.md state-variants table.
+  void _emitFallbackBrief(String dateKey, Map<String, dynamic> todayContext) {
+    final body = _composeFallbackBody(todayContext);
+    if (body.isEmpty) return;
+    final card = MorningBriefCard(
+      dateKey: dateKey,
+      greeting: _greetingFor(_signals.preferredName),
+      body: body,
+      generatedAt: DateTime.now(),
+    );
+    _replaceOrEmit(card);
+    notifyListeners();
+  }
+
+  String _composeFallbackBody(Map<String, dynamic> ctx) => composeFallbackBriefBody(ctx);
 
   /// Backend's agentic chat path returns this exact string on any LLM
   /// exception (see `backend/utils/retrieval/agentic.py:427`). It looks like
@@ -198,12 +310,65 @@ class CompanionStreamProvider extends ChangeNotifier {
     return lower.contains('encountered an error') && lower.contains('try again');
   }
 
+  /// Logs forbidden phrases the brief LLM should never emit. Detection only —
+  /// no render redaction (per `/plan-eng-review` 1C decision: prompt-only
+  /// enforcement, regex as quality signal). Surface in dogfood logs and
+  /// iterate on the prompt if violations stay non-zero.
+  void _logVoiceViolations(String body) {
+    final hits = findVoiceViolations(body);
+    if (hits.isNotEmpty) {
+      debugPrint('[CompanionStream] brief voice violation: ${hits.join(", ")} in body: $body');
+    }
+  }
+
+  Map<String, dynamic> _buildTodayContext() => buildTodayContext(_actionItems.items, now: DateTime.now());
+
+  bool _isContextEmpty(Map<String, dynamic> ctx) => isTodayContextEmpty(ctx);
+
+  /// Voice-and-grammar contract for the brief generator. Drives the
+  /// chip-rich coordinator output the new Home depends on. Updated 2026-05-05
+  /// per the brief-as-coordinator redesign.
   static const String _briefPrompt =
-      "Brief me in at most 60 words: the one most important thing from "
-      "yesterday I should pick up today, and the single most important new "
-      "focus. First-person chief-of-staff voice — direct, no greeting, no "
-      "headers, no bullets, no preamble. If yesterday was empty, say so in "
-      "one short sentence and name today's top priority.";
+      "You are Nooto, a calm chief-of-staff briefing the user on today. The "
+      "<today_context> system block names the user's overdue items, due-soon "
+      "items, stuck Jira tickets, and plan remaining count. Synthesize a "
+      "brief in at most 2 sentences that NAMES the actionable items inline.\n"
+      "\n"
+      "Voice rules (hard):\n"
+      "- Descriptive, not imperative. State facts. Do not coach, lecture, "
+      "or moralize.\n"
+      "- Forbidden phrases: 'you missed it', 'drowning', 'knock it out', "
+      "'you'll keep', 'still drowning'. Any second-person imperative is wrong.\n"
+      "- Bad example: 'Yesterday was empty. You missed task #3 — knock it out "
+      "or you'll keep drowning.' (Scolding. Imperative. Forbidden.)\n"
+      "- Good example: 'Today: 1 overdue (<plan id=\"plan-1\"/>) and 3 stuck "
+      "Jira tickets (<ticket id=\"WPNG-2951\"/>, <ticket id=\"WPNG-3402\"/>, "
+      "<ticket id=\"WPNG-3415\"/>).' (Facts. Inline chips. Forward-looking.)\n"
+      "\n"
+      "Inline chip emission:\n"
+      "- Reference action items with the self-closing tag "
+      "<plan id=\"X\" title=\"Y\"/>. X is the id from today_context.overdue[].id "
+      "or today_context.due_soon[].id; Y is the matching .title (verbatim, no "
+      "rephrasing, no quotes inside).\n"
+      "- Reference Jira tickets with <ticket id=\"WPNG-X\" title=\"Y\"/>. X is "
+      "the id from today_context.stuck_jira[].id; Y is the matching .title.\n"
+      "- The title attribute is REQUIRED on every tag — it's the human-readable "
+      "fallback the renderer uses when the chip can't resolve to a live item.\n"
+      "- Never invent ids. Use only ids present in today_context.\n"
+      "- Do NOT put extra whitespace around tags inside parentheses. Write "
+      "`(<ticket id=\"A\"/>, <ticket id=\"B\"/>)` not `( <ticket id=\"A\"/> , <ticket id=\"B\"/> )`. "
+      "Treat tags as words: punctuation hugs them.\n"
+      "\n"
+      "Chip cap (priority order — keep at most 4 chips total):\n"
+      "1. overdue (highest)\n"
+      "2. due_soon (next 4h)\n"
+      "3. stuck_jira (oldest first)\n"
+      "4. plan refs (lowest)\n"
+      "Items beyond the cap collapse to a count phrase: '…and N more stuck' "
+      "or 'and N more overdue'. Keep the prose grammatical.\n"
+      "\n"
+      "If today_context.plan_remaining_count is large (>5) and few chips are "
+      "shown, append 'N items still on this week's plan.' as a closing fact.";
 
   String _greetingFor(String? name) {
     final hour = DateTime.now().hour;
@@ -306,6 +471,104 @@ class CompanionStreamProvider extends ChangeNotifier {
 
 /// Card-type registry: dispatches deserialization on the `kind` field. Adding
 /// a new card type requires one line here.
+/// Builds the structured grounding the brief LLM uses to emit chip refs by
+/// id. Shape: `{ overdue: [...], due_soon: [...], stuck_jira: [...], plan_remaining_count: N }`.
+/// Empty arrays are kept (not omitted) so the prompt can deterministically
+/// branch on each bucket. Pure function — no provider/state dependencies —
+/// so unit tests pin the bucketing rules without spinning up Hive.
+@visibleForTesting
+Map<String, dynamic> buildTodayContext(Iterable<ActionItem> items, {required DateTime now}) {
+  final dueSoonCutoff = now.add(_dueSoonWindow);
+  final overdue = <Map<String, dynamic>>[];
+  final dueSoon = <Map<String, dynamic>>[];
+  final stuckJira = <Map<String, dynamic>>[];
+  var planRemainingCount = 0;
+  for (final item in items) {
+    if (item.completed) continue;
+    planRemainingCount++;
+    final due = item.dueAt;
+    if (due != null) {
+      if (due.isBefore(now)) {
+        overdue.add({
+          'id': item.id,
+          'title': item.description,
+          'due_at': due.toUtc().toIso8601String(),
+          'source': item.externalSource?.source ?? 'transcript',
+        });
+        continue;
+      }
+      if (due.isBefore(dueSoonCutoff)) {
+        dueSoon.add({
+          'id': item.id,
+          'title': item.description,
+          'due_at': due.toUtc().toIso8601String(),
+          'source': item.externalSource?.source ?? 'transcript',
+        });
+        continue;
+      }
+    }
+    final ext = item.externalSource;
+    if (ext != null && ext.source == 'jira') {
+      final days = ext.daysAtStatus;
+      if (days != null && days >= _stuckThresholdDays) {
+        stuckJira.add({
+          'id': ext.externalId,
+          'title': item.description,
+          'age_in_days': days,
+          'source': 'jira',
+        });
+      }
+    }
+    // Otherwise: counted in plan_remaining_count but not surfaced as a chip.
+  }
+  return {
+    'overdue': overdue,
+    'due_soon': dueSoon,
+    'stuck_jira': stuckJira,
+    'plan_remaining_count': planRemainingCount,
+  };
+}
+
+/// True when no actionable items exist (overdue/due-soon/stuck all empty).
+/// Used as the empty-state gate that skips the brief LLM call entirely.
+@visibleForTesting
+bool isTodayContextEmpty(Map<String, dynamic> ctx) {
+  final overdue = (ctx['overdue'] as List?)?.isEmpty ?? true;
+  final dueSoon = (ctx['due_soon'] as List?)?.isEmpty ?? true;
+  final stuck = (ctx['stuck_jira'] as List?)?.isEmpty ?? true;
+  return overdue && dueSoon && stuck;
+}
+
+/// Forbidden phrases the brief LLM should never emit. Detection only — no
+/// render redaction. Surface in dogfood logs and iterate on the prompt.
+@visibleForTesting
+final RegExp briefForbiddenVoicePattern = RegExp(
+  r"\b(you missed it|drowning|knock it out|you'll keep|you[’]ll keep|still drowning)\b",
+  caseSensitive: false,
+);
+
+/// Returns the list of forbidden-phrase matches in [body], lower-cased.
+/// Pure function — surfaced for unit tests.
+@visibleForTesting
+List<String> findVoiceViolations(String body) {
+  return briefForbiddenVoicePattern.allMatches(body).map((m) => m.group(0)!.toLowerCase()).toList();
+}
+
+/// Plain-text fallback brief composed when the LLM fetch fails. Shape mirrors
+/// `_composeFallbackBody`'s output. Exposed for unit tests.
+@visibleForTesting
+String composeFallbackBriefBody(Map<String, dynamic> ctx) {
+  final overdue = (ctx['overdue'] as List?)?.length ?? 0;
+  final dueSoon = (ctx['due_soon'] as List?)?.length ?? 0;
+  final stuck = (ctx['stuck_jira'] as List?)?.length ?? 0;
+  final parts = <String>[];
+  if (overdue > 0) parts.add('$overdue overdue');
+  if (dueSoon > 0) parts.add('$dueSoon due soon');
+  if (stuck > 0) parts.add('$stuck stuck');
+  if (parts.isEmpty) return '';
+  return 'Today: ${parts.join(", ")}.';
+}
+
 CompanionCard? _fromJson(Map<String, dynamic> json) {
   final kindCode = json['kind'] as String?;
   if (kindCode == null) return null;
@@ -313,12 +576,14 @@ CompanionCard? _fromJson(Map<String, dynamic> json) {
   switch (kind) {
     case CardKind.welcome:
       return WelcomeCard.fromJson(json);
-    case CardKind.actionItem:
-      return TodayCard.fromJson(json);
     case CardKind.brief:
       return MorningBriefCard.fromJson(json);
+    case CardKind.actionItem:
     case CardKind.jiraStuckIssues:
-      return JiraStuckIssuesCard.fromJson(json);
+      // Retired 2026-05-05 (brief-as-coordinator redesign). Cached entries
+      // from prior versions silently skip — `_hydrateFromHive` will purge
+      // them via the try/catch on next pass when fromJson returns null.
+      return null;
     case CardKind.commitmentCapture:
     case CardKind.focusBlock:
     case CardKind.relationshipNudge:
