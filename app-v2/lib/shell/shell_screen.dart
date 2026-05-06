@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/apps/apps_screen.dart';
 import 'package:nooto_v2/chat/chat_screen.dart';
@@ -11,6 +12,7 @@ import 'package:nooto_v2/library/library_screen.dart';
 import 'package:nooto_v2/library/widgets/library_section_tab_bar.dart';
 import 'package:nooto_v2/plan/plan_screen.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
+import 'package:nooto_v2/services/notification_service.dart';
 import 'package:nooto_v2/shell/app_bar_kebab_menu.dart';
 import 'package:nooto_v2/shell/bottom_nav_bar.dart';
 import 'package:nooto_v2/shell/stubs/coming_soon_stub.dart';
@@ -120,6 +122,9 @@ class _ShellScreenState extends State<ShellScreen> {
         selectedIndex: _index,
         onTap: (i) => _switchTab(i),
         labels: tabs.map((t) => t.label).toList(),
+        // Tab 1 = Chat (drawer hosts the Inbox entry). Red dot when unread
+        // FCM messages have arrived since the last Inbox open.
+        badges: [false, context.watch<NotificationService>().hasUnreadInbox, false, false, false],
       ),
     );
   }
