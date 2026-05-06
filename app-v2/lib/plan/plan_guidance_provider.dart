@@ -31,6 +31,11 @@ class PlanGuidanceProvider extends ChangeNotifier {
   String get text => _text;
   PlanGuidanceStatus get status => _status;
 
+  /// When the current `_text` was synthesized. The card renders a
+  /// "synthesized Xm ago" footer off this so a 30 min cached entry doesn't
+  /// read as live. Null until the first successful fetch lands.
+  DateTime? get synthesizedAt => _cachedAt;
+
   /// Idempotent fetch: hits the backend only when the cache is stale OR
   /// `todayContext` has changed since the last successful render. Safe to
   /// call from `initState` / `didChangeDependencies` repeatedly.
