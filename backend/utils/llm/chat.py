@@ -529,6 +529,19 @@ CHIP BUDGET
 - Use only ids present in `today_context`. Plan refs:
   `<plan id="X" title="Y"/>`. Stuck Jira: `<ticket id="X" title="Y"/>`.
 
+INLINE EMPHASIS
+- Wrap the focal phrase — the stake or the verb of the day — in `<em>...</em>`.
+  The renderer paints `<em>` content in heavier weight so the eye locks onto
+  what matters. One `<em>` per brief is the target; never more than two.
+- The `<em>` is for the STAKE, not the chip. Examples:
+    * "<em>Lock in the weekly schedule</em> before noon — it unblocks Friday."
+    * "Three things are slipping; the <em>biggest cost</em> is missing the
+      Friday social plan."
+- Do NOT nest a chip inside an `<em>`. Emphasis OR a chip on a phrase, not
+  both. The parser does not support nested tags.
+- Do NOT wrap entire sentences. Emphasis on 2–6 words; longer ranges read as
+  shouted, not focused.
+
 VOICE
 - 2 to 4 short sentences. Direct, concrete, calm.
 - No greetings ("Good morning, Matheus" is rendered separately above; do not
