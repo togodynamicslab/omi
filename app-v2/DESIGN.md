@@ -161,6 +161,8 @@ Two card kinds with different chrome:
 
 **Surface cards** — `today_card`, future `commitment_capture`, `focus_block`. `backgroundSecondary` fill, `radiusLarge`, `Border.all(Colors.white.withValues(alpha: 0.06))`, `EdgeInsets.all(spacingL)` padding. Reads as a structured affordance.
 
+**Message bubbles** — used in `inbox_screen` for messages from apps and Brief. Sender meta line above (avatar + display name + timestamp) + bubble below (`backgroundSecondary` fill, no border, `radiusXLarge`, `EdgeInsets.symmetric(horizontal: spacingL, vertical: spacingM)` padding). Reads as conversation, not as a list or as the assistant speaking. Differentiates from surface cards by the **no-border discipline**: if a message bubble had a border, it would read as a stacked surface card (the hard-rejection anti-pattern). Use only in chat-pattern surfaces (Inbox, future per-app drill-down). Brief sender names render in `brandPrimary` to mark first-party voice; app sender names render in `textPrimary`.
+
 This is the most important visual decision in the system. Stacking multiple surface cards = dashboard mode (anti-pattern, hard rejection from `/plan-design-review`). The hierarchy on Home is: voice first, surface below, max one surface per content domain.
 
 **Inline ref chip exception:** voice cards forbid chrome at the **container** level. Inline ref chips (`InlineRefChip` — ticket, person, conversation, plan) are exempt because they are sentence-level elements analogous to inline links in prose, not card-level chrome. They render inside voice cards (e.g., `morning_brief_card`) via `WidgetSpan` baseline-aligned with surrounding text. This is a deliberate carveout, not a violation. Decided in `/plan-design-review` 2026-05-05.
@@ -193,6 +195,7 @@ The following are explicit rejections — flag during review if any appear:
 - Stacked cards mosaic (instant rejection — see Card Grammar)
 - Cookie-cutter section rhythm (hero → 3 features → testimonials)
 - **Serif typography of any kind** (Playfair, Times, Georgia) — permanent blacklist; brand emphasis comes from sans-serif weight + size only
+- Message bubbles MUST NOT have borders. The fill-only treatment is what differentiates message-bubble from surface-card and prevents stacking-as-dashboard reading.
 
 ## Decisions Log
 
@@ -207,4 +210,5 @@ The following are explicit rejections — flag during review if any appear:
 | 2026-05-05 | InlineRefChip family promoted to 24pt + 14pt label | Plan chip joins the family at 24pt; existing ticket/person/conversation chips bump from 22pt/13pt to match. Eliminates line-jitter when paragraph mixes kinds. Single chip metric, no competing focal points. |
 | 2026-05-05 | Priority-1 chip emphasis reserved for real urgency | Only chips representing OVERDUE or DUE-SOON-WITHIN-4H items get the `brandPrimary` border. Stuck Jira and plan refs stay quiet. Honors the "when accent appears, it means real urgency" restraint. |
 | 2026-05-05 | **Serif partial re-entry — Source Serif 4 Regular at ONE site** | The 2026-04-30 "no serif anywhere, ever" decision was an overcorrection driven by Playfair's literary feel. After 5 weeks of dogfood, the home screen greeting felt sterile in pure sans. Source Serif 4 Regular (humanist, non-cursive, non-decorative) reintroduced via `brandAccent()` at exactly one site: the morning brief greeting. Bundled (no `google_fonts` dependency). Italic and display serifs remain blacklisted; the accent's value is its restraint. |
+| 2026-05-06 | **Message bubble grammar introduced for Inbox screen** | Notifications-as-chat ships in v0 with the Inbox surfacing apps + Brief as conversational messages. Voice cards (no chrome) read as the assistant speaking; surface cards (chromed border) read as structured affordances. Neither fit a list-of-messages-from-multiple-senders. Message bubble (fill-only, no border, radiusXLarge) is the third grammar for chat-pattern surfaces. Decided in `/plan-design-review` 2026-05-06. |
 | 2026-04-30 | Light mode out of scope | Dark-only inherited from upstream + pendant-glance use case |
