@@ -76,6 +76,7 @@ class NotificationService extends ChangeNotifier {
   /// permission. Mirrors the gating in the design doc's settings row.
   static const String _toggleKey = 'notifications.enabled';
   static const String _deviceIdKey = 'notifications.device_id';
+  static const String _lastTokenKey = 'notifications.last_token';
 
   Future<bool> isToggleEnabled() async {
     final prefs = await SharedPreferences.getInstance();
@@ -155,6 +156,11 @@ class NotificationService extends ChangeNotifier {
     try {
       await _messaging.deleteToken();
     } catch (_) {}
+    // Clear the dedup cache so the next user signing in on this device
+    // re-registers against their uid. Same FCM token mapped to a different
+    // uid otherwise gets dedup'd and the new mapping never persists.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_lastTokenKey);
   }
 
   /// Drains [pendingDeepLink] and pushes the matching screen. Caller is the
@@ -194,6 +200,8 @@ class NotificationService extends ChangeNotifier {
   }
 
   Future<void> _persistToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(_lastTokenKey) == token) return;
     try {
       String timeZone = 'UTC';
       try {
@@ -204,6 +212,7 @@ class NotificationService extends ChangeNotifier {
         body: {'fcm_token': token, 'time_zone': timeZone},
         headers: await _deviceHeaders(),
       );
+      await prefs.setString(_lastTokenKey, token);
     } catch (e) {
       debugPrint('[NotificationService] persistToken failed: $e');
     }
@@ -234,7 +243,11 @@ class NotificationService extends ChangeNotifier {
     return hash;
   }
 
-  void _onForegroundMessage(RemoteMessage message) {
+  Future<void> _onForegroundMessage(RemoteMessage message) async {
+    // Respect the user's in-app toggle: if notifications are off the OS push
+    // never arrives, but the FCM stream can still fire (e.g. if the toggle
+    // was flipped after permission was already granted).
+    if (!await isToggleEnabled()) return;
     final data = message.data;
     final notification = message.notification;
     final title = notification?.title ?? data['title']?.toString() ?? '';
