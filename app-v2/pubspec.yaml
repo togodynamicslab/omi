@@ -40,6 +40,14 @@ dependencies:
   flutter_sound: 9.25.1
   permission_handler: ^12.0.0+1
 
+  # On-device Opus decode for the live-transcription preview.
+  # `opus_dart` provides the FFI bindings; `opus_flutter` ships the
+  # native `libopus` per platform. Pendant audio (Opus over BLE) is
+  # decoded to PCM in Dart, then PCM is fed through a method channel
+  # into iOS SFSpeechRecognizer (see lib/services/stt/).
+  opus_dart: ^3.0.1
+  opus_flutter: ^3.0.3
+
   # BLE (Omi pendant streaming — Phase 2)
   flutter_blue_plus: ^1.32.12
 
@@ -67,3 +75,12 @@ flutter:
   generate: true
   assets:
     - assets/images/
+  fonts:
+    # Source Serif 4 Regular — single-weight accent face used by `brandAccent()`
+    # in lib/theme/app_theme.dart. Licensed under SIL Open Font License 1.1
+    # (assets/fonts/SourceSerif4-LICENSE.md). Bundled (not loaded via
+    # google_fonts) to avoid runtime download + an extra dependency.
+    - family: SourceSerif4
+      fonts:
+        - asset: assets/fonts/SourceSerif4-Regular.otf
+          weight: 400
