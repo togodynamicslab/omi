@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -28,6 +29,18 @@ class SocketTerminal extends SocketEvent {
   const SocketTerminal({required this.code, this.reason});
   final int code;
   final String? reason;
+}
+
+/// Transcript segments pushed back from the backend (Deepgram running on
+/// pendant audio). Backend's `v4/listen` socket emits JSON arrays of
+/// segments; we concatenate their `text` field into one delta per event
+/// so UI consumers can build a rolling transcript without re-implementing
+/// the JSON schema. Per 2026-05-05 dogfood, this is the path that makes
+/// "live transcription" reflect what the PENDANT heard, not the phone mic.
+class SocketTranscript extends SocketEvent {
+  const SocketTranscript({required this.text, required this.segmentCount});
+  final String text;
+  final int segmentCount;
 }
 
 /// Backend WebSocket streamer for the Omi pendant audio path.
@@ -175,10 +188,37 @@ class SocketStreamer {
       _abnormalIndex = 0;
       _events.add(const SocketOpened());
       _socketSub = ws.listen(
-        (_) {
-          // Backend may push transcript JSON we don't need here in v0;
-          // ignore for now. Lane D's pendant_provider can subscribe to
-          // SocketEvent if it ever needs the transcript.
+        (raw) {
+          // Backend pushes JSON over the same socket. Two shapes we care
+          // about (mirrors legacy `transcription_service.dart:204-242`):
+          //   1. List<{id, text, ...}> — transcript segments (the case we
+          //      surface as SocketTranscript for UI).
+          //   2. Map with `type` field — message events (currently ignored
+          //      in v2; no consumers).
+          // Anything else is silently dropped.
+          if (raw is! String) return;
+          dynamic decoded;
+          try {
+            decoded = jsonDecode(raw);
+          } on FormatException {
+            return;
+          }
+          if (decoded is List && decoded.isNotEmpty) {
+            final buf = StringBuffer();
+            var count = 0;
+            for (final seg in decoded) {
+              if (seg is Map && seg['text'] is String) {
+                final text = (seg['text'] as String).trim();
+                if (text.isEmpty) continue;
+                if (buf.isNotEmpty) buf.write(' ');
+                buf.write(text);
+                count++;
+              }
+            }
+            if (count > 0) {
+              _events.add(SocketTranscript(text: buf.toString(), segmentCount: count));
+            }
+          }
         },
         onDone: () => _onClosed(ws.closeCode ?? WebSocketStatus.abnormalClosure, ws.closeReason),
         onError: (e) {
