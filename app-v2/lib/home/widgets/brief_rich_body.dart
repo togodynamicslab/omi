@@ -7,6 +7,7 @@ import 'package:nooto_v2/home/widgets/inline_ref_chip.dart';
 import 'package:nooto_v2/home/widgets/inline_ref_sheet.dart';
 import 'package:nooto_v2/library/conversations_provider.dart';
 import 'package:nooto_v2/providers/action_items_provider.dart';
+import 'package:nooto_v2/theme/app_theme.dart';
 
 /// Rich-text body for the morning brief. Replaces the plain `Text(card.body)`
 /// — same outer style, but parsed for inline `<ticket/>`, `<person/>`, and
@@ -39,10 +40,20 @@ class BriefRichBody extends StatelessWidget {
     final actionItemByExternalId = actionItems == null ? const <String, ActionItem>{} : _byExternalId(actionItems);
     final actionItemById = actionItems == null ? const <String, ActionItem>{} : _byId(actionItems);
     final people = conversations == null ? const <String, _PersonRef>{} : _buildPeopleIndex(conversations);
+    // Brand-emphasis style is sans-serif weight 600 with −0.2 letter spacing
+    // (DESIGN.md `brandEmphasis`). We thread the surrounding prose's font
+    // size + color so the emphasis run inherits paragraph metrics — only
+    // weight + spacing change, keeping rhythm with body copy.
+    final emphasisStyle = brandEmphasis(
+      fontSize: style.fontSize ?? 16,
+      color: style.color ?? AppColors.textPrimary,
+      height: style.height,
+    );
     final spans = <InlineSpan>[
       for (final segment in segments)
         switch (segment) {
           BriefTextSegment(:final value) => TextSpan(text: value),
+          BriefEmphasisSegment(:final value) => TextSpan(text: value, style: emphasisStyle),
           BriefRefSegment(:final kind, :final id, :final title) => _resolveRef(
             context,
             kind: kind,
