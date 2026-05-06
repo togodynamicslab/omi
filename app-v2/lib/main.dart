@@ -9,6 +9,7 @@ import 'package:nooto_v2/apps/apps_provider.dart';
 import 'package:nooto_v2/apps/apps_storage.dart';
 import 'package:nooto_v2/chat/chat_provider.dart';
 import 'package:nooto_v2/chat/chat_storage.dart';
+import 'package:nooto_v2/dev/typography_settings.dart';
 import 'package:nooto_v2/library/conversations_provider.dart';
 import 'package:nooto_v2/library/library_provider.dart';
 import 'package:nooto_v2/env_flags.dart';
@@ -52,6 +53,7 @@ Future<void> main() async {
   if (swept > 0) debugPrint('[HomeStorage] swept $swept retired action-log entries');
   final localeProvider = LocaleProvider();
   await localeProvider.hydrate();
+  final typographySettings = await TypographySettings.load();
   final apiClient = ApiClient();
   final chatService = ChatService(client: apiClient);
   final notificationService = NotificationService(client: apiClient);
@@ -118,6 +120,7 @@ Future<void> main() async {
         Provider<ChatService>.value(value: chatService),
         ChangeNotifierProvider(create: (_) => ChatProvider(service: chatService)),
         ChangeNotifierProvider(create: (_) => PlanGuidanceProvider(service: chatService)),
+        ChangeNotifierProvider<TypographySettings>.value(value: typographySettings),
         ChangeNotifierProvider<PendantProvider>.value(value: pendantProvider),
         // On-device live-transcription pipe: Pendant Opus → Dart decode →
         // method channel → iOS SFSpeechRecognizer (see PendantSttProvider).
