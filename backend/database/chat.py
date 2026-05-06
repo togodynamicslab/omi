@@ -110,6 +110,30 @@ def add_integration_chat_message(text: str, app_id: Optional[str], uid: str) -> 
     return ai_message
 
 
+# Sentinel app_id used by the in-app "Send test notification" affordance in
+# Settings → Notifications. Recognized by the inbox feed serializer to render
+# a "Test notification" sender label without involving the apps registry.
+TEST_INBOX_APP_ID = '__test__'
+
+
+def add_test_inbox_message(uid: str, text: str) -> Message:
+    """Write a synthetic integration message used by the in-app test
+    notification affordance. Carries `from_external_integration=True` so it
+    surfaces in the inbox feed and tagged with `TEST_INBOX_APP_ID` so the
+    serializer can render a clean sender label."""
+    ai_message = Message(
+        id=str(uuid.uuid4()),
+        text=text,
+        created_at=datetime.now(timezone.utc),
+        sender='ai',
+        app_id=TEST_INBOX_APP_ID,
+        from_external_integration=True,
+        type='text',
+    )
+    add_message(uid, ai_message.dict())
+    return ai_message
+
+
 def add_summary_message(text: str, uid: str) -> Message:
     ai_message = Message(
         id=str(uuid.uuid4()),
