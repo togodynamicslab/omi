@@ -33,3 +33,27 @@ class HomeBoxes {
     ]);
   }
 }
+
+/// One-shot migration that sweeps orphaned action-log entries left behind by
+/// the brief-as-coordinator redesign (2026-05-05). When `JiraStuckIssuesCard`
+/// and `TodayCard` were retired, dismiss/snooze rows keyed by their card ids
+/// (`jira-stuck-YYYY-MM-DD::dismiss`, `today-YYYY-MM-DD::accept`, etc.) became
+/// unreadable — no card class deserializes those kinds anymore, so they
+/// accumulate forever without affecting UI.
+///
+/// Idempotent: running twice on the same device is a no-op (second pass
+/// finds zero matching keys). Safe to run on every app launch from `main()`.
+///
+/// Returns the number of keys deleted (test signal).
+Future<int> sweepRetiredHomeActionLogEntries() async {
+  final box = Hive.box<Map>(HomeBoxes.actions);
+  final orphans = <dynamic>[];
+  for (final key in box.keys) {
+    if (key is! String) continue;
+    if (key.startsWith('jira-stuck-') || key.startsWith('today:')) {
+      orphans.add(key);
+    }
+  }
+  if (orphans.isNotEmpty) await box.deleteAll(orphans);
+  return orphans.length;
+}
