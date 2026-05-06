@@ -71,14 +71,15 @@ Iterable<BriefSpeaker> briefSpeakersIn(ConversationItem conv) sync* {
   }
 }
 
-/// One piece of the parsed brief body. Either a literal run of text or a
-/// reference the renderer should resolve against a provider and replace
-/// with an inline chip.
+/// One piece of the parsed brief body — literal text, a reference the
+/// renderer chips, or an emphasized run the renderer paints with
+/// `brandEmphasis()` (sans-serif weight 600 + −0.2 letter spacing).
 sealed class BriefSegment {
   const BriefSegment();
 
   const factory BriefSegment.text(String value) = BriefTextSegment;
   const factory BriefSegment.ref(BriefRefKind kind, String id) = BriefRefSegment;
+  const factory BriefSegment.emphasis(String value) = BriefEmphasisSegment;
 }
 
 class BriefTextSegment extends BriefSegment {
@@ -100,21 +101,35 @@ class BriefRefSegment extends BriefSegment {
   final String? title;
 }
 
-/// Matches `<kind id="value"/>` or `<kind id="..." title="..."/>` with
-/// arbitrary whitespace inside the tag. `kind` is restricted to the four
-/// known tag names so a stray `<br/>` or `<i>...</i>` from the model never
-/// gets reinterpreted as a reference. The `title` attribute is optional and
-/// captures an unescaped sequence (no embedded double-quote support — the
-/// LLM is instructed to avoid quotes in titles).
+/// Run between `<em>` and `</em>`. Renderer paints with brand-emphasis style
+/// so the assistant can put weight on a focal phrase ("the most overdue
+/// item", "blocking Friday's social plan") inline. By contract the run does
+/// NOT contain chip tags — the LLM emits emphasis OR a chip, not both
+/// nested. Lets the parser stay regex-driven without a real grammar.
+class BriefEmphasisSegment extends BriefSegment {
+  const BriefEmphasisSegment(this.value);
+  final String value;
+}
+
+/// Matches one of:
+///   * `<kind id="value"/>` or `<kind id="..." title="..."/>` (self-closing
+///     chip tag — `kind` restricted to four known names)
+///   * `<em>...</em>` (paired emphasis tag — non-greedy inner match)
+///
+/// Single regex with alternation so `parseBriefBody` walks the body once and
+/// gets segments in source order. `kind` allowlisting keeps a stray `<br/>`
+/// or `<i>...</i>` from getting reinterpreted.
 final RegExp _tagPattern = RegExp(
-  r'<\s*(ticket|person|conversation|plan)\s+id\s*=\s*"([^"]+)"(?:\s+title\s*=\s*"([^"]*)")?\s*/\s*>',
+  r'<\s*(ticket|person|conversation|plan)\s+id\s*=\s*"([^"]+)"(?:\s+title\s*=\s*"([^"]*)")?\s*/\s*>'
+  r'|<em>(.*?)</em>',
+  dotAll: true,
 );
 
 /// Parses [body] into an ordered list of segments. Plain runs collapse into
-/// a single [BriefTextSegment] each; tags become [BriefRefSegment]s. Empty
-/// input returns an empty list. The string is preserved character-for-
-/// character outside of recognized tags — no whitespace normalization, no
-/// HTML entity decoding.
+/// a single [BriefTextSegment] each; chip tags become [BriefRefSegment]s;
+/// `<em>...</em>` ranges become [BriefEmphasisSegment]s. Empty input returns
+/// an empty list. The string is preserved character-for-character outside of
+/// recognized tags — no whitespace normalization, no HTML entity decoding.
 List<BriefSegment> parseBriefBody(String body) {
   if (body.isEmpty) return const [];
   final segments = <BriefSegment>[];
@@ -123,17 +138,29 @@ List<BriefSegment> parseBriefBody(String body) {
     if (match.start > cursor) {
       segments.add(BriefSegment.text(body.substring(cursor, match.start)));
     }
-    final kind = _kindFor(match.group(1)!);
-    final id = match.group(2)!;
-    // groupCount guards against Flutter hot-reload leaving the old compiled
-    // RegExp in memory (top-level `final` initializers don't re-run on hot
-    // reload) — without this the title-aware parser would crash with
-    // RangeError when reading group 3 from a 2-group regex.
-    final title = match.groupCount >= 3 ? match.group(3) : null;
-    if (kind != null && id.isNotEmpty) {
-      segments.add(BriefRefSegment(kind, id, title: (title?.isEmpty ?? true) ? null : title));
+    final kindRaw = match.group(1);
+    if (kindRaw != null) {
+      final kind = _kindFor(kindRaw);
+      final id = match.group(2)!;
+      // groupCount guards against Flutter hot-reload leaving the old compiled
+      // RegExp in memory (top-level `final` initializers don't re-run on hot
+      // reload) — without this the title-aware parser would crash with
+      // RangeError when reading group 3 from a 2-group regex.
+      final title = match.groupCount >= 3 ? match.group(3) : null;
+      if (kind != null && id.isNotEmpty) {
+        segments.add(BriefRefSegment(kind, id, title: (title?.isEmpty ?? true) ? null : title));
+      } else {
+        segments.add(BriefSegment.text(match.group(0)!));
+      }
     } else {
-      segments.add(BriefSegment.text(match.group(0)!));
+      // Emphasis branch (group 4). Empty `<em></em>` falls through as text
+      // so the literal tag pair is visible in dogfood logs.
+      final emValue = match.groupCount >= 4 ? match.group(4) : null;
+      if (emValue != null && emValue.isNotEmpty) {
+        segments.add(BriefSegment.emphasis(emValue));
+      } else {
+        segments.add(BriefSegment.text(match.group(0)!));
+      }
     }
     cursor = match.end;
   }
