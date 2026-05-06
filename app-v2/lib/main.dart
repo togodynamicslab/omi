@@ -16,6 +16,7 @@ import 'package:nooto_v2/firebase_options.dart';
 import 'package:nooto_v2/home/home_storage.dart';
 import 'package:nooto_v2/mobile_app.dart';
 import 'package:nooto_v2/onboarding/onboarding_chat_provider.dart';
+import 'package:nooto_v2/plan/plan_guidance_provider.dart';
 import 'package:nooto_v2/plan/plan_storage.dart';
 import 'package:nooto_v2/providers/action_items_provider.dart';
 import 'package:nooto_v2/providers/auth_provider.dart';
@@ -107,6 +108,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => ConversationsProvider(client: apiClient)),
         Provider<ChatService>.value(value: chatService),
         ChangeNotifierProvider(create: (_) => ChatProvider(service: chatService)),
+        ChangeNotifierProvider(create: (_) => PlanGuidanceProvider(service: chatService)),
         ChangeNotifierProvider<PendantProvider>.value(value: pendantProvider),
         // On-device live-transcription pipe: Pendant Opus → Dart decode →
         // method channel → iOS SFSpeechRecognizer (see PendantSttProvider).
