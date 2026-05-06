@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -17,11 +19,19 @@ import 'package:nooto_v2/theme/app_theme.dart';
 /// Mirrors `speech_profile_turn.dart`'s shape — a chrome'd surface card
 /// with two CTAs:
 ///   - "Pair"  → pushes `PendantScreen.route()`. When state transitions
-///     to `live`, auto-advances via `reportWidgetCapture(true)`.
+///     to `live` and **stays** live for [_liveHoldDuration], auto-advances
+///     via `reportWidgetCapture(true)`.
 ///   - "Skip"  → calls `OnboardingChatProvider.skipCurrent`.
 ///
 /// State changes in `PendantProvider.info` are watched so the turn auto-
-/// advances the chat the moment pairing succeeds — no extra tap.
+/// advances the chat once pairing has stabilized — no extra tap.
+///
+/// **Why the 1.5s hold (ENG-4):** the pendant magic-moment ceremony plays a
+/// 1.5s greeting after first reaching `live`. Auto-advancing the chat
+/// immediately on `live` would yank the chat forward "underneath" the
+/// greeting. Holding for [_liveHoldDuration] before reporting capture
+/// lets the greeting finish, and also rejects spurious flickers (live
+/// → reconnecting → live in <1.5s) without falsely advancing.
 class PairPendantTurn extends StatefulWidget {
   final String turnId;
   const PairPendantTurn({super.key, required this.turnId});
@@ -31,23 +41,48 @@ class PairPendantTurn extends StatefulWidget {
 }
 
 class _PairPendantTurnState extends State<PairPendantTurn> {
+  /// How long `PendantState.live` must hold continuously before we treat
+  /// pairing as "settled" and advance the chat. Matches the greeting hold
+  /// in `pendant_screen.dart`.
+  static const Duration _liveHoldDuration = Duration(milliseconds: 1500);
+
+  Timer? _captureTimer;
   PendantState? _lastState;
   bool _reported = false;
+
+  /// Idempotent: arms the capture timer the first time we see `live`,
+  /// cancels it on any regression away from `live`. Safe to call from
+  /// every `build` — no side effects after the timer has already fired.
+  void _onStateChange(PendantState newState) {
+    if (_reported) return;
+    if (newState == PendantState.live) {
+      // Arm the timer if not already armed.
+      _captureTimer ??= Timer(_liveHoldDuration, () {
+        if (!mounted) return;
+        _reported = true;
+        context.read<OnboardingChatProvider>().reportWidgetCapture(context, widget.turnId, true);
+      });
+    } else {
+      // Regression — cancel the pending capture so a flicker doesn't
+      // count as a stable pairing.
+      _captureTimer?.cancel();
+      _captureTimer = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _captureTimer?.cancel();
+    _captureTimer = null;
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final info = context.watch<PendantProvider>().info;
 
-    // Auto-advance the moment we observe the live state. Guarded so we only
-    // fire once even if the widget rebuilds.
-    if (!_reported && info.state == PendantState.live) {
-      _reported = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        context.read<OnboardingChatProvider>().reportWidgetCapture(context, widget.turnId, true);
-      });
-    }
+    _onStateChange(info.state);
     _lastState = info.state;
 
     return Container(
