@@ -360,7 +360,11 @@ def get_inbox_feed(
         except ValueError:
             raise HTTPException(status_code=400, detail='Invalid `before` cursor; expected ISO 8601 timestamp')
 
-    raw_messages = chat_db.get_inbox_messages(uid, limit=limit, before=before_dt)
+    try:
+        raw_messages = chat_db.get_inbox_messages(uid, limit=limit, before=before_dt)
+    except Exception as e:
+        logger.exception(f'inbox feed failed for uid={uid}')
+        raise HTTPException(status_code=500, detail=f'inbox feed failed: {type(e).__name__}: {e}')
 
     # Collect distinct app_ids from the merged page (excluding day_summary
     # rows). Firestore-on-disk uses plugin_id; Pydantic Message exposes both.

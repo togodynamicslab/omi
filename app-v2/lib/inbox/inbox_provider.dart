@@ -87,7 +87,7 @@ class InboxProvider extends ChangeNotifier {
       _nextCursor = page.nextCursor;
       _hasMore = page.nextCursor != null;
     } on ApiError catch (e, stack) {
-      _error = 'HTTP ${e.statusCode}';
+      _error = e.detail != null && e.detail!.isNotEmpty ? 'HTTP ${e.statusCode}: ${e.detail}' : 'HTTP ${e.statusCode}';
       debugPrint('[InboxProvider] refresh ApiError: $e\n$stack');
     } catch (e, stack) {
       _error = e.toString();
