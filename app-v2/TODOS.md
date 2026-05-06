@@ -78,3 +78,61 @@ Deferred work captured during planning. Add to a sprint when picking up.
 **Context:** Surfaced during `/plan-ceo-review` of chat-sessions design (2026-05-01, SELECTIVE EXPANSION mode). Considered for v0 inclusion and explicitly deferred — see CEO plan at `~/.gstack/projects/togodynamicslab-omi/ceo-plans/2026-05-01-chat-sessions.md` for the deferral reasoning.
 
 **Depends on:** Backend session_id TODO (above) shipping first — search becomes meaningful once session history is cross-device.
+
+## Pendant orb as global brand element (Approach C)
+
+**What:** After 2-4 weeks of v0 dogfood on the constellation ceremony, extract the `PendantOrb` widget into a reusable `NootoOrb` and thread it through `StatusPill` (paired states show a 12pt orb instead of the colored dot), the chat composer mic indicator (orb-as-mic, replacing the static icon), and the welcome voice card background (faint ambient orb visible on first paint). The pendant ceremony becomes the orb's *birth*; thereafter it's the "this app is alive" signal across the product.
+
+**Why:** Pays off the constellation ceremony 4x across surfaces. The orb becomes Nooto's distinctive visual signature, not just a one-screen moment. Every surface reminds the user the relationship exists.
+
+**Pros:**
+- Most distinctive single product moment in v2 if it lands cleanly.
+- Cross-surface coherence — the chief-of-staff thesis gets a visual through-line.
+- The orb identity is already proven by the time we extract (post-dogfood).
+
+**Cons:**
+- Blast radius across 4-5 surfaces locked in earlier lanes (StatusPill in Lane B, ChatComposer in Lane C, WelcomeCard in Lane A).
+- Re-fights design battles in surfaces that just shipped (e.g., "no decorative motion in chat composer").
+- XL effort estimate (human ~4-5 days / CC ~3 hours).
+
+**Context:** Discussed and explicitly deferred in `/office-hours` D7 (2026-05-04). Approach B (pendant-screen-only) was chosen as the v0 scope. See design doc `matheusoliviera-main-design-pendant-magic-moment-20260504-124235.md` for the full reasoning.
+
+**Depends on:** v0 ships AND gets 2-4 weeks of dogfood that confirms the orb identity feels right. Do not start before then.
+
+## Pendant LED firmware sync for ceremony Found-beat
+
+**What:** Add a write characteristic to the Omi pendant firmware so the screen ceremony's "Found you." beat can flash the pendant LED (single soft pulse) at the same moment the screen brightens a particle and fires the haptic. Three-way choreography: hardware LED + screen + haptic.
+
+**Why:** Closes the physical-digital loop — the user feels (haptic), sees (screen), and watches the pendant itself participate (LED) in its own pairing recognition moment. Few products achieve hardware-screen-haptic synchrony.
+
+**Pros:**
+- Maximum brand moment; the pendant participates in its own celebration.
+- Differentiates Nooto from any pendant pairing UX in market.
+
+**Cons:**
+- Requires firmware change in a separately-governed codebase.
+- BLE write characteristic needs definition + spec.
+- BLE round-trip latency (tens of ms) makes timing sync non-trivial — may not feel "instant."
+
+**Context:** Surfaced as Open Question 1 in design doc `matheusoliviera-main-design-pendant-magic-moment-20260504-124235.md`. Out of scope for the v0 screen-only PR.
+
+**Depends on:** Firmware team capacity + agreement on BLE protocol extension. Not blocking v0.
+
+## Programmatic CI frame-rate test for motion paths
+
+**What:** When app-v2 lands a SECOND non-trivial motion path beyond the constellation ceremony, add a programmatic frame-timing CI test using `WidgetsBinding.addTimingsCallback` that drives all motion paths through their full lifecycle and asserts no frame > 18ms (55fps).
+
+**Why:** Today the constellation is the only motion path and manual DevTools verification suffices. Once there are 2+ motion paths (e.g., Approach C lands and the orb is animating across 4 surfaces), eyeball-only doesn't scale — regressions slip in silently between PRs.
+
+**Pros:**
+- Catches motion regressions at PR-time, not dogfood-time.
+- Compounds across all future motion work — every new motion path inherits the safety net.
+- No human required — automatic CI signal.
+
+**Cons:**
+- Flaky on slow CI runners; may need to widen the threshold (e.g., 33ms = 30fps), which dilutes the signal.
+- Adds CI test infrastructure to maintain.
+
+**Context:** Surfaced as PERF-1 Option B during `/plan-eng-review` of the pendant-magic-moment design (2026-05-04). Currently rejected as over-engineered for one motion path; tracked here for the trigger event.
+
+**Depends on:** Existence of a second non-trivial motion path in app-v2 (likely Approach C — see "Pendant orb as global brand element" TODO above). Not actionable until then.
