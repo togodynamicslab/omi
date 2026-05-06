@@ -119,10 +119,16 @@ class BriefEmphasisSegment extends BriefSegment {
 /// Single regex with alternation so `parseBriefBody` walks the body once and
 /// gets segments in source order. `kind` allowlisting keeps a stray `<br/>`
 /// or `<i>...</i>` from getting reinterpreted.
+///
+/// `caseSensitive: false` — the prompt instructs the LLM to lowercase tag
+/// names, but the LLM occasionally emits `<Ticket .../>` or `<EM>...</EM>`
+/// and we'd render the literal tag as plain text. Defensive parsing here
+/// is much cheaper than relying on prompt compliance.
 final RegExp _tagPattern = RegExp(
   r'<\s*(ticket|person|conversation|plan)\s+id\s*=\s*"([^"]+)"(?:\s+title\s*=\s*"([^"]*)")?\s*/\s*>'
   r'|<em>(.*?)</em>',
   dotAll: true,
+  caseSensitive: false,
 );
 
 /// Parses [body] into an ordered list of segments. Plain runs collapse into
@@ -171,7 +177,10 @@ List<BriefSegment> parseBriefBody(String body) {
 }
 
 BriefRefKind? _kindFor(String raw) {
-  switch (raw) {
+  // Match the case-insensitive regex above — the LLM occasionally
+  // capitalizes tag names ("Ticket", "Plan") and we'd otherwise drop
+  // the chip and render the raw tag.
+  switch (raw.toLowerCase()) {
     case 'ticket':
       return BriefRefKind.ticket;
     case 'person':
