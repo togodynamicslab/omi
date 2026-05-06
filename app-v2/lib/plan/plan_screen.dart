@@ -171,11 +171,12 @@ class _PlanScreenState extends State<PlanScreen> {
         slivers: [
           SliverPadding(padding: EdgeInsets.only(top: topInset)),
           const SliverToBoxAdapter(child: PlanGuidanceCard()),
-          if (!showList && allItems.isNotEmpty)
+          if (allItems.isNotEmpty && hasGuidance)
             SliverToBoxAdapter(
-              child: _ShowAllButton(
+              child: _ListToggleButton(
+                expanded: showList,
                 count: allItems.length,
-                onTap: () => setState(() => _showList = true),
+                onTap: () => setState(() => _showList = !_showList),
               ),
             ),
           if (showList) ...[
@@ -666,18 +667,28 @@ class _Loading extends StatelessWidget {
   }
 }
 
-/// Quiet "Show all N items" affordance rendered below the voice card on the
-/// default Plan view. Sized like a 14pt label, padded as a 44pt touch target,
-/// brand blue text. Tap reveals the filter rail + grouped list. Hidden once
-/// the list is shown (the rail itself is the wayfinding from then on).
-class _ShowAllButton extends StatelessWidget {
-  const _ShowAllButton({required this.count, required this.onTap});
+/// Persistent toggle below the voice card on the Plan tab. Collapsed reads
+/// "Show all N" with a right-chevron; expanded reads "Hide list" with an
+/// up-chevron. Same position regardless of state so the user always knows
+/// where to fold/unfold the list. Sized as a 14pt label centered in a 44pt
+/// touch target, brand blue. Hidden when there are no items to toggle, or
+/// when guidance hasn't loaded (in which case the list shows directly and
+/// a toggle would be misleading).
+class _ListToggleButton extends StatelessWidget {
+  const _ListToggleButton({
+    required this.expanded,
+    required this.count,
+    required this.onTap,
+  });
 
+  final bool expanded;
   final int count;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final label = expanded ? 'Hide list' : 'Show all $count';
+    final icon = expanded ? Icons.keyboard_arrow_up_rounded : Icons.chevron_right_rounded;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppStyles.spacingL,
@@ -695,7 +706,7 @@ class _ShowAllButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Show all $count',
+                label,
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -703,7 +714,7 @@ class _ShowAllButton extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.brandPrimary),
+              Icon(icon, size: 18, color: AppColors.brandPrimary),
             ],
           ),
         ),
