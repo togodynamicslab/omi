@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 
 import 'package:nooto_v2/inbox/inbox_message.dart';
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
@@ -168,7 +169,7 @@ class _SenderMetaLine extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppStyles.spacingS),
-          Text(_relativeTime(createdAt), style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),
+          Text(_relativeTime(context, createdAt), style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),
         ],
       ),
     );
@@ -225,13 +226,13 @@ class _MonogramAvatar extends StatelessWidget {
   }
 }
 
-String _relativeTime(DateTime t) {
+String _relativeTime(BuildContext context, DateTime t) {
   final now = DateTime.now();
   final diff = now.difference(t);
   if (diff.inSeconds < 60) return 'now';
   if (diff.inMinutes < 60) return '${diff.inMinutes}m';
   if (diff.inHours < 24) return '${diff.inHours}h';
   if (diff.inDays < 7) return '${diff.inDays}d';
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return '${months[t.month - 1]} ${t.day}';
+  final locale = Localizations.localeOf(context).toString();
+  return DateFormat.MMMd(locale).format(t);
 }
