@@ -374,7 +374,7 @@ def get_inbox_feed(
         if msg.get('type') == 'day_summary':
             continue
         candidate = msg.get('app_id') or msg.get('plugin_id')
-        if candidate and candidate not in seen_ids:
+        if candidate and candidate != chat_db.TEST_INBOX_APP_ID and candidate not in seen_ids:
             seen_ids.add(candidate)
             app_ids.append(candidate)
 
@@ -386,6 +386,8 @@ def get_inbox_feed(
         app_id = msg.get('app_id') or msg.get('plugin_id')
         if msg_type == 'day_summary':
             sender = {**brief_sender_dict(), 'type': 'brief'}
+        elif app_id == chat_db.TEST_INBOX_APP_ID:
+            sender = {'display_name': 'Test notification', 'avatar_url': None, 'type': 'test'}
         else:
             resolved = sender_lookup.get(app_id) if app_id else None
             sender = {
