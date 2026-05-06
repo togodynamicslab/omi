@@ -21,6 +21,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def delete_token(uid: str, device_key: str) -> bool:
+    """Delete a single device's FCM token from users/{uid}/fcm_tokens/{device_key}.
+
+    Returns True if the document existed and was deleted, False if it did not exist.
+    """
+    user_ref = db.collection('users').document(uid)
+    token_ref = user_ref.collection('fcm_tokens').document(device_key)
+    snapshot = token_ref.get()
+    if not snapshot.exists:
+        return False
+    token_ref.delete()
+    return True
+
+
 def save_token(uid: str, data: dict):
     """
     Store token in subcollection with device key as document ID
