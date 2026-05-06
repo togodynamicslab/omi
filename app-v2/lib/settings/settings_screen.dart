@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +14,7 @@ import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/onboarding/onboarding_chat_provider.dart';
 import 'package:nooto_v2/providers/pendant_provider.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
+import 'package:nooto_v2/services/notification_service.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
 
 /// Test seam: lets widget tests inject a deterministic permission status
@@ -160,6 +163,8 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               buildLabel: _buildLabel(),
               onOpenSettings: _openSettings,
             ),
+            const SizedBox(height: AppStyles.spacingXL),
+            _NotificationsCard(l: l, osStatus: _statuses[Permission.notification], onOpenSettings: _openSettings),
             const SizedBox(height: AppStyles.spacingXL),
             _ActionsCard(
               l: l,
@@ -452,6 +457,105 @@ class _KeyValueRow extends StatelessWidget {
           ),
           Expanded(
             child: Text(value, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Notifications-as-chat settings row. Standard iOS-style: label left,
+/// toggle right, sub-label below describing on/off + OS-permission state.
+/// When the user toggles off, [NotificationService] skips token registration
+/// on subsequent sign-ins (and re-registers when toggled back on).
+class _NotificationsCard extends StatefulWidget {
+  const _NotificationsCard({required this.l, required this.osStatus, required this.onOpenSettings});
+
+  final AppLocalizations l;
+  final PermissionStatus? osStatus;
+  final Future<bool> Function() onOpenSettings;
+
+  @override
+  State<_NotificationsCard> createState() => _NotificationsCardState();
+}
+
+class _NotificationsCardState extends State<_NotificationsCard> {
+  bool? _toggleEnabled;
+
+  @override
+  void initState() {
+    super.initState();
+    _hydrateToggle();
+  }
+
+  Future<void> _hydrateToggle() async {
+    final value = await context.read<NotificationService>().isToggleEnabled();
+    if (!mounted) return;
+    setState(() => _toggleEnabled = value);
+  }
+
+  Future<void> _onToggleChanged(bool value) async {
+    setState(() => _toggleEnabled = value);
+    final service = context.read<NotificationService>();
+    await service.setToggleEnabled(value);
+    if (value) {
+      // Re-runs the registration flow (permission request + token persist).
+      // Idempotent at the backend.
+      unawaited(service.onSignIn());
+    }
+  }
+
+  String _resolveSubLabel() {
+    final l = widget.l;
+    final toggle = _toggleEnabled ?? true;
+    if (!toggle) return l.settingsNotificationsStateOff;
+    final os = widget.osStatus;
+    if (os != null && (os.isDenied || os.isPermanentlyDenied || os.isRestricted)) {
+      return l.settingsNotificationsStateOpenSettings;
+    }
+    return l.settingsNotificationsStateOn;
+  }
+
+  bool get _isDeniedOsSide {
+    final os = widget.osStatus;
+    return os != null && (os.isDenied || os.isPermanentlyDenied || os.isRestricted);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final toggle = _toggleEnabled ?? true;
+    final subLabel = _resolveSubLabel();
+    final showOpenSettingsTap = toggle && _isDeniedOsSide;
+
+    return _SurfaceCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.l.settingsNotificationsLabel,
+                  style: const TextStyle(fontSize: 16, color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: AppStyles.spacingXS),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: showOpenSettingsTap
+                      ? () {
+                          widget.onOpenSettings();
+                        }
+                      : null,
+                  child: Text(subLabel, style: const TextStyle(fontSize: 12, color: AppColors.textTertiary)),
+                ),
+              ],
+            ),
+          ),
+          Switch.adaptive(
+            value: toggle,
+            activeTrackColor: AppColors.brandPrimary,
+            onChanged: _toggleEnabled == null ? null : _onToggleChanged,
           ),
         ],
       ),
