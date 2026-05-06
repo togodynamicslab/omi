@@ -118,6 +118,9 @@ RATE_POLICIES: dict[str, tuple[int, int]] = {
     "goals:suggest": (30, 3600),
     "goals:advice": (30, 3600),
     "goals:extract": (30, 3600),
+    # Plan tab — single LLM call, content-keyed cache on the client dedupes
+    # repeated tab opens, so 30/hr is a generous ceiling.
+    "plan:guidance": (30, 3600),
     # Search
     "conversations:search": (60, 3600),
     # Expensive background ops
