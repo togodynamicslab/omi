@@ -136,3 +136,21 @@ Deferred work captured during planning. Add to a sprint when picking up.
 **Context:** Surfaced as PERF-1 Option B during `/plan-eng-review` of the pendant-magic-moment design (2026-05-04). Currently rejected as over-engineered for one motion path; tracked here for the trigger event.
 
 **Depends on:** Existence of a second non-trivial motion path in app-v2 (likely Approach C — see "Pendant orb as global brand element" TODO above). Not actionable until then.
+
+## App-v2 Hive↔server chat sync strategy
+
+**What:** Decide how app-v2's local Hive chat (`chat.sessions.v1`, `chat.messages.v1`) reconciles with backend server-of-record chat sessions for per-app threads + replies. Net-new infra; no transport exists today (REST only, no listener / WS / SSE).
+
+**Why:** Notifications-as-Chat v0 sidesteps this by making Inbox a live view (no Hive caching). v1 work that needs persistent per-app conversation history (replies to plugins, multi-device read-state sync, offline read of past Inbox messages) requires a real sync strategy. Without one captured, v1 starts by re-discovering the problem and may force re-architecture under deadline pressure.
+
+**Pros:**
+- Unblocks all v1+ chat features that need server-of-record persistence (plugin replies, multi-device sync, archive search).
+- Forces an explicit transport choice (Firestore listener / WebSocket / SSE / poll) once, not piecemeal per feature.
+
+**Cons:**
+- Real architectural work — likely 1–2 week scope of its own.
+- May reveal that backend `/v2/messages` needs surface changes (today it doesn't accept session_id from client).
+
+**Context:** Surfaced during `/plan-eng-review` of the notifications-as-chat design (2026-05-06). Design doc at `~/.gstack/projects/togodynamicslab-omi/matheusoliviera-main-design-notifications-as-chat-20260506-010606.md` — see Open Questions item 7 and v1 backlog. Per learning `app-v2-chat-is-hive-local`: app-v2 chat is Hive-local; backend `/v2/messages` doesn't accept client session_id.
+
+**Depends on:** Completion of notifications-as-chat v0 (to validate the Inbox-bypass-Hive shape works for read-only flows). Triggered when v1 work begins on plugin replies, per-app drill-down with persistence, or multi-device read sync.
