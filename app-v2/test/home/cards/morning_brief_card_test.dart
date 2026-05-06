@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nooto_v2/home/cards/morning_brief_card.dart';
 import 'package:nooto_v2/home/companion_card.dart';
+import 'package:nooto_v2/home/widgets/brief_rich_body.dart';
 
 Widget _harness(MorningBriefCard card) {
   return MaterialApp(
@@ -44,6 +45,28 @@ void main() {
 
     expect(find.text('just the body'), findsOneWidget);
   });
+
+  testWidgets(
+    'REGRESSION: body renders through BriefRichBody (not plain Text) so '
+    'inline tags become chips — caught a 2026-05-05 dogfood bug where the '
+    'card showed literal `<plan id="..."/>` text on screen',
+    (tester) async {
+      final card = MorningBriefCard(
+        dateKey: '2026-05-05',
+        greeting: 'Good evening, Matheus.',
+        body: 'Today: 1 overdue (<plan id="abc"/>) and a stuck ticket (<ticket id="WPNG-2951"/>).',
+        generatedAt: DateTime.now(),
+      );
+
+      await tester.pumpWidget(_harness(card));
+      await tester.pumpAndSettle();
+
+      // The body is wrapped in BriefRichBody so the parser runs. Without it,
+      // the card renders literal `<plan id="..."/>` strings to the user.
+      expect(find.byType(BriefRichBody), findsOneWidget);
+    },
+  );
+
 
   test('toJson/fromJson roundtrip preserves fields', () {
     final original = MorningBriefCard(
