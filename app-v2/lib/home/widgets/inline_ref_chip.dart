@@ -146,8 +146,12 @@ class InlineRefChip extends StatelessWidget {
               // Without this, Text takes its intrinsic width regardless of the
               // available line width and the chip overflows on long titles
               // (e.g. "Plan one weekly social activity involving marriage…").
-              // With Flexible, the chip renders the full title when it fits
-              // and ellipsizes only when there's genuinely no room.
+              //
+              // `maxLines: 2` lets very long titles render in full across two
+              // lines instead of ellipsizing. The WidgetSpan reports the
+              // chip's full height to Text.rich, so the surrounding prose
+              // line stretches to accommodate. `height: 1.15` keeps the two
+              // lines from feeling crushed.
               Flexible(
                 child: Text(
                   label,
@@ -155,9 +159,9 @@ class InlineRefChip extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: AppColors.textSecondary,
-                    height: 1.0,
+                    height: 1.15,
                   ),
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
