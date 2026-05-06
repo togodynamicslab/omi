@@ -76,6 +76,21 @@ def save_token(
     return {'status': 'Ok'}
 
 
+@router.delete('/v1/users/fcm-token')
+def delete_token(
+    uid: str = Depends(auth.get_current_user_uid),
+    x_app_platform: str = Header(None, alias='X-App-Platform'),
+    x_device_id_hash: str = Header(None, alias='X-Device-Id-Hash'),
+):
+    """Delete the current device's FCM token. Mirrors POST shape — derives the
+    same device_key from X-App-Platform + X-Device-Id-Hash headers."""
+    platform = x_app_platform or 'unknown'
+    device_hash = x_device_id_hash or 'default'
+    device_key = f"{platform}_{device_hash}"
+    notification_db.delete_token(uid, device_key)
+    return {'status': 'Ok'}
+
+
 # ******************************************************
 # ******************* TEAM ENDPOINTS *******************
 # ******************************************************
