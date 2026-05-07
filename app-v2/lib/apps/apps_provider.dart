@@ -377,6 +377,26 @@ class AppsProvider extends ChangeNotifier {
   ///   * "plugin_error"  — backend returned 502 jira_plugin_error
   ///   * "network"       — any other ApiError or transport exception
   ///
+  /// Attention-driven freshness check. Triggers a sync only if the cached
+  /// [lastSyncedAt] is older than [minAge] (or unknown). Errors are
+  /// swallowed — this is the unsupervised-by-the-user path; surfacing a
+  /// snackbar for a sync the user didn't ask for is a UX regression.
+  ///
+  /// Idempotent against rapid back-to-back calls: [syncNow]'s own
+  /// `_syncingIds` guard collapses concurrent triggers, and the staleness
+  /// gate here short-circuits the second-and-later calls within a fresh
+  /// window.
+  Future<void> maybeSyncIfStale(String appId, Duration minAge) async {
+    if (_integrationIdForApp(appId) == null) return;
+    final last = lastSyncedAt(appId);
+    if (last != null && DateTime.now().difference(last) < minAge) return;
+    try {
+      await syncNow(appId);
+    } catch (e) {
+      debugPrint('[AppsProvider] maybeSyncIfStale($appId) suppressed: $e');
+    }
+  }
+
   /// Notifies listeners on isSyncing transitions so the button can show a
   /// spinner. On success, also bumps [lastSyncedAt] from the response so
   /// the "Last synced N min ago" caption updates immediately without
