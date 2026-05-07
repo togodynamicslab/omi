@@ -25,6 +25,7 @@ import 'package:nooto_v2/providers/locale_provider.dart';
 import 'package:nooto_v2/providers/pendant_provider.dart';
 import 'package:nooto_v2/providers/pendant_stt_provider.dart';
 import 'package:nooto_v2/services/api_client.dart';
+import 'package:nooto_v2/services/app_lifecycle_observer.dart';
 import 'package:nooto_v2/services/app_links_service.dart';
 import 'package:nooto_v2/services/ble/omi_pendant.dart';
 import 'package:nooto_v2/services/ble/socket_streamer.dart';
@@ -92,6 +93,15 @@ Future<void> main() async {
       }
     }),
   );
+  // Attention-driven Jira refresh. WidgetsBinding observer fires
+  // AppsProvider.maybeSyncIfStale on app resume so Plan/brief reflect the
+  // user's Jira state by the time they look at the app — no "Sync now"
+  // tap required. Build-time gate kEnableAttentionDrivenJiraRefresh leaves
+  // the cron-only path intact when disabled. Observer holds a strong
+  // reference to appsProvider for the process lifetime; never detached.
+  if (kEnableAttentionDrivenJiraRefresh) {
+    AppLifecycleObserver(apps: appsProvider, appIds: const ['nooto-jira']).attach();
+  }
   // Warm path: every subsequent nooto:// URL while the app is running.
   appLinksService.linkStream.listen(
     (link) {
