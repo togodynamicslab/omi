@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 
+import 'package:nooto_v2/apps/apps_provider.dart';
 import 'package:nooto_v2/apps/apps_screen.dart';
 import 'package:nooto_v2/chat/chat_screen.dart';
 import 'package:nooto_v2/chat/widgets/chat_sessions_drawer.dart';
+import 'package:nooto_v2/env_flags.dart';
 import 'package:nooto_v2/home/home_screen.dart';
 import 'package:nooto_v2/library/library_screen.dart';
 import 'package:nooto_v2/library/widgets/library_section_tab_bar.dart';
@@ -22,6 +24,22 @@ import 'package:nooto_v2/widgets/status_pill.dart';
 /// iOS HIG navigation bar height — Material defaults to 56pt which leaves
 /// dead space below a single-line title; 44pt is the platform standard.
 const double shellToolbarHeight = 44.0;
+
+/// Plan tab index in the shell's tab list. Centralized so the attention-
+/// driven Jira refresh hook in [_ShellScreenState._switchTab] stays in
+/// lock-step with the IndexedStack child order in [build].
+const int kPlanTabIndex = 3;
+
+/// Pure helper extracted from [_ShellScreenState._switchTab] so the
+/// regression test for eng-review Issue 2.5 (IndexedStack `initState`
+/// only fires once) can prove the hook runs on EVERY Plan-tab visit, not
+/// just the first. Production callers pass `context.read<AppsProvider>()`.
+@visibleForTesting
+void maybeFireJiraRefreshOnTabSwitch(AppsProvider apps, int tabIndex) {
+  if (!kEnableAttentionDrivenJiraRefresh) return;
+  if (tabIndex != kPlanTabIndex) return;
+  apps.maybeSyncIfStale('nooto-jira', const Duration(seconds: 60));
+}
 
 class ShellScreen extends StatefulWidget {
   const ShellScreen({super.key});
@@ -45,6 +63,13 @@ class _ShellScreenState extends State<ShellScreen> {
       _index = idx;
       _autoFocusChat = focusChat;
     });
+    // Attention signal: the user just turned to a tab that surfaces Jira
+    // state (Plan). Fire a stale-aware sync so the cards reflect upstream
+    // by the time the tab content paints. NOT done in PlanScreen.initState
+    // because IndexedStack only constructs each child once for the shell's
+    // lifetime — initState would fire on first mount only and silently
+    // miss every later tab visit (eng review Issue 2.5).
+    maybeFireJiraRefreshOnTabSwitch(context.read<AppsProvider>(), idx);
   }
 
   @override
