@@ -80,13 +80,35 @@ fn main() {
         )
         .init();
 
+    // Build the Tauri async runtime ourselves so we can bound the thread
+    // pools. Tokio's defaults are sized for servers — `worker_threads`
+    // defaults to nproc (20 cores → 20 threads) and `max_blocking_threads`
+    // defaults to 512. Each thread reserves an 8MB stack regardless of use;
+    // under continuous capture our pools grew to 150+ threads = 1.2GB+ of
+    // stack alone, which dominated the observed RSS climb. Desktop app
+    // doesn't need that — 4 workers + 8 blocking handles all our async
+    // work (events, capture pipeline, OCR via shared engine).
+    let tauri_runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(4)
+        .max_blocking_threads(8)
+        .thread_name("tauri-worker")
+        .build()
+        .expect("Failed to create Tauri tokio runtime");
+    tauri::async_runtime::set(tauri_runtime.handle().clone());
+    // Keep the runtime alive for the process lifetime.
+    let _tauri_runtime = Box::leak(Box::new(tauri_runtime));
+
     // Dedicated runtime for the embedded Backend-Rust so its workers don't
     // contend with the Tauri/audio runtime. Leaked so it lives for the
     // process lifetime — we'll spawn `start_backend` from inside `setup`
-    // once we have an `AppHandle` to thread into the event emitter.
+    // once we have an `AppHandle` to thread into the event emitter. Same
+    // bounded-pool rationale as above; backend handles HTTP routes + DB.
     let backend_runtime: &'static tokio::runtime::Runtime = Box::leak(Box::new(
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
+            .worker_threads(4)
+            .max_blocking_threads(8)
             .thread_name("backend-worker")
             .build()
             .expect("Failed to create Tokio runtime"),
