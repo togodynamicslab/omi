@@ -14,21 +14,26 @@ tracing = "0.1"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.21"
-kreuzberg-paddle-ocr = "4.8"
-ort = { version = "2.0.0-rc.12", features = ["download-binaries", "copy-dylibs", "ndarray"] }
 rusqlite = { version = "0.31", features = ["bundled-full", "blob"] }
 dirs = "5"
 
 # Platform-specific
+
+# Linux uses native libtesseract (`apt install tesseract-ocr libtesseract-dev`).
+# eng/por traineddata ship with the distro package — nothing to bundle.
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = { version = "0.13", features = ["randr"] }
+tesseract = "0.15"
 
+# Windows still uses PaddleOCR (no good native OCR API without WinRT projection).
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.58", features = [
     "Win32_Graphics_Gdi",
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
 ] }
+kreuzberg-paddle-ocr = "4.8"
+ort = { version = "2.0.0-rc.12", features = ["download-binaries", "copy-dylibs", "ndarray"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Pinned to 0.6/0.3 to match what tao + arboard already pull in. Older

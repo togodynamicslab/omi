@@ -6,6 +6,8 @@ mod models;
 mod ocr;
 #[cfg(target_os = "macos")]
 mod ocr_vision;
+#[cfg(target_os = "linux")]
+mod ocr_tesseract;
 
 use database::{CompanionSession, CompanionSessionInput, CompanionSessionPatch, EmbeddingBacklogItem, RewindDatabase, ScreenshotRow, SemanticHit};
 use models::{CaptureConfig, CaptureState, DisplayMetadata};

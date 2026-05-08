@@ -1,9 +1,9 @@
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 use kreuzberg_paddle_ocr::{OcrLite, OcrResult};
 use serde::{Deserialize, Serialize};
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 use std::path::Path;
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 use std::sync::OnceLock;
 
 /// Result of running OCR on a screenshot.
@@ -26,15 +26,19 @@ pub struct OcrTextBlock {
     pub bbox: [u32; 4],
 }
 
+// ---------------------------------------------------------------------------
+// Windows: PaddleOCR via bundled ONNX models
+// ---------------------------------------------------------------------------
+
 /// Global OCR engine instance. Initialized once on first use.
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 static OCR_ENGINE: OnceLock<Result<OcrLite, String>> = OnceLock::new();
 
 /// Get or initialize the OCR engine.
 ///
 /// Looks for ONNX model files relative to the executable, then falls back
 /// to the plugin source directory (for development).
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 fn get_ocr_engine() -> Result<&'static OcrLite, String> {
     OCR_ENGINE
         .get_or_init(|| {
@@ -84,7 +88,7 @@ fn get_ocr_engine() -> Result<&'static OcrLite, String> {
 }
 
 /// Search for the models directory in several locations.
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 fn find_models_dir() -> Result<std::path::PathBuf, String> {
     // 1. Check next to executable (production: bundled with app)
     if let Ok(exe) = std::env::current_exe() {
@@ -92,11 +96,6 @@ fn find_models_dir() -> Result<std::path::PathBuf, String> {
             let candidate = exe_dir.join("models");
             if candidate.is_dir() {
                 return Ok(candidate);
-            }
-            // macOS bundle: Contents/MacOS/../Resources/models
-            let mac_candidate = exe_dir.join("../Resources/models");
-            if mac_candidate.is_dir() {
-                return Ok(mac_candidate);
             }
         }
     }
@@ -110,23 +109,30 @@ fn find_models_dir() -> Result<std::path::PathBuf, String> {
     Err("Could not find OCR models directory".to_string())
 }
 
+// ---------------------------------------------------------------------------
+// Dispatch
+// ---------------------------------------------------------------------------
+
 /// Run OCR on a JPEG-encoded image buffer.
 ///
-/// macOS uses Apple's Vision framework (`VNRecognizeTextRequest`) — it's
-/// trained on screen-rendered glyphs and crushes PaddleOCR on UI text.
-/// Other platforms fall back to the bundled PaddleOCR ONNX models.
+/// - macOS: Apple Vision (`VNRecognizeTextRequest`) — best-in-class on UI text.
+/// - Linux: native libtesseract (`apt install tesseract-ocr`).
+/// - Windows: bundled PaddleOCR ONNX models.
 pub fn extract_text(jpeg_data: &[u8]) -> Result<OcrTextResult, String> {
     #[cfg(target_os = "macos")]
     {
         return crate::ocr_vision::extract_text(jpeg_data);
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    {
+        return crate::ocr_tesseract::extract_text(jpeg_data);
+    }
+    #[cfg(target_os = "windows")]
     extract_text_paddle(jpeg_data)
 }
 
-/// PaddleOCR fallback used on Linux/Windows where we don't have a system
-/// OCR engine.
-#[cfg(not(target_os = "macos"))]
+/// PaddleOCR fallback used on Windows where we don't have a system OCR engine.
+#[cfg(target_os = "windows")]
 fn extract_text_paddle(jpeg_data: &[u8]) -> Result<OcrTextResult, String> {
     let engine = get_ocr_engine()?;
 
