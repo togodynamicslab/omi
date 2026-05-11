@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { listen } from "@tauri-apps/api/event";
 import { useAuthStore } from "./authStore";
 import { api } from "../services/api";
 
@@ -71,12 +72,20 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
       const data = await api.get<Memory[]>(
         "/v3/memories?limit=50&offset=0",
       );
+      const memories = Array.isArray(data) ? data : [];
+      console.info(
+        `[Memories] loaded ${memories.length} memories${
+          memories.length > 0
+            ? ` (sample: "${memories[0].content?.slice(0, 60) ?? ""}…")`
+            : ""
+        }`,
+      );
       set({
-        memories: Array.isArray(data) ? data : [],
+        memories,
         isLoading: false,
       });
     } catch (error) {
-      console.error("Failed to load memories:", error);
+      console.error("[Memories] failed to load:", error);
       set({ isLoading: false });
     }
   },
@@ -97,3 +106,32 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
     }
   },
 }));
+
+// Auto-reload memories whenever a meeting finishes syncing or the backend
+// finishes async post-processing on a conversation. Backend memory extraction
+// runs server-side during `/from-segments` (and the integration trigger task
+// after), so memories appear after these events fire — without this, the user
+// has to navigate away and back to see new ones. The 1.5s delay gives Firestore
+// a moment to commit before we re-query.
+listen("meeting:synced", () => {
+  setTimeout(() => {
+    void useMemoryStore.getState().loadMemories();
+  }, 1500);
+})
+  .then(() => console.log("[Memories] subscribed to meeting:synced"))
+  .catch((err) =>
+    console.error("[Memories] failed to subscribe to meeting:synced:", err),
+  );
+
+listen("conversation:updated", () => {
+  setTimeout(() => {
+    void useMemoryStore.getState().loadMemories();
+  }, 1500);
+})
+  .then(() => console.log("[Memories] subscribed to conversation:updated"))
+  .catch((err) =>
+    console.error(
+      "[Memories] failed to subscribe to conversation:updated:",
+      err,
+    ),
+  );
