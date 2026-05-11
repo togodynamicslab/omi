@@ -1,6 +1,7 @@
 [default]
 description = "Default permissions for the screen capture plugin"
 permissions = [
+    "allow-list-monitors",
     "allow-take-screenshot",
     "allow-take-screenshot-with-ocr",
     "allow-start-screen-capture",
@@ -21,7 +22,13 @@ permissions = [
     "allow-save-companion-session",
     "allow-get-recent-companion-sessions",
     "allow-delete-companion-session",
+    "allow-update-companion-session",
 ]
+
+[[permission]]
+identifier = "allow-list-monitors"
+description = "Allows enumerating attached displays for the monitor picker"
+commands.allow = ["list_monitors"]
 
 [[permission]]
 identifier = "allow-take-screenshot"
@@ -122,3 +129,8 @@ commands.allow = ["get_recent_companion_sessions"]
 identifier = "allow-delete-companion-session"
 description = "Allows deleting a companion session by its database ID"
 commands.allow = ["delete_companion_session"]
+
+[[permission]]
+identifier = "allow-update-companion-session"
+description = "Allows patching a companion session row with chain outcome telemetry"
+commands.allow = ["update_companion_session"]

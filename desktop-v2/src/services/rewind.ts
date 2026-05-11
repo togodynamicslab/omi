@@ -36,6 +36,18 @@ export interface CaptureConfig {
   quality?: number;
   /** Maximum width in pixels; wider images are scaled down. */
   max_width?: number;
+  /** Zero-based index returned by `listMonitors()`; omit / null for the
+   *  platform default (primary on Windows/Linux, cursor display on macOS). */
+  monitor_index?: number | null;
+}
+
+/** Information about a single attached display, returned by `listMonitors`. */
+export interface MonitorInfo {
+  index: number;
+  name: string;
+  width: number;
+  height: number;
+  is_primary: boolean;
 }
 
 /** A single OCR text block with image-pixel bounding box (matches resized
@@ -106,6 +118,15 @@ export interface ScreenshotRow {
 // ---------------------------------------------------------------------------
 // IPC wrappers
 // ---------------------------------------------------------------------------
+
+/**
+ * Enumerate every connected display so the Rewind UI can offer a picker.
+ * On macOS / Windows this returns one entry per monitor with its native
+ * dimensions and primary flag; Linux currently returns a single entry.
+ */
+export async function listMonitors(): Promise<MonitorInfo[]> {
+  return invoke<MonitorInfo[]>("plugin:screen-capture|list_monitors");
+}
 
 /**
  * Take a single screenshot and return the base64-encoded JPEG string.
