@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useTaskStore } from "../../stores/taskStore";
 import type { Task } from "../../stores/taskStore";
 import { BUCKET_META, bucketFor, type DueBucket } from "./taskDates";
@@ -29,12 +30,15 @@ const BUCKET_ORDER: DueBucket[] = [
 export function TasksPage() {
   const {
     tasks,
-    isLoading,
+    isLoading: isLoadingStore,
     loadTasks,
     toggleTask,
     createTask,
     deleteTask,
   } = useTaskStore();
+  // Only skeleton on the first fetch — silent background refreshes keep the
+  // already-rendered list visible instead of flashing placeholders.
+  const isLoading = tasks.length === 0 && isLoadingStore;
   const [newTaskText, setNewTaskText] = useState("");
   // Inline detail panel — clicking a row opens a side pane to its right
   // instead of editing or popping the source ticket. Track the id rather
@@ -73,6 +77,24 @@ export function TasksPage() {
   useEffect(() => {
     loadTasks();
   }, [loadTasks]);
+
+  // If the user lands on `?filter=done` but every task is open (e.g. they
+  // just unchecked the last completed task), the "Completed" chip is hidden
+  // because its count is 0 and the page becomes a dead end with a
+  // "No completed tasks." message. Bounce back to `all` so the open list
+  // takes over.
+  useEffect(() => {
+    if (
+      filter === "done" &&
+      tasks.length > 0 &&
+      tasks.every((t) => !t.completed)
+    ) {
+      setFilter("all");
+    }
+    // setFilter is stable enough to skip from deps — the effect only needs
+    // to react to `filter` and the task list shape changing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, tasks]);
 
   const handleCreate = async () => {
     const text = newTaskText.trim();
@@ -158,9 +180,43 @@ export function TasksPage() {
           </button>
         </div>
 
-        {isLoading && tasks.length === 0 && (
-          <div className="page-empty">Loading tasks...</div>
-        )}
+        {isLoading ? (
+          <>
+            {/* Expanded section — header + ~5 task rows. */}
+            <div className="task-section">
+              <div className="task-section-head">
+                <Skeleton className="size-3.5" />
+                <Skeleton className="size-4" />
+                <Skeleton className="h-3.5 w-20" />
+                <Skeleton className="ml-auto h-4 w-7 rounded-full" />
+              </div>
+              <div className="task-section-body">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="task-row">
+                    <Skeleton className="mt-0.5 size-4 shrink-0 rounded-full" />
+                    <Skeleton
+                      className="h-3.5"
+                      style={{
+                        flex: 1,
+                        maxWidth: `${80 - i * 9}%`,
+                      }}
+                    />
+                    <Skeleton className="h-4 w-12 shrink-0 rounded-md" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Collapsed section — header only. */}
+            <div className="task-section">
+              <div className="task-section-head">
+                <Skeleton className="size-3.5" />
+                <Skeleton className="size-4" />
+                <Skeleton className="h-3.5 w-24" />
+                <Skeleton className="ml-auto h-4 w-7 rounded-full" />
+              </div>
+            </div>
+          </>
+        ) : null}
 
         {empty && (
           <div className="page-empty">
@@ -169,7 +225,7 @@ export function TasksPage() {
           </div>
         )}
 
-        {filter === "done" ? (
+        {!isLoading && (filter === "done" ? (
           filtered.length === 0 ? (
             <div className="page-empty">No completed tasks.</div>
           ) : (
@@ -215,7 +271,7 @@ export function TasksPage() {
               </TaskSection>
             );
           })
-        )}
+        ))}
         </div>
         {selectedTask && (
           <TaskDetailPanel

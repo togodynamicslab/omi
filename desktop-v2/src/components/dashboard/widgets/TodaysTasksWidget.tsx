@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 const MAX_ROWS = 5;
@@ -75,8 +76,11 @@ function TaskLine({
 export function TodaysTasksWidget() {
   const navigate = useNavigate();
   const tasks = useTaskStore((s) => s.tasks);
-  const isLoading = useTaskStore((s) => s.isLoading);
+  const isLoadingStore = useTaskStore((s) => s.isLoading);
   const loadTasks = useTaskStore((s) => s.loadTasks);
+  // Only skeleton on the first fetch — silent background refreshes keep the
+  // already-rendered list visible instead of flashing placeholders over it.
+  const isLoading = tasks.length === 0 && isLoadingStore;
   const toggleTask = useTaskStore((s) => s.toggleTask);
 
   useEffect(() => {
@@ -144,9 +148,22 @@ export function TodaysTasksWidget() {
         </CardAction>
       </CardHeader>
       <CardContent className="px-5">
-        {isLoading && incompleteCount === 0 ? (
-          <div className="flex h-20 items-center justify-center text-sm text-muted-foreground">
-            Loading tasks...
+        {isLoading ? (
+          <div className="flex flex-col gap-1">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-md px-2 py-1.5 -mx-2"
+              >
+                <Skeleton className="size-4 shrink-0 rounded-full" />
+                <Skeleton
+                  className="h-3.5 flex-1"
+                  // Vary width slightly so the rows don't look identical.
+                  style={{ maxWidth: `${85 - i * 7}%` }}
+                />
+                <Skeleton className="h-4 w-12 shrink-0 rounded-md" />
+              </div>
+            ))}
           </div>
         ) : empty ? (
           <div className="flex h-24 flex-col items-center justify-center gap-1.5 text-sm text-muted-foreground">

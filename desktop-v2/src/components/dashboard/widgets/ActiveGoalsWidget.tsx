@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const MAX_GOALS = 3;
 
@@ -79,6 +80,7 @@ function GoalLine({ goal }: { goal: Goal }) {
 export function ActiveGoalsWidget() {
   const navigate = useNavigate();
   const goals = useGoalStore((s) => s.goals);
+  const isLoadingStore = useGoalStore((s) => s.isLoading);
   const loadGoals = useGoalStore((s) => s.loadGoals);
 
   useEffect(() => {
@@ -93,6 +95,10 @@ export function ActiveGoalsWidget() {
       activeCount: goals.length,
     };
   }, [goals]);
+
+  // Only skeleton on the first fetch — silent background refreshes keep the
+  // already-rendered list visible instead of flashing placeholders over it.
+  const isLoading = goals.length === 0 && isLoadingStore;
 
   return (
     <Card className="h-full gap-3 border-border/50 bg-card/40 py-5 shadow-none">
@@ -119,7 +125,29 @@ export function ActiveGoalsWidget() {
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col px-5">
-        {visible.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col gap-1">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-md px-2 py-1.5 -mx-2"
+              >
+                <Skeleton className="size-8 shrink-0 rounded-lg" />
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <Skeleton
+                      className="h-3.5"
+                      style={{ width: `${65 - i * 10}%` }}
+                    />
+                    <Skeleton className="h-3 w-8 shrink-0" />
+                  </div>
+                  <Skeleton className="h-1 w-full rounded-full" />
+                  <Skeleton className="h-2.5 w-20" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : visible.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
             <div className="flex size-10 items-center justify-center rounded-full bg-muted">
               <Target size={18} className="opacity-60" />

@@ -1,10 +1,110 @@
 import { useEffect, useRef, useState } from "react";
 import { Calendar, Link2, Trash2, X } from "lucide-react";
 import { open as openShell } from "@tauri-apps/plugin-shell";
+import { ptBR, enUS } from "date-fns/locale";
+import type { Locale } from "date-fns/locale";
 import type { Task } from "../../stores/taskStore";
 import { useAppStore } from "../../stores/appStore";
 import { bucketFor, dueLabel, isNew } from "./taskDates";
 import { IntegrationBadge } from "./IntegrationBadge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+
+/** Pick the calendar locale + footer labels off the same language key the
+ *  notification i18n reads from. Defaults to pt-BR. */
+function readCalendarLocale(): { locale: Locale; today: string; clear: string } {
+  let lang: "pt-BR" | "en" = "pt-BR";
+  try {
+    const v = window.localStorage.getItem("nooto.audio.language");
+    if (v === "en" || v === "pt-BR") lang = v;
+  } catch {
+    /* localStorage blocked — fall through to default */
+  }
+  return lang === "en"
+    ? { locale: enUS, today: "Today", clear: "Clear" }
+    : { locale: ptBR, today: "Hoje", clear: "Limpar" };
+}
+
+/** Pin a `Date` to local noon and serialise to ISO. Avoids the ±1-day drift
+ *  that hits when react-day-picker hands back a midnight UTC date and the
+ *  user happens to be on the wrong side of a DST boundary. */
+function isoAtLocalNoon(d: Date): string {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0).toISOString();
+}
+
+/** Popover wrapper around the themed `react-day-picker` calendar. Replaces
+ *  the OS-native `<input type="date">` so the date picker matches the rest
+ *  of Nooto's surface (rounded card, brand colors, accessible nav).
+ *
+ *  Footer adds two quick actions: **Today** (sets due_at to right now,
+ *  closes) and — when `onClear` is provided — **Clear** (drops the due
+ *  date entirely). Labels follow the user's selected language. */
+function DueDatePopover({
+  value,
+  onChange,
+  onClear,
+  disabled = false,
+  children,
+}: {
+  value: string | null | undefined;
+  onChange: (iso: string) => void;
+  onClear?: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = value ? new Date(value) : undefined;
+  const { locale, today, clear } = readCalendarLocale();
+
+  if (disabled) {
+    // Render the trigger as-is so the row still shows the chip / button,
+    // just non-interactive — matches the integration read-only path.
+    return <>{children}</>;
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent align="start" className="w-auto p-0">
+        <CalendarPicker
+          mode="single"
+          selected={selected}
+          locale={locale}
+          onSelect={(d) => {
+            if (!d) return;
+            onChange(isoAtLocalNoon(d));
+            setOpen(false);
+          }}
+          autoFocus
+        />
+        <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
+          <button
+            type="button"
+            className="rounded-md px-2 py-1 text-xs text-foreground hover:bg-secondary transition-colors"
+            onClick={() => {
+              onChange(isoAtLocalNoon(new Date()));
+              setOpen(false);
+            }}
+          >
+            {today}
+          </button>
+          {onClear && (
+            <button
+              type="button"
+              className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+              onClick={() => {
+                onClear();
+                setOpen(false);
+              }}
+            >
+              {clear}
+            </button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 interface Props {
   task: Task;
@@ -19,22 +119,6 @@ interface Props {
   onOpenConversation?: (conversationId: string) => void;
 }
 
-function toIsoAtNoon(dateStr: string): string {
-  // dateStr is "YYYY-MM-DD" from <input type="date">
-  const d = new Date(`${dateStr}T12:00:00`);
-  return d.toISOString();
-}
-
-function toDateInput(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
 export function TaskRow({
   task,
   selected = false,
@@ -47,9 +131,7 @@ export function TaskRow({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.description);
   const [completing, setCompleting] = useState(false);
-  const [showDate, setShowDate] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dateInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (editing) inputRef.current?.focus();
@@ -61,18 +143,19 @@ export function TaskRow({
 
   const bucket = bucketFor(task);
   const fresh = !task.completed && isNew(task);
-  // Integration rows (Jira/Linear/…) are read-only by default — the actual
-  // ticket lives in the source tracker. The user can opt in per-app via
-  // Settings → Apps → <app> → Two-way sync; when on, the checkbox dispatches
-  // a status writeback through the plugin's update_issue_status tool.
+  // Integration rows (Jira/Linear/…) wrap a real ticket in the source
+  // tracker. With two-way sync ON the checkbox writes status back to the
+  // source; with sync OFF the checkbox marks the task complete *locally
+  // only* — the source ticket is left untouched. We keep the box clickable
+  // either way so users can clear ticket-shaped clutter from their Nooto
+  // view without granting writeback.
   const isIntegration = !!task.source && task.source !== "native";
   const twoWaySync = useAppStore((s) =>
     task.source_app_id ? Boolean(s.twoWaySyncByAppId[task.source_app_id]) : false,
   );
-  const checkboxDisabled = isIntegration && !twoWaySync;
+  const localOnlyToggle = isIntegration && !twoWaySync;
 
   const handleToggle = () => {
-    if (checkboxDisabled) return;
     if (task.completed) {
       onToggle();
       return;
@@ -106,15 +189,8 @@ export function TaskRow({
     setEditing(false);
   };
 
-  const pickDate = () => {
-    setShowDate(true);
-    setTimeout(() => dateInputRef.current?.showPicker?.(), 0);
-  };
-
-  const onDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value;
-    setShowDate(false);
-    if (v) onUpdate({ due_at: toIsoAtNoon(v) });
+  const setDueDate = (iso: string) => {
+    onUpdate({ due_at: iso });
   };
 
   const clearDate = () => {
@@ -146,22 +222,16 @@ export function TaskRow({
         className={[
           "task-check",
           task.completed || completing ? "task-check-on" : "",
-          checkboxDisabled ? "task-check-readonly" : "",
         ]
           .filter(Boolean)
           .join(" ")}
         onClick={handleToggle}
-        disabled={checkboxDisabled}
-        aria-label={
-          checkboxDisabled
-            ? `Manage in ${task.source_app_name ?? "the source app"}`
-            : task.completed
-              ? "Mark incomplete"
-              : "Mark complete"
-        }
+        aria-label={task.completed ? "Mark incomplete" : "Mark complete"}
         title={
-          checkboxDisabled
-            ? `Manage in ${task.source_app_name ?? "the source app"}`
+          localOnlyToggle
+            ? `Mark complete in Nooto only — ${
+                task.source_app_name ?? "source app"
+              } ticket is untouched`
             : isIntegration
               ? `Mark done in ${task.source_app_name ?? "source app"}`
               : undefined
@@ -235,16 +305,21 @@ export function TaskRow({
           <IntegrationBadge task={task} />
           {fresh && <span className="task-chip task-chip-new">New</span>}
           {task.due_at && (
-            <button
-              type="button"
-              className={dueClass}
-              onClick={isIntegration ? undefined : pickDate}
-              title={isIntegration ? "Due date set in source app" : "Change due date"}
+            <DueDatePopover
+              value={task.due_at}
+              onChange={setDueDate}
               disabled={isIntegration}
             >
-              <Calendar size={11} />
-              <span>{dueLabel(task.due_at)}</span>
-            </button>
+              <button
+                type="button"
+                className={dueClass}
+                title={isIntegration ? "Due date set in source app" : "Change due date"}
+                disabled={isIntegration}
+              >
+                <Calendar size={11} />
+                <span>{dueLabel(task.due_at)}</span>
+              </button>
+            </DueDatePopover>
           )}
           {!isIntegration && task.conversation_id && onOpenConversation && (
             <button
@@ -267,15 +342,16 @@ export function TaskRow({
 
       <div className="task-actions">
         {!isIntegration && !task.due_at && !task.completed && (
-          <button
-            type="button"
-            className="task-action"
-            onClick={pickDate}
-            aria-label="Add due date"
-            title="Add due date"
-          >
-            <Calendar size={14} />
-          </button>
+          <DueDatePopover value={null} onChange={setDueDate}>
+            <button
+              type="button"
+              className="task-action"
+              aria-label="Add due date"
+              title="Add due date"
+            >
+              <Calendar size={14} />
+            </button>
+          </DueDatePopover>
         )}
         {!isIntegration && task.due_at && !task.completed && (
           <button
@@ -301,16 +377,6 @@ export function TaskRow({
         )}
       </div>
 
-      {showDate && (
-        <input
-          ref={dateInputRef}
-          type="date"
-          className="task-date-hidden"
-          defaultValue={toDateInput(task.due_at)}
-          onChange={onDateChange}
-          onBlur={() => setShowDate(false)}
-        />
-      )}
     </div>
   );
 }

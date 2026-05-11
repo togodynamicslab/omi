@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function colorForScore(score: number, hasTasks: boolean): string {
   if (!hasTasks) return "var(--muted-foreground)";
@@ -58,12 +59,18 @@ function Gauge({ value, color }: { value: number; color: string }) {
 
 export function DailyScoreWidget() {
   const { scores, loadScores } = useScoreStore();
+  const isLoadingStore = useScoreStore((s) => s.isLoading);
 
   useEffect(() => {
     void loadScores();
     const id = setInterval(() => void loadScores(true), 120_000);
     return () => clearInterval(id);
   }, [loadScores]);
+
+  // Show skeleton until the first fetch resolves. After that, even silent
+  // background refreshes (`loadScores(true)`) won't flash skeletons over
+  // already-rendered data.
+  const isLoading = scores == null && isLoadingStore;
 
   const weekly = scores?.weekly ?? {
     score: 0,
@@ -83,24 +90,48 @@ export function DailyScoreWidget() {
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-2 px-5">
-        <div className="relative flex h-[100px] w-full max-w-[200px] items-end justify-center">
-          <Gauge value={hasTasks ? weekly.score : 0} color={color} />
-          <div
-            className="absolute bottom-1 left-1/2 -translate-x-1/2 text-3xl font-semibold tabular-nums tracking-tight"
-            style={{ color }}
-          >
-            {hasTasks ? `${score}%` : "—"}
-          </div>
-        </div>
-        <div className="text-center text-xs text-muted-foreground">
-          {hasTasks ? (
-            <span className="tabular-nums">
-              {weekly.completed_tasks} of {weekly.total_tasks} tasks · last 7 days
-            </span>
-          ) : (
-            <span>No tasks this week</span>
-          )}
-        </div>
+        {isLoading ? (
+          <>
+            <div className="relative flex h-[100px] w-full max-w-[200px] items-end justify-center">
+              {/* Skeleton gauge — neutral arc + a centered pill where the
+                  percentage label lives. */}
+              <svg viewBox="0 0 180 100" className="h-full w-full">
+                <path
+                  d="M 20 80 A 70 70 0 0 1 160 80"
+                  stroke="var(--muted-foreground)"
+                  strokeOpacity="0.15"
+                  strokeWidth={10}
+                  strokeLinecap="round"
+                  fill="none"
+                  className="animate-pulse"
+                />
+              </svg>
+              <Skeleton className="absolute bottom-2 left-1/2 h-8 w-20 -translate-x-1/2" />
+            </div>
+            <Skeleton className="h-3 w-40" />
+          </>
+        ) : (
+          <>
+            <div className="relative flex h-[100px] w-full max-w-[200px] items-end justify-center">
+              <Gauge value={hasTasks ? weekly.score : 0} color={color} />
+              <div
+                className="absolute bottom-1 left-1/2 -translate-x-1/2 text-3xl font-semibold tabular-nums tracking-tight"
+                style={{ color }}
+              >
+                {hasTasks ? `${score}%` : "—"}
+              </div>
+            </div>
+            <div className="text-center text-xs text-muted-foreground">
+              {hasTasks ? (
+                <span className="tabular-nums">
+                  {weekly.completed_tasks} of {weekly.total_tasks} tasks · last 7 days
+                </span>
+              ) : (
+                <span>No tasks this week</span>
+              )}
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

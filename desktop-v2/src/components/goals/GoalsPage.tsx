@@ -3,6 +3,7 @@ import { History, Plus, Sparkles, Target } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useGoalStore } from "@/stores/goalStore";
 import type { Goal } from "@/stores/goalStore";
 import { GoalRow } from "./GoalRow";
@@ -21,8 +22,11 @@ function goalFraction(g: Goal): number {
 }
 
 export function GoalsPage() {
-  const { goals, isLoading, isGenerating, loadGoals, updateGoalProgress, deleteGoal } =
+  const { goals, isLoading: isLoadingStore, isGenerating, loadGoals, updateGoalProgress, deleteGoal } =
     useGoalStore();
+  // Only skeleton on the first fetch — silent background refreshes keep the
+  // already-rendered list visible instead of flashing placeholders.
+  const isLoading = goals.length === 0 && isLoadingStore;
   const navigate = useNavigate();
   const [editing, setEditing] = useState<Goal | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -100,7 +104,58 @@ export function GoalsPage() {
       />
 
       <div className="goals-content">
-        {empty ? (
+        {isLoading ? (
+          <>
+            <div className="goals-summary">
+              <div className="goals-summary-item">
+                <Skeleton className="h-7 w-12" />
+                <Skeleton className="mt-1 h-2.5 w-14" />
+              </div>
+              <div className="goals-summary-divider" />
+              <div className="goals-summary-item">
+                <Skeleton className="h-7 w-14" />
+                <Skeleton className="mt-1 h-2.5 w-16" />
+              </div>
+              <div className="goals-summary-divider" />
+              <div className="goals-summary-item">
+                <Skeleton className="h-7 w-8" />
+                <Skeleton className="mt-1 h-2.5 w-20" />
+              </div>
+              <div className="goals-summary-spacer" />
+              <Skeleton className="h-8 w-24 rounded-md" />
+            </div>
+
+            <div className="goals-list">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="goal-card">
+                  <div className="goal-card-head">
+                    <Skeleton className="size-10 shrink-0 rounded-lg" />
+                    <div className="flex flex-1 flex-col gap-1.5">
+                      <Skeleton
+                        className="h-4"
+                        style={{ width: `${55 - i * 8}%` }}
+                      />
+                      <Skeleton className="h-3 w-64" />
+                      <Skeleton
+                        className="h-3"
+                        style={{ width: `${85 - i * 5}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Skeleton className="h-3 w-10" />
+                    <Skeleton className="h-3 w-8" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-1 flex-1 rounded-full" />
+                    <Skeleton className="size-6 shrink-0 rounded-md" />
+                    <Skeleton className="size-6 shrink-0 rounded-md" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : empty ? (
           <div className="goals-empty">
             <div className="goals-empty-icon-wrap">
               <Target size={28} />

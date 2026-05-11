@@ -17,6 +17,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const FOCUS_COLOR = "#22C55E";
 const DISTRACTED_COLOR = "#F97316";
@@ -164,6 +165,12 @@ export function FocusSummaryWidget() {
   const focusEnabled = useFocusStore((s) => s.focusEnabled);
   const hasData = stats.sessionCount > 0;
 
+  // Focus stats are derived synchronously from the in-memory session list,
+  // so there's no async load to skeleton over — the empty state ("Watching
+  // your screen" / "Turn on Rewind") is the meaningful pre-data view. Kept
+  // the skeleton path wired in case a future store gets a real loading flag.
+  const isLoading = false;
+
   const rate = stats.focusRate;
   const rateCol = rateColor(rate, hasData);
   const focusedPct = Math.max(0, Math.min(100, rate));
@@ -223,7 +230,29 @@ export function FocusSummaryWidget() {
         </CardTitle>
       </CardHeader>
       <CardContent className="px-5">
-        {hasData ? (
+        {isLoading ? (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-end justify-between gap-4">
+              <div className="flex flex-col gap-1.5">
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-3 w-16" />
+              </div>
+              <div className="flex flex-col items-end gap-1.5 text-right">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-3 w-32" />
+              </div>
+            </div>
+            <Skeleton className="h-1.5 w-full" />
+            <div className="grid grid-cols-3 gap-4">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex flex-col gap-1">
+                  <Skeleton className="h-5 w-12" />
+                  <Skeleton className="h-2.5 w-16" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : hasData ? (
           <div className="flex flex-col gap-4">
             <div className="flex items-end justify-between gap-4">
               <div className="flex flex-col gap-0.5">
