@@ -321,7 +321,10 @@ export function CodingAgentSession() {
           <PromptInputFooter>
             <PromptInputTools>
               <PromptInputActionMenu>
-                <PromptInputActionMenuTrigger />
+                {/* `size-7` matches the 28px height of `FolderPickerButton` and
+                    `ModelSelector` so the toolbar chips stay aligned. The default
+                    `icon-sm` from PromptInputButton renders ~24px. */}
+                <PromptInputActionMenuTrigger className="size-7" />
                 <PromptInputActionMenuContent>
                   <PromptInputActionAddAttachments label="Attach screenshot" />
                 </PromptInputActionMenuContent>
@@ -438,7 +441,11 @@ function ModelSelector({
 }) {
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-7 gap-1.5 border-dashed text-xs px-2.5 py-1 [&>svg]:size-3">
+      {/* `data-[size=default]:h-7` beats SelectTrigger's internal
+          `data-[size=default]:h-9` rule (same specificity, applied later in
+          className order). A bare `h-7` was being shadowed by the data-variant
+          and the picker rendered ~36px instead of matching the 28px toolbar. */}
+      <SelectTrigger className="data-[size=default]:h-7 gap-1.5 border-dashed text-xs px-2.5 py-0 [&>svg]:size-3">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -465,7 +472,11 @@ function FolderPickerButton({
       onClick={onPick}
       title={folder ?? "Pick a project folder"}
       className={cn(
-        "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors",
+        // h-7 matches `ModelSelector`'s `SelectTrigger` so the two toolbar
+        // chips line up at the same height — without it FolderPicker shrinks
+        // to whatever its content happens to be (~24px) and the row looks
+        // staggered.
+        "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs transition-colors",
         folder
           ? "bg-muted text-muted-foreground hover:bg-accent/70 hover:text-foreground"
           : "border border-dashed border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
