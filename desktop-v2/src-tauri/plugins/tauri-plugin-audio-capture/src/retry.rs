@@ -13,7 +13,6 @@
 //! event is emitted so the frontend can swap the local-only placeholder for
 //! the real backend row.
 
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -21,8 +20,9 @@ use chrono::Utc;
 use tauri::{AppHandle, Emitter, Runtime};
 use tokio_util::sync::CancellationToken;
 
+use crate::auth;
 use crate::storage::TranscriptionStorage;
-use crate::transcription::{post_conversation, upload_audio_conversation, TranscriptSegmentRequest};
+use crate::transcription::{post_conversation, TranscriptSegmentRequest};
 
 const RETRY_INTERVAL_SECS: u64 = 60;
 const MAX_RETRIES: i32 = 5;
@@ -224,25 +224,8 @@ async fn upload_session<R: Runtime>(
         }
     };
 
-    // Read id_token fresh each attempt — refresh may have rotated it since
-    // the session was recorded. Done before the empty-segments branch so
-    // the audio-upload fallback can use the token too.
-    let id_token = if segments.is_empty() && session.audio_file_path.is_none() {
-        // Nothing to upload — no token needed, fall through to delete.
-        String::new()
-    } else {
-        match crate::read_id_token(app) {
-            Some(t) if !t.is_empty() => t,
-            _ => {
-                tracing::warn!(
-                    "[retry] skipping session {} — no id_token (user signed out?)",
-                    session_id
-                );
-                return Err("no auth token".into());
-            }
-        }
-    };
-
+    // Empty session — no segments and no saved WAV. Nothing to do, drop the
+    // row entirely.
     if segments.is_empty() && session.audio_file_path.is_none() {
         tracing::info!(
             "[retry] session {} has no segments and no audio, deleting",
@@ -251,6 +234,48 @@ async fn upload_session<R: Runtime>(
         let _ = storage.delete_session(session_id);
         return Ok(());
     }
+
+    // Audio-only session (live transcription captured nothing or the WS
+    // never connected). The backend exposes only `/v1/conversations/from-
+    // segments` — there is no `/from-audio` route on either the embedded
+    // `Backend-Rust` server or the remote Nooto API, and the original Swift
+    // desktop app never had one either. Posting raw WAV here would always
+    // 405. Park the row as "Local only" (completed without a backend_id —
+    // the conversation store maps that to the quiet badge) so it stops
+    // showing as red "Sync failed".
+    if segments.is_empty() {
+        tracing::info!(
+            "[retry] session {} has audio but no segments — marking local-only (no /from-audio endpoint exists)",
+            session_id
+        );
+        if let Err(e) = storage.mark_completed(session_id, "") {
+            tracing::warn!("[retry] mark_completed (local-only) failed: {}", e);
+        }
+        if let Err(e) = app.emit(
+            "meeting:synced",
+            serde_json::json!({
+                "session_id": session_id,
+                "backend_id": serde_json::Value::Null,
+                "local_only": true,
+            }),
+        ) {
+            tracing::warn!("[retry] emit meeting:synced (local-only) failed: {}", e);
+        }
+        return Ok(());
+    }
+
+    // Read id_token fresh each attempt — refresh may have rotated it since
+    // the session was recorded.
+    let id_token = match crate::read_id_token(app) {
+        Some(t) if !t.is_empty() => t,
+        _ => {
+            tracing::warn!(
+                "[retry] skipping session {} — no id_token (user signed out?)",
+                session_id
+            );
+            return Err("no auth token".into());
+        }
+    };
 
     if let Err(e) = storage.mark_uploading(session_id) {
         tracing::warn!("[retry] mark_uploading failed: {}", e);
@@ -267,45 +292,57 @@ async fn upload_session<R: Runtime>(
         .map(|dt| dt.with_timezone(&Utc))
         .unwrap_or_else(Utc::now);
 
-    let result = if !segments.is_empty() {
-        let request_segments: Vec<TranscriptSegmentRequest> = segments
-            .into_iter()
-            .map(|s| TranscriptSegmentRequest {
-                text: s.text,
-                speaker: s.speaker,
-                speaker_id: s.speaker_id,
-                is_user: s.is_user,
-                person_id: None,
-                start: s.start_time,
-                end: s.end_time,
-            })
-            .collect();
+    // Build the request payload once. We may need to retry the POST with a
+    // refreshed token if the first attempt returns 401, so it has to outlive
+    // the first call. Cloned per attempt because `post_conversation` consumes
+    // the Vec.
+    let request_segments: Vec<TranscriptSegmentRequest> = segments
+        .into_iter()
+        .map(|s| TranscriptSegmentRequest {
+            text: s.text,
+            speaker: s.speaker,
+            speaker_id: s.speaker_id,
+            is_user: s.is_user,
+            person_id: None,
+            start: s.start_time,
+            end: s.end_time,
+        })
+        .collect();
 
-        post_conversation(
-            crate::BACKEND_URL,
-            &id_token,
-            request_segments,
-            started_at,
-            finished_at,
-            session.input_device_name.clone(),
-            &session.language,
-        )
-        .await
-    } else {
-        // No live segments but we have a saved WAV — upload to /from-audio
-        // so the backend can transcribe + summarize server-side.
-        let path = session.audio_file_path.as_deref().unwrap_or("");
-        upload_audio_conversation(
-            crate::BACKEND_URL,
-            &id_token,
-            Path::new(path),
-            started_at,
-            finished_at,
-            session.input_device_name.clone(),
-            &session.language,
-        )
-        .await
-    };
+    // First upload attempt with the cached token.
+    let mut result =
+        run_upload(&id_token, &session, &request_segments, started_at, finished_at).await;
+
+    // If the backend rejects the token (typical: app open >1h, Firebase ID
+    // token expired mid-session), refresh once and retry on the same tick
+    // instead of marking failed and waiting for backoff.
+    if let Err(ref e) = result {
+        if auth::is_auth_error(e) {
+            tracing::info!(
+                "[retry] session {} got 401 — refreshing Firebase token and retrying once",
+                session_id
+            );
+            match auth::force_refresh_id_token(app).await {
+                Ok(fresh_token) => {
+                    result = run_upload(
+                        &fresh_token,
+                        &session,
+                        &request_segments,
+                        started_at,
+                        finished_at,
+                    )
+                    .await;
+                }
+                Err(refresh_err) => {
+                    tracing::warn!(
+                        "[retry] token refresh failed for session {}: {}",
+                        session_id,
+                        refresh_err
+                    );
+                }
+            }
+        }
+    }
 
     match result {
         Ok(backend_id) => {
@@ -348,6 +385,27 @@ async fn upload_session<R: Runtime>(
             Err(e)
         }
     }
+}
+
+/// One upload attempt. Pulled out so `upload_session` can call it twice (once
+/// with the cached token, once with a freshly refreshed token on 401).
+async fn run_upload(
+    id_token: &str,
+    session: &crate::storage::LocalSession,
+    request_segments: &[TranscriptSegmentRequest],
+    started_at: chrono::DateTime<Utc>,
+    finished_at: chrono::DateTime<Utc>,
+) -> Result<String, String> {
+    post_conversation(
+        crate::BACKEND_URL,
+        id_token,
+        request_segments.to_vec(),
+        started_at,
+        finished_at,
+        session.input_device_name.clone(),
+        &session.language,
+    )
+    .await
 }
 
 /// Parse an ISO-8601 UTC timestamp and return `now - t` in whole seconds.

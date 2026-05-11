@@ -5,7 +5,6 @@
 //! `TranscriptSegmentRequest` records that are POSTed to
 //! `/v1/conversations/from-segments` when the session ends.
 
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -492,98 +491,6 @@ pub async fn post_conversation(
         "[transcription] conversation created (id={}, {} segments)",
         backend_id,
         segments.len()
-    );
-    Ok(backend_id)
-}
-
-/// POST a recorded WAV file to `/v1/conversations/from-audio`. Used when the
-/// live-transcription WebSocket was skipped (or produced no segments) — the
-/// backend transcribes, diarizes, and summarizes the audio server-side.
-/// Returns the backend conversation id on success.
-pub async fn upload_audio_conversation(
-    backend_url: &str,
-    id_token: &str,
-    audio_path: &Path,
-    started_at: chrono::DateTime<Utc>,
-    finished_at: chrono::DateTime<Utc>,
-    input_device_name: Option<String>,
-    language: &str,
-) -> Result<String, String> {
-    let bytes = match tokio::fs::read(audio_path).await {
-        Ok(b) => b,
-        Err(e) => {
-            return Err(format!(
-                "audio file missing: {}: {}",
-                audio_path.display(),
-                e
-            ));
-        }
-    };
-
-    let timezone = iana_time_zone::get_timezone().unwrap_or_else(|_| "UTC".to_string());
-    let lang = if language.trim().is_empty() { "en" } else { language };
-    let filename = audio_path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| "session.wav".to_string());
-
-    let meta = serde_json::json!({
-        "source": "desktop",
-        "started_at": started_at.to_rfc3339(),
-        "finished_at": finished_at.to_rfc3339(),
-        "language": lang,
-        "timezone": timezone,
-        "input_device_name": input_device_name,
-    });
-    let meta_text = meta.to_string();
-
-    let audio_part = reqwest::multipart::Part::bytes(bytes)
-        .file_name(filename)
-        .mime_str("audio/wav")
-        .map_err(|e| format!("audio part mime: {e}"))?;
-    let meta_part = reqwest::multipart::Part::text(meta_text)
-        .mime_str("application/json")
-        .map_err(|e| format!("meta part mime: {e}"))?;
-
-    let form = reqwest::multipart::Form::new()
-        .part("audio", audio_part)
-        .part("meta", meta_part);
-
-    let url = format!(
-        "{}/v1/conversations/from-audio",
-        backend_url.trim_end_matches('/')
-    );
-
-    // The backend may take a couple of minutes for a long file (Deepgram
-    // transcribe + Gemini summary + Firestore writes), so use a generous
-    // timeout here — much longer than the segments path.
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(600))
-        .build()
-        .map_err(|e| format!("client build: {e}"))?;
-
-    let resp = client
-        .post(&url)
-        .header("Authorization", format!("Bearer {id_token}"))
-        .multipart(form)
-        .send()
-        .await
-        .map_err(|e| format!("post failed: {}", describe_reqwest_error(&e)))?;
-
-    let status = resp.status();
-    let text = resp.text().await.unwrap_or_default();
-    if !status.is_success() {
-        return Err(format!("conversation create {}: {}", status, text));
-    }
-
-    let backend_id = parse_conversation_id(&text)
-        .ok_or_else(|| format!("missing conversation id in response: {text}"))?;
-
-    tracing::info!(
-        "[transcription] audio conversation created (id={}, path={})",
-        backend_id,
-        audio_path.display()
     );
     Ok(backend_id)
 }

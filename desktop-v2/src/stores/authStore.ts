@@ -16,7 +16,32 @@ interface AuthState {
   refreshToken: () => Promise<boolean>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+// Firebase ID tokens expire after 1h. Refresh at 50min so the cached token
+// stays valid during long sessions — without this, the Rust retry loop in
+// `tauri-plugin-audio-capture/src/retry.rs` reads an expired token from the
+// auth store and meeting uploads fail with 401 ExpiredSignature for ~30min
+// before backoff exhausts. The Rust side also retries once on 401 as a safety
+// net, but proactive refresh prevents the user-visible "Sync failed" flicker.
+const TOKEN_REFRESH_INTERVAL_MS = 50 * 60 * 1000;
+let tokenRefreshTimer: ReturnType<typeof setInterval> | null = null;
+
+function startTokenRefreshTimer(refresh: () => Promise<boolean>): void {
+  if (tokenRefreshTimer != null) return;
+  tokenRefreshTimer = setInterval(() => {
+    void refresh().catch((err) => {
+      console.warn("[auth] periodic token refresh failed:", err);
+    });
+  }, TOKEN_REFRESH_INTERVAL_MS);
+}
+
+function stopTokenRefreshTimer(): void {
+  if (tokenRefreshTimer != null) {
+    clearInterval(tokenRefreshTimer);
+    tokenRefreshTimer = null;
+  }
+}
+
+export const useAuthStore = create<AuthState>((set, get) => ({
   isSignedIn: false,
   isLoading: true,
   isSigningIn: false,
@@ -41,6 +66,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         userEmail: result.email,
         idToken: result.id_token,
       });
+      startTokenRefreshTimer(() => get().refreshToken());
     } catch (error) {
       console.error("Sign in failed:", error);
       set({
@@ -51,6 +77,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signOut: async () => {
+    stopTokenRefreshTimer();
     try {
       await invoke("sign_out");
     } catch {
@@ -80,6 +107,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           idToken: result.id_token,
           isLoading: false,
         });
+        startTokenRefreshTimer(() => get().refreshToken());
       } else {
         set({ isLoading: false });
       }
