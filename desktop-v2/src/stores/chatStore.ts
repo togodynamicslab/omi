@@ -210,12 +210,12 @@ function makeSession(initialMessageText?: string): ChatSession {
 // ---------------------------------------------------------------------------
 
 /** Which LLM the chat should route through.
- *  - "auto": when signed-in to Nooto → backend agent (plugin tools available);
- *    else Claude when its token is connected; else Gemini local fallback.
- *  - "backend": always use the Nooto backend agent (Claude with full tool access
- *    + plugin chat tools like Jira/Linear). Requires sign-in.
- *  - "claude": always use the user's local Claude account (no plugin tools).
- *  - "gemini": always use Gemini direct (no plugin tools, no Nooto backend). */
+ *  Today the chat is **Nooto-only** (Gemini under the hood with the local
+ *  tool runner from `executeToolCall` in chat.ts — Rewind DB, tasks,
+ *  memories, goals all available). The picker was removed and all values
+ *  collapse to "gemini" at routing time; the union keeps the legacy values
+ *  ("auto", "backend", "claude") so existing persisted state still
+ *  type-checks without a migration. */
 export type ChatModelPreference = "auto" | "backend" | "claude" | "gemini";
 
 interface ChatState {
@@ -263,7 +263,10 @@ export const useChatStore = create<ChatState>()(
       sessions: [],
       currentSessionId: null,
       sessionMessages: {},
-      model: "auto",
+      // Default to Nooto (gemini under the hood) — it has the full local
+      // tool runner, so screen-history / task / memory / goal queries all
+      // work without the user picking a model.
+      model: "gemini",
 
       setModel: (model: ChatModelPreference) => set({ model }),
 
@@ -330,23 +333,22 @@ export const useChatStore = create<ChatState>()(
         const claudeToken = useClaudeStore.getState().accessToken;
         const idToken = useAuthStore.getState().idToken;
         const modelPref = get().model;
+        // Reads kept to avoid breaking downstream logic that still consults
+        // these (e.g. plugin-tool error messages, Claude OAuth gating).
+        void claudeToken;
+        void idToken;
+        void modelPref;
 
-        // Routing: "auto" prefers the backend (plugin tools) when signed in,
-        // then Claude, then Gemini. Explicit choices fall back to the next
-        // available path on missing credentials so the user is never stuck.
+        // Nooto-only chat: every message goes through the Gemini path,
+        // which carries the full local tool runner. Claude and the
+        // backend agent are no longer reachable from the chat surface,
+        // but the route union is kept wide so the dormant branches below
+        // still type-check (they were exercised by the removed picker and
+        // we may bring them back).
         type Route = "backend" | "claude" | "gemini";
-        const route: Route =
-          modelPref === "backend"
-            ? "backend"
-            : modelPref === "claude"
-              ? "claude"
-              : modelPref === "gemini"
-                ? "gemini"
-                : idToken
-                  ? "backend"
-                  : claudeToken
-                    ? "claude"
-                    : "gemini";
+        // Cast widens the inferred type so the dormant `route === "claude"` /
+        // `route === "backend"` branches downstream still type-check.
+        const route = "gemini" as Route;
 
         try {
           if (modelPref === "backend" && !idToken) {

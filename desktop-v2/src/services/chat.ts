@@ -19,6 +19,7 @@ import { api } from "@/services/api";
 import { invalidateChatContext } from "@/services/chatContext";
 import { embedText } from "@/services/embeddingService";
 import {
+  getCaptureState,
   getRecentScreenshots,
   searchScreenshots,
   searchScreenshotsSemantic,
@@ -124,8 +125,10 @@ export const CHAT_TOOLS: Anthropic.Tool[] = [
   {
     name: "search_screen_history",
     description:
-      "Semantic search over the user's screen capture history (OCR + window titles). " +
-      "Use for conceptual lookups like 'when was I researching X' — matches by meaning, not exact words. " +
+      "Semantic + keyword search over the user's screen capture history (OCR + window titles). " +
+      "Use for SPECIFIC topical lookups: 'when was I researching X', 'find that article about Y', 'show me where I edited Z'. " +
+      "DO NOT use this for 'screen time' / 'summarize my activity' / 'what have I been doing' / 'today's apps' — " +
+      "those are recency-window questions; use get_recent_screen_activity (no filters or since_minutes=1440). " +
       "Returns timestamps, app names, window titles, and OCR snippets.",
     input_schema: {
       type: "object" as const,
@@ -145,7 +148,11 @@ export const CHAT_TOOLS: Anthropic.Tool[] = [
       "the OCR contains literal on-screen text including prompts the user wrote into " +
       "any app. Combine since_minutes (recency window) with app_name_contains (case-" +
       "insensitive substring of the app, e.g. 'ghostty' for terminals running Claude " +
-      "Code, 'chrome' for browser tabs) to scope the slice you need before answering.",
+      "Code, 'chrome' for browser tabs) to scope the slice you need before answering. " +
+      "If the result says 'No screen activity matched the requested filter' but reports " +
+      "history available, the user HAS data — widen `since_minutes` (e.g. omit it, or " +
+      "try 1440 for the last day) before telling them Rewind isn't tracking. Only conclude " +
+      "Rewind hasn't captured anything when the response says 'Rewind has never recorded'.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -393,24 +400,41 @@ async function execSearchScreenHistory(args: Record<string, unknown>): Promise<s
   if (!query) return "Empty query.";
 
   // Try semantic first; fall back to FTS if embeddings are unavailable.
+  let semanticEmpty = false;
   try {
     const queryVec = await embedText(query, "RETRIEVAL_QUERY");
     const hits: SemanticHit[] = await searchScreenshotsSemantic(queryVec, limit, 0.45);
-    if (hits.length === 0) {
-      const ftsRows = await searchScreenshots(query, limit);
-      return fmtScreenshotRows(ftsRows);
+    if (hits.length > 0) {
+      const rows = await Promise.all(
+        hits.map((h) =>
+          invoke<ScreenshotRow | null>("plugin:screen-capture|get_screenshot_by_id", { id: h.id }),
+        ),
+      );
+      const filtered = rows.filter((r): r is ScreenshotRow => r !== null);
+      if (filtered.length > 0) return fmtScreenshotRows(filtered);
     }
-    const rows = await Promise.all(
-      hits.map((h) =>
-        invoke<ScreenshotRow | null>("plugin:screen-capture|get_screenshot_by_id", { id: h.id }),
-      ),
-    );
-    const filtered = rows.filter((r): r is ScreenshotRow => r !== null);
-    return fmtScreenshotRows(filtered);
+    semanticEmpty = true;
   } catch {
-    const ftsRows = await searchScreenshots(query, limit);
-    return fmtScreenshotRows(ftsRows);
+    // embedText / Gemini proxy failed — drop through to FTS only.
   }
+
+  const ftsRows = await searchScreenshots(query, limit);
+  if (ftsRows.length > 0) return fmtScreenshotRows(ftsRows);
+
+  // Both searches empty. Distinguish "DB is empty" from "DB has data but
+  // nothing matched the query" — without this distinction the LLM tells the
+  // user "Rewind isn't tracking" when the actual issue is that "screen time"
+  // is a generic phrase that doesn't appear literally in any OCR'd window.
+  const recent = await getRecentScreenshots(1, 0);
+  if (recent.length === 0) {
+    return "No screenshots in the database. Rewind hasn't recorded anything on this machine yet — toggle it on in the sidebar.";
+  }
+  const newestStr = new Date(recent[0].timestamp).toLocaleString();
+  return [
+    `No screenshots matched "${query}" (${semanticEmpty ? "semantic + FTS" : "FTS"}).`,
+    `History exists — newest screenshot is ${newestStr}.`,
+    `For 'screen time' / 'what have I been doing' style summaries, call get_recent_screen_activity (omit since_minutes for all of today, or pass 1440 for the last day) instead of search_screen_history.`,
+  ].join(" ");
 }
 
 async function execGetRecentActivity(args: Record<string, unknown>): Promise<string> {
@@ -430,7 +454,48 @@ async function execGetRecentActivity(args: Record<string, unknown>): Promise<str
     .filter((r) => !appNameContains || r.app_name.toLowerCase().includes(appNameContains))
     .slice(0, limit);
 
-  return fmtScreenshotRows(filtered);
+  if (filtered.length > 0) {
+    return fmtScreenshotRows(filtered);
+  }
+
+  // Empty result: enrich the response so the LLM can distinguish
+  // "Rewind never ran" from "Rewind ran yesterday, but the user asked
+  // about the last hour." Without this context the model defaults to
+  // "looks like the desktop app isn't tracking yet", which is wrong when
+  // there's plenty of history just outside the requested window.
+  let captureActive = false;
+  try {
+    captureActive = (await getCaptureState()).is_capturing;
+  } catch {
+    /* state lookup is best-effort */
+  }
+
+  if (all.length === 0) {
+    return captureActive
+      ? "No screen activity found yet — Rewind just started capturing, give it a few seconds."
+      : "No screen activity found. Rewind has never recorded any screenshots on this machine. Toggle it on in the sidebar (Rewind switch) to start capturing.";
+  }
+
+  const newestIso = all[0]?.timestamp;
+  const newest = newestIso ? new Date(newestIso) : null;
+  const newestStr = newest ? newest.toLocaleString() : "unknown";
+  const ageMin = newest ? Math.round((Date.now() - newest.getTime()) / 60_000) : -1;
+
+  const parts: string[] = [
+    "No screen activity matched the requested filter.",
+    `Filter: ${[
+      sinceMinutes != null ? `last ${sinceMinutes} min` : null,
+      appNameContains ? `app contains "${appNameContains}"` : null,
+    ]
+      .filter(Boolean)
+      .join(", ") || "(none)"}.`,
+    `History: ${all.length}+ screenshots in DB; newest = ${newestStr}${
+      ageMin >= 0 ? ` (~${ageMin} min ago)` : ""
+    }.`,
+    `Rewind currently ${captureActive ? "capturing" : "paused / off"}.`,
+    "Try widening `since_minutes` or omitting it to see what's available.",
+  ];
+  return parts.join(" ");
 }
 
 async function execCompleteTask(args: Record<string, unknown>): Promise<string> {
@@ -620,34 +685,57 @@ export async function executeToolCall(name: string, input: unknown): Promise<str
 }
 
 async function runTool(name: string, args: Record<string, unknown>): Promise<string> {
+  // Log every tool invocation so we can confirm in DevTools whether the LLM
+  // is actually reaching for screen activity / search / etc., and inspect the
+  // arguments it picks. Truncate the result to keep the log readable.
+  console.info("[chat-tool] →", name, args);
+  const t0 = performance.now();
+  let out: string;
   switch (name) {
     case "search_tasks":
-      return await execSearchTasks(args);
+      out = await execSearchTasks(args);
+      break;
     case "search_memories":
-      return await execSearchMemories(args);
+      out = await execSearchMemories(args);
+      break;
     case "search_goals":
-      return await execSearchGoals(args);
+      out = await execSearchGoals(args);
+      break;
     case "search_screen_history":
-      return await execSearchScreenHistory(args);
+      out = await execSearchScreenHistory(args);
+      break;
     case "get_recent_screen_activity":
-      return await execGetRecentActivity(args);
+      out = await execGetRecentActivity(args);
+      break;
     case "complete_task":
-      return await execCompleteTask(args);
+      out = await execCompleteTask(args);
+      break;
     case "delete_task":
-      return await execDeleteTask(args);
+      out = await execDeleteTask(args);
+      break;
     case "create_task":
-      return await execCreateTask(args);
+      out = await execCreateTask(args);
+      break;
     case "update_task":
-      return await execUpdateTask(args);
+      out = await execUpdateTask(args);
+      break;
     case "create_goal":
-      return await execCreateGoal(args);
+      out = await execCreateGoal(args);
+      break;
     case "update_goal_progress":
-      return await execUpdateGoalProgress(args);
+      out = await execUpdateGoalProgress(args);
+      break;
     case "add_memory":
-      return await execAddMemory(args);
+      out = await execAddMemory(args);
+      break;
     default:
-      return `Unknown tool: ${name}`;
+      out = `Unknown tool: ${name}`;
   }
+  const ms = Math.round(performance.now() - t0);
+  console.info(
+    `[chat-tool] ← ${name} (${ms}ms): ${out.slice(0, 200)}${out.length > 200 ? "…" : ""}`,
+  );
+  return out;
 }
 
 // ---------------------------------------------------------------------------

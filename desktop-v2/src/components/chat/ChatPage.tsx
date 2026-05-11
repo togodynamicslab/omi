@@ -27,7 +27,6 @@ import {
 } from "../ai-elements/message";
 import { ContextUsage } from "../ai-elements/context";
 import { MessageParts } from "./MessageParts";
-import { ModelSelector } from "./ModelSelector";
 import {
   PromptInput,
   PromptInputBody,
@@ -346,8 +345,9 @@ function ChatModeBody({
 
       {/* Main chat column */}
       <div className="flex h-full flex-1 min-w-0 flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
+        {/* Header — height pinned to match `.chat-sessions-sidebar__header`
+             (also `h-14` / 56 px) so both bottom borders share one line. */}
+        <div className="flex items-center justify-between px-5 h-14 border-b border-border shrink-0">
           <h2 className="text-base font-semibold text-foreground">Chat</h2>
           <div className="flex items-center gap-3">
             {messages.length > 0 && (
@@ -430,7 +430,6 @@ function ChatModeBody({
                     <PromptInputActionAddScreenshot />
                   </PromptInputActionMenuContent>
                 </PromptInputActionMenu>
-                <ModelSelector />
               </PromptInputTools>
               <PromptInputSubmit
                 status={chatStatus}
