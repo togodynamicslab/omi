@@ -3088,7 +3088,10 @@
 }
 
 .chat-sessions-sidebar__header {
-  padding: 10px 12px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -3473,4 +3476,56 @@
   height: 56px !important;
   max-width: 56px !important;
   max-height: 56px !important;
+}
+
+/* ---------------------------------------------------------------------------
+   Default border colour — Tailwind 4 leaves `border` at `currentColor` unless
+   `--default-border-color` is set, which surfaces as a stark white frame on
+   dark popovers / cards. Pin it to the theme's `--color-border` so any
+   `border` utility renders the subtle gray we expect; explicit
+   `border-foo` classes still override.
+   --------------------------------------------------------------------------- */
+*,
+::before,
+::after {
+  border-color: var(--color-border);
+}
+
+/* ---------------------------------------------------------------------------
+   Themed scrollbars — replaces the WebView2 / browser default (white track,
+   chunky thumb in dark mode) with a thin, accent-coloured scrollbar that
+   matches the app shell. Applies app-wide via the `*` selector; per-element
+   overrides (e.g. `.citation-list__strip`) still win because they're more
+   specific.
+   --------------------------------------------------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 6px;
+  /* Transparent border + background-clip leaves a small inset around the
+     thumb so it doesn't paint edge-to-edge against neighbouring UI. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--color-border) 60%, var(--color-foreground) 40%);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }

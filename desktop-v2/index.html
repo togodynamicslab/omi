@@ -35,6 +35,23 @@
               window.matchMedia &&
               window.matchMedia("(prefers-color-scheme: dark)").matches);
           if (dark) document.documentElement.classList.add("dark");
+          // HUD windows must paint transparent IMMEDIATELY — without this,
+          // the webview's default white background is visible for the few
+          // hundred ms before main.tsx + the CSS bundle land, and the user
+          // sees a white flash every time the floating bar is shown.
+          if (isHud) {
+            var s = document.createElement("style");
+            // Inline early to avoid a square flash before FloatingBar.css
+            // lands. The clip-path on body forces the floating-bar window
+            // (Win10 has no DWM rounded corners) to render as a rounded
+            // shape, masking the rectangular webview frame.
+            s.textContent =
+              "html,body,#root{background:transparent !important;margin:0;padding:0;}" +
+              (win === "floating"
+                ? "body{clip-path:inset(0 round 14px);}"
+                : "");
+            document.head.appendChild(s);
+          }
         } catch (e) {
           /* ignore */
         }

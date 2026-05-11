@@ -69,6 +69,8 @@ import {
 } from "../../services/audioCapture";
 import { listen } from "@tauri-apps/api/event";
 import { useRewindStore } from "../../stores/rewindStore";
+import { listMonitors, type MonitorInfo } from "../../services/rewind";
+import { MonitorPickerGrid } from "../rewind/MonitorPickerGrid";
 import { useFocusStore } from "../../stores/focusStore";
 import { useInsightAssistantSettings } from "../../services/insightAssistantSettings";
 import { useTaskAssistantSettings } from "../../services/taskAssistantSettings";
@@ -1291,6 +1293,22 @@ function RewindPane() {
   const clearAllScreenshots = useRewindStore((s) => s.clearAllScreenshots);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [monitors, setMonitors] = useState<MonitorInfo[]>([]);
+
+  // Fetch the monitor list once when the pane mounts so the picker is
+  // populated before the user opens the dropdown. Failures are logged but
+  // non-fatal — the dropdown falls back to "Primary display (auto)".
+  useEffect(() => {
+    let cancelled = false;
+    listMonitors()
+      .then((m) => {
+        if (!cancelled) setMonitors(m);
+      })
+      .catch((e) => console.warn("[rewind] listMonitors failed:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onClear = async () => {
     setClearing(true);
@@ -1374,6 +1392,19 @@ function RewindPane() {
             </Select>
           }
         />
+      </Group>
+
+      <Group
+        title="Display"
+        description="Pick which screen Nooto should capture. The previews are taken once when this section opens — refresh to update."
+      >
+        <div className="px-4 py-3">
+          <MonitorPickerGrid
+            monitors={monitors}
+            selectedIndex={captureConfig.monitor_index ?? null}
+            onSelect={(idx) => updateConfig({ monitor_index: idx })}
+          />
+        </div>
       </Group>
 
       <Group title="Storage">
