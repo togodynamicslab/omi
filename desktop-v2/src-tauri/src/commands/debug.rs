@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
-use tauri::command;
+use tauri::{command, AppHandle, Emitter, Runtime};
 
 fn http_client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
@@ -98,4 +98,63 @@ pub async fn backend_request(args: BackendRequestArgs) -> Result<BackendResponse
     tracing::info!("[backend_request] {} {} → {} in {}ms", method, args.url, status, start.elapsed().as_millis());
 
     Ok(BackendResponse { status, body })
+}
+
+#[derive(Deserialize)]
+pub struct BackendChatStreamArgs {
+    pub url: String,
+    pub token: Option<String>,
+    pub body: String,
+    pub request_id: String,
+}
+
+#[derive(Serialize)]
+pub struct BackendChatStreamResult {
+    pub status: u16,
+    pub error_body: Option<String>,
+}
+
+#[command]
+pub async fn backend_chat_stream<R: Runtime>(
+    app: AppHandle<R>,
+    args: BackendChatStreamArgs,
+) -> Result<BackendChatStreamResult, String> {
+    let start = Instant::now();
+    let mut req = http_client()
+        .post(&args.url)
+        .header("Content-Type", "application/json");
+    if let Some(t) = &args.token {
+        req = req.header("Authorization", format!("Bearer {t}"));
+    }
+    req = req.body(args.body);
+
+    let resp = req.send().await.map_err(|e| {
+        tracing::error!("[backend_chat_stream] {} failed: {}", args.url, e);
+        format!("request failed: {e}")
+    })?;
+
+    let status = resp.status().as_u16();
+
+    if !resp.status().is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        tracing::warn!("[backend_chat_stream] {} → {} in {}ms (error body len={})", args.url, status, start.elapsed().as_millis(), body.len());
+        let _ = app.emit("chat:stream:done", serde_json::json!({ "request_id": args.request_id }));
+        return Ok(BackendChatStreamResult { status, error_body: Some(body) });
+    }
+
+    let body = resp.text().await.map_err(|e| format!("read body failed: {e}"))?;
+    for line in body.split('\n') {
+        let trimmed = line.trim_end_matches('\r');
+        if trimmed.is_empty() {
+            continue;
+        }
+        let _ = app.emit(
+            "chat:stream",
+            serde_json::json!({ "request_id": args.request_id, "line": trimmed }),
+        );
+    }
+    let _ = app.emit("chat:stream:done", serde_json::json!({ "request_id": args.request_id }));
+
+    tracing::info!("[backend_chat_stream] {} → {} in {}ms (body len={})", args.url, status, start.elapsed().as_millis(), body.len());
+    Ok(BackendChatStreamResult { status, error_body: None })
 }

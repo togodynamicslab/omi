@@ -4,43 +4,22 @@
 mod commands;
 mod feature_flags;
 
-use std::sync::Arc;
-
-use tauri::{AppHandle, Emitter, Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
-
-/// Adapter that lets the embedded Backend-Rust emit Tauri events to the
-/// renderer without taking on a Tauri dependency itself. Backend-Rust knows
-/// nothing about `AppHandle` — it just calls `EventEmitter::emit`.
-struct TauriEventEmitter<R: Runtime> {
-    handle: AppHandle<R>,
-}
-
-impl<R: Runtime> nooto_desktop_backend::EventEmitter for TauriEventEmitter<R> {
-    fn emit(&self, event: &str, payload: serde_json::Value) {
-        if let Err(e) = self.handle.emit(event, payload) {
-            tracing::warn!("backend event emit ({}) failed: {}", event, e);
-        }
-    }
-}
 
 /// Spawn the embedded Axum backend on a background Tokio task.
 ///
 /// The backend listens on 127.0.0.1:{port} and serves the same REST API
 /// as the standalone `Backend-Rust` server.
-async fn start_backend<R: Runtime>(handle: AppHandle<R>) {
+async fn start_backend<R: Runtime>(_handle: AppHandle<R>) {
     let port: u16 = std::env::var("OMI_BACKEND_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(10201);
 
     match nooto_desktop_backend::init_services().await {
-        Ok((mut state, firebase_auth)) => {
-            // Wire the UI event sink so route handlers (e.g. the
-            // app-result persistence path) can emit Tauri events.
-            state.events = Some(Arc::new(TauriEventEmitter { handle }));
-
+        Ok((state, firebase_auth)) => {
             let app = nooto_desktop_backend::build_router(state, firebase_auth);
             let addr = format!("127.0.0.1:{}", port);
             tracing::info!("Embedded backend starting on {}", addr);

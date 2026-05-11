@@ -267,11 +267,23 @@ pub(crate) fn untrack_window(label: &str) {
 }
 
 fn start_cursor_tracker(app: AppHandle) {
+    // The 60 Hz tracker only does useful work on macOS — on Windows/Linux,
+    // `buddy_position_from_cache()` is a no-op and the loop just burns CPU.
+    // Gate the spawn until a Win32 `GetCursorPos`/X11 cursor query is wired up.
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        return;
+    }
+
+    #[cfg(target_os = "macos")]
     if TRACKER_SPAWNED.swap(true, Ordering::SeqCst) {
         return;
     }
+    #[cfg(target_os = "macos")]
     TRACKER_RUNNING.store(true, Ordering::SeqCst);
 
+    #[cfg(target_os = "macos")]
     tauri::async_runtime::spawn(async move {
         let interval = Duration::from_millis(16);
         let mut last: Option<(i32, i32)> = None;
