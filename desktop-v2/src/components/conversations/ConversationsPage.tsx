@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useConversationStore } from "../../stores/conversationStore";
 import type { Conversation, TranscriptSegment } from "../../stores/conversationStore";
 import { useAudioStore, type LiveSegment, TRANSCRIPTION_LANGUAGES } from "../../stores/audioStore";
-import { retrySyncNow } from "../../services/audioCapture";
+import { deleteAllUnsynced, retryAllFailed, retrySyncNow } from "../../services/audioCapture";
 import { Star, Search, Clock, User, CalendarIcon, X, StarIcon, Mic, MicOff, Loader2, Square, AlertTriangle, FileText, RefreshCw, Trash2, SparklesIcon } from "lucide-react";
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import type { DateRange } from "react-day-picker";
@@ -287,8 +287,18 @@ function SyncStatusBadge({ conversation }: { conversation: Conversation }) {
   if (status === "failed") {
     const localId = conversation.localId;
     const canRetry = typeof localId === "number";
+    // Hover-text the badge with the actual upload error so the user can tell
+    // apart auth-token-expired (most common batch failure mode) from network
+    // hiccups, backend rejection, etc. The retry service writes this on every
+    // failed attempt — see `retry.rs::mark_failed`.
+    const errLine = conversation.syncError?.trim();
+    const retries =
+      typeof conversation.syncRetries === "number" ? conversation.syncRetries : 0;
+    const tooltip = errLine
+      ? `Last error (after ${retries} retries): ${errLine}`
+      : "Sync failed — click the refresh icon to retry now.";
     return (
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1" title={tooltip}>
         <Badge variant="destructive" className="text-[10px] font-medium">
           Sync failed
         </Badge>
@@ -350,8 +360,11 @@ function ConversationCard({
   const overview = conversation.structured?.overview || "";
   const showSyncBadge =
     !!conversation.syncStatus && conversation.syncStatus !== "synced";
-  const canDelete =
-    conversation.syncStatus === undefined || conversation.syncStatus === "synced";
+  // Allow delete on every state EXCEPT mid-flight upload — pulling the rug
+  // on a "syncing" row would orphan the audio segments. Failed/local_only
+  // rows are exactly the ones the user wants to clean up after a bad
+  // backend run, so they stay deletable.
+  const canDelete = conversation.syncStatus !== "syncing";
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter" || e.key === " ") {
@@ -502,7 +515,13 @@ function TranscriptView({ segments }: { segments: TranscriptSegment[] }) {
               {formatDuration(group.start)}
             </span>
           </div>
-          <MessageContent className="leading-relaxed">
+          {/* Force bubble styling on both sides — AI Elements `<MessageContent>`
+              only applies the bg/padding/rounded combo to `is-user`, leaving
+              the other speaker as plain text. In a meeting transcript both
+              participants are real humans so we want the chat-style bubble for
+              everyone. The internal `group-[.is-user]:bg-secondary` rule keeps
+              the user side a touch darker. */}
+          <MessageContent className="rounded-lg bg-secondary/40 px-4 py-3 leading-relaxed group-[.is-assistant]:self-start">
             {group.texts.join(" ")}
           </MessageContent>
         </Message>
@@ -539,8 +558,11 @@ function ConversationDetail({
 
   const hasResults = (conversation.apps_results?.length ?? 0) > 0;
   const hasSegments = !!segments && segments.length > 0;
-  const canDelete =
-    conversation.syncStatus === undefined || conversation.syncStatus === "synced";
+  // Allow delete on every state EXCEPT mid-flight upload — pulling the rug
+  // on a "syncing" row would orphan the audio segments. Failed/local_only
+  // rows are exactly the ones the user wants to clean up after a bad
+  // backend run, so they stay deletable.
+  const canDelete = conversation.syncStatus !== "syncing";
 
   return (
     <div className="flex flex-col">
@@ -1331,6 +1353,8 @@ export function ConversationsPage() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isRetryingAll, setIsRetryingAll] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   const requestDelete = (id: string) => {
     setDeleteError(null);
@@ -1394,6 +1418,55 @@ export function ConversationsPage() {
     return [...cats].sort();
   }, [conversations]);
 
+  const failedSyncCount = useMemo(
+    () => conversations.filter((c) => c.syncStatus === "failed").length,
+    [conversations],
+  );
+  const unsyncedCount = useMemo(
+    () =>
+      conversations.filter(
+        (c) => c.syncStatus === "failed" || c.syncStatus === "local_only",
+      ).length,
+    [conversations],
+  );
+
+  const handleRetryAll = async () => {
+    if (isRetryingAll) return;
+    setIsRetryingAll(true);
+    try {
+      const result = await retryAllFailed();
+      console.info(
+        `[Conversations] retryAllFailed: ${result.succeeded}/${result.attempted} succeeded`,
+      );
+      await loadConversations();
+    } catch (err) {
+      console.error("[Conversations] retryAllFailed failed:", err);
+    } finally {
+      setIsRetryingAll(false);
+    }
+  };
+
+  const handleDeleteAllUnsynced = async () => {
+    if (isDeletingAll) return;
+    if (
+      !window.confirm(
+        `Delete all ${unsyncedCount} unsynced meetings? This can't be undone.`,
+      )
+    ) {
+      return;
+    }
+    setIsDeletingAll(true);
+    try {
+      const result = await deleteAllUnsynced();
+      console.info(`[Conversations] deleteAllUnsynced: ${result.deleted} deleted`);
+      await loadConversations();
+    } catch (err) {
+      console.error("[Conversations] deleteAllUnsynced failed:", err);
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
+
   const filteredConversations = useMemo(() => {
     let result = conversations;
 
@@ -1437,23 +1510,67 @@ export function ConversationsPage() {
   const hasActiveFilters = filter !== "all" || !!dateRange || !!selectedCategory;
 
   const groupedConversations = useMemo(() => {
-    const groups: { label: string; conversations: Conversation[] }[] = [];
+    // Use a Map keyed by bucket label so the merge of localOnly + backend
+    // conversations doesn't produce two "Today" groups when their order
+    // crosses (e.g. localOnly puts Today on top, backend has older Today
+    // entries after Yesterday). The previous "check last group" logic
+    // assumed a single contiguous block per bucket and exploded React
+    // duplicate-key warnings when the assumption broke.
+    const map = new Map<string, Conversation[]>();
     for (const conv of filteredConversations) {
       const bucket = getDateBucket(conv.created_at);
-      const last = groups[groups.length - 1];
-      if (last && last.label === bucket) {
-        last.conversations.push(conv);
-      } else {
-        groups.push({ label: bucket, conversations: [conv] });
+      let arr = map.get(bucket);
+      if (!arr) {
+        arr = [];
+        map.set(bucket, arr);
       }
+      arr.push(conv);
     }
-    return groups;
+    return Array.from(map, ([label, conversations]) => ({ label, conversations }));
   }, [filteredConversations]);
 
   return (
     <div className="flex h-full flex-col">
-      <div className="shrink-0 px-6 pb-2 pt-5">
+      <div className="shrink-0 flex items-center justify-between gap-2 px-6 pb-2 pt-5">
         <h2 className="text-lg font-semibold text-foreground">Meetings</h2>
+        <div className="flex items-center gap-2">
+          {failedSyncCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRetryAll}
+              disabled={isRetryingAll}
+              className="h-8 gap-1.5 text-xs"
+            >
+              {isRetryingAll ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+              {isRetryingAll
+                ? "Retrying…"
+                : `Retry ${failedSyncCount} failed`}
+            </Button>
+          )}
+          {unsyncedCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDeleteAllUnsynced}
+              disabled={isDeletingAll}
+              className="h-8 gap-1.5 text-xs text-destructive hover:text-destructive"
+            >
+              {isDeletingAll ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+              {isDeletingAll
+                ? "Deleting…"
+                : `Delete ${unsyncedCount} unsynced`}
+            </Button>
+          )}
+        </div>
       </div>
       <div className="flex flex-1 overflow-hidden">
         {/* List panel */}
@@ -1544,18 +1661,20 @@ export function ConversationsPage() {
                     {group.label}
                   </span>
                 </div>
-                {group.conversations.map((conv) => (
-                  <ConversationCard
-                    key={conv.id}
-                    conversation={conv}
-                    isSelected={!selectedLive && selectedConversation?.id === conv.id}
-                    onSelect={() => {
-                      setSelectedLive(false);
-                      selectConversation(conv);
-                    }}
-                    onDelete={() => requestDelete(conv.id)}
-                  />
-                ))}
+                <div className="flex flex-col gap-1.5">
+                  {group.conversations.map((conv) => (
+                    <ConversationCard
+                      key={conv.id}
+                      conversation={conv}
+                      isSelected={!selectedLive && selectedConversation?.id === conv.id}
+                      onSelect={() => {
+                        setSelectedLive(false);
+                        selectConversation(conv);
+                      }}
+                      onDelete={() => requestDelete(conv.id)}
+                    />
+                  ))}
+                </div>
               </div>
             ))}
           </div>
