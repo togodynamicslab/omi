@@ -201,9 +201,12 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   },
 
   startAudio: async () => {
-    if (!get().inCommercialHours) {
-      return;
-    }
+    // No commercial-hours gate here: a manual user click is an explicit
+    // intent to record and shouldn't be silently dropped because it's after
+    // 5pm or a weekend. The watcher at the bottom of this file still scopes
+    // *auto-start* to commercial hours (it only fires `startAudio` while
+    // `isOpen` is true), so the redundant guard here only ever blocked
+    // intentional clicks.
     if (get().isRecording) return;
     try {
       set({

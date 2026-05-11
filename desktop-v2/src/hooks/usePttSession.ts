@@ -1,7 +1,19 @@
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { useAudioStore } from "@/stores/audioStore";
 import { useWhisprStore } from "@/stores/whisprStore";
+
+/**
+ * Generation counter shared across every mount of the PTT hook. Each
+ * useEffect run bumps it and snapshots the new value as `myToken`. Inside
+ * every listener body we early-return when `myToken !== activeToken` —
+ * leftover handlers from a previous mount (StrictMode double-render or
+ * HMR replacing the module before the async cleanup finishes) become
+ * no-ops automatically, so partials never get processed twice and the
+ * transcript stops duplicating ("Adiciona 1 na Adiciona 1 na").
+ */
+let activeToken = 0;
 
 interface TranscriptPartial {
   text: string;
@@ -35,9 +47,11 @@ export function usePttSession(): void {
     // ran in parallel pipelines and the first one terminated empty (44-byte
     // WAV → 422 from /v1/conversations/from-audio). Same fix as the
     // companion + TTS leaks: store the promises and await them in cleanup.
+    const myToken = ++activeToken;
     const listenPromises: Array<Promise<UnlistenFn>> = [];
 
     listenPromises.push(listen("ptt:start", () => {
+      if (myToken !== activeToken) return;
       console.info("[PTT] ptt:start received");
       finalSegmentsRef.current = [];
       interimRef.current = "";
@@ -50,12 +64,33 @@ export function usePttSession(): void {
       invoke("show_whispr_hud").catch((err) => {
         console.warn("[PTT] show_whispr_hud failed:", err);
       });
-      invoke("plugin:audio-capture|start_recording").catch((err) => {
-        console.warn("[PTT] start_recording failed:", err);
-      });
+      // Build the config from the audio store so the recording inherits the
+      // user's language / VAD / device choices. Without this, `start_recording`
+      // gets no config and the Rust side falls back to `language="en"`,
+      // making Deepgram transcribe Portuguese speech as garbled English ("oi"
+      // becomes silence or random tokens).
+      const audio = useAudioStore.getState();
+      const pttConfig = {
+        sample_rate: 16000,
+        channels: 1,
+        device_id: audio.selectedInputId,
+        language: audio.language || "pt-BR",
+        mode: "ptt" as const,
+        capture_system_audio: false,
+        vad_mode: audio.vadMode,
+        // PTT is short-form, the live WS is what feeds the HUD partials —
+        // keep it on. (skip_live_transcription would defeat the purpose.)
+        skip_live_transcription: false,
+      };
+      invoke("plugin:audio-capture|start_recording", { config: pttConfig }).catch(
+        (err) => {
+          console.warn("[PTT] start_recording failed:", err);
+        },
+      );
     }));
 
     listenPromises.push(listen<TranscriptPartial>("transcript:partial", (e) => {
+      if (myToken !== activeToken) return;
       if (!activeRef.current) return;
       const p = e.payload;
       partialCountRef.current += 1;
@@ -81,27 +116,37 @@ export function usePttSession(): void {
     }));
 
     listenPromises.push(listen("ptt:stop", () => {
+      if (myToken !== activeToken) return;
       console.info("[PTT] ptt:stop received");
       const startedAt = startedAtRef.current;
       startedAtRef.current = null;
-      activeRef.current = false;
 
       (async () => {
-        // Fire stop_recording without awaiting. stop_recording's consumer
-        // task closes the Deepgram WS and POSTs the conversation to the
-        // backend before returning — that's a multi-second round-trip we
-        // do NOT need to block the clipboard write on. The state mutations
-        // (handle=None, cancel, take consumer) happen synchronously inside
-        // the command's lock, so the next start_recording is unblocked
-        // immediately. The trailing WS finish + POST runs in the background.
+        // Phase 1: keep capturing AFTER the user releases the key. People
+        // naturally finish the last syllable a beat after lifting the key
+        // — without this, the tail of the sentence ("...no final") gets
+        // chopped, sometimes leaving just a single character. We stay
+        // `active` so transcript:partial events for that tail audio still
+        // update finalSegments/interim.
+        const TAIL_CAPTURE_MS = 300;
+        await new Promise((resolve) => setTimeout(resolve, TAIL_CAPTURE_MS));
+
+        activeRef.current = false;
+
+        // Now stop the recording. Fire-and-forget: the consumer task closes
+        // the Deepgram WS and POSTs the conversation to the backend before
+        // returning — multi-second round-trip we do NOT need to block on.
+        // The state mutations (handle=None, cancel, take consumer) happen
+        // synchronously inside the command's lock, so the next
+        // start_recording is unblocked immediately.
         invoke("plugin:audio-capture|stop_recording").catch((err) => {
           console.warn("[PTT] stop_recording failed:", err);
         });
-        // Wait briefly for tail-end transcript:partial events. Deepgram
-        // emits its closing partials when the WS receives the finish frame
-        // (which happens in the background task above). 250ms is enough
-        // for the round-trip without making the user feel the latency.
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        // Phase 2: wait for Deepgram's closing partials. The WS sees the
+        // finish frame from the background task above and emits its tail
+        // is_final segments. 400ms covers the round-trip on real-world
+        // connections without the user feeling stuck.
+        await new Promise((resolve) => setTimeout(resolve, 400));
 
         const finalSegments = finalSegmentsRef.current;
         const interim = interimRef.current;

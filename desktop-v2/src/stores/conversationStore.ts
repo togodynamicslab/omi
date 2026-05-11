@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useAuthStore } from "./authStore";
 import { api } from "../services/api";
 import {
+  deleteLocalSession,
   getLocalSegments,
   listLocalSessions,
   type LocalSegment,
@@ -48,6 +49,12 @@ export interface Conversation {
   syncStatus?: ConversationSyncStatus;
   /** Local SQLite session id. Present whenever `syncStatus` is set. */
   localId?: number | null;
+  /** Last error message from the upload/sync attempt, when `syncStatus`
+   *  is "failed". Surfaced as a tooltip in the meetings list so the user
+   *  can tell apart auth issues, network hiccups, and backend rejections. */
+  syncError?: string | null;
+  /** How many automatic retries the retry service has already burned. */
+  syncRetries?: number;
 }
 
 export interface TranscriptSegment {
@@ -98,6 +105,8 @@ function localSessionToConversation(session: LocalSession): Conversation {
     apps_results: [],
     syncStatus: mapLocalStatus(session),
     localId: session.id,
+    syncError: session.last_error,
+    syncRetries: session.retry_count,
   };
 }
 
@@ -229,25 +238,34 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     // Show the conversation from the list immediately
     set({ selectedConversation: conversation, isLoadingDetail: true });
 
-    const isLocalOnly =
-      !!conversation.localId &&
-      (!conversation.syncStatus ||
-        conversation.syncStatus === "syncing" ||
-        conversation.syncStatus === "failed" ||
-        conversation.syncStatus === "local_only") &&
-      // A local-only conversation always has our `local_` id prefix.
-      typeof conversation.id === "string" &&
-      conversation.id.startsWith("local_");
-
-    if (isLocalOnly && conversation.localId != null) {
-      // Hydrate transcript segments from local SQLite.
+    // Any id with our `local_` prefix is a session that exists ONLY in the
+    // on-device SQLite — calling the backend for it always 404s. Hydrate
+    // straight from local segments, deriving localId from the id when the
+    // attached metadata is missing (older list entries lacked the field).
+    const idStr = typeof conversation.id === "string" ? conversation.id : "";
+    if (idStr.startsWith("local_")) {
+      const fallbackLocalId = Number(idStr.slice("local_".length));
+      const localId =
+        conversation.localId != null
+          ? conversation.localId
+          : Number.isFinite(fallbackLocalId) && fallbackLocalId > 0
+            ? fallbackLocalId
+            : null;
+      if (localId == null) {
+        // Can't parse — bail out gracefully instead of falling through to
+        // the backend (which would 404 and surface as an error toast).
+        if (get().selectedConversation?.id === conversation.id) {
+          set({ isLoadingDetail: false });
+        }
+        return;
+      }
       try {
-        const segments = await getLocalSegments(conversation.localId);
+        const segments = await getLocalSegments(localId);
         const detail: Conversation = {
           ...conversation,
+          localId,
           transcript_segments: segments.map(localSegmentToTranscript),
         };
-        // Only apply if the user hasn't navigated away mid-fetch.
         if (get().selectedConversation?.id === conversation.id) {
           set({ selectedConversation: detail, isLoadingDetail: false });
         }
@@ -281,7 +299,36 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   },
 
   deleteConversation: async (id: string) => {
-    await api.delete(`/v1/conversations/${id}`);
+    // Local-only sessions (id prefix "local_") never reached the backend, so
+    // we delete them via the audio-capture plugin instead. Synced rows go
+    // to the backend; if the conversation also has a localId, drop the
+    // shadow row too so the list doesn't keep showing it after refresh.
+    const isLocalId = typeof id === "string" && id.startsWith("local_");
+    const conv = get().conversations.find((c) => c.id === id);
+
+    if (isLocalId) {
+      const fallback = Number(id.slice("local_".length));
+      const localId =
+        conv?.localId != null
+          ? conv.localId
+          : Number.isFinite(fallback) && fallback > 0
+            ? fallback
+            : null;
+      if (localId != null) {
+        await deleteLocalSession(localId);
+      }
+    } else {
+      await api.delete(`/v1/conversations/${id}`);
+      if (conv?.localId != null) {
+        // Best-effort: clear the on-device shadow if any.
+        try {
+          await deleteLocalSession(conv.localId);
+        } catch {
+          /* non-fatal — backend row already gone */
+        }
+      }
+    }
+
     set((state) => ({
       conversations: state.conversations.filter((c) => c.id !== id),
       selectedConversation:

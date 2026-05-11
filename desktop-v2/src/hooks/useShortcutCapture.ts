@@ -115,6 +115,29 @@ export function useShortcutCapture(opts: Options = {}) {
   return { held, captured, reset };
 }
 
+// Symbol keys whose `event.code` is layout-independent. We map them to the
+// canonical US-layout glyph so the captured chord is portable — pressing the
+// physical "[" key on a PT-BR keyboard (which produces `´`) still records as
+// "[", which is what the global-shortcut binder on the Rust side expects.
+const SYMBOL_CODES: Record<string, ShortcutKey> = {
+  Backslash: "\\",
+  Slash: "/",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Semicolon: ";",
+  Quote: "'",
+  Comma: ",",
+  Period: ".",
+  Minus: "-",
+  Equal: "=",
+  Backquote: "`",
+  IntlBackslash: "\\",
+  IntlRo: "\\",
+  // PT-BR cedilha lives on its own physical key. `event.code` is "IntlBackslash"
+  // in some browsers, "Backquote" in others — both fall back to a key-string
+  // path below if neither map hits, so coverage stays.
+};
+
 function normalizeFromEvent(e: KeyboardEvent): ShortcutKey | null {
   // `event.code` is layout-independent ("KeyA" even on AZERTY) — the right
   // signal for a shortcut. Modifiers are reported via `event.key` since
@@ -144,6 +167,18 @@ function normalizeFromEvent(e: KeyboardEvent): ShortcutKey | null {
   if (letter) return letter;
   const digit = code.match(/^Digit(\d)$/)?.[1];
   if (digit) return digit;
+
+  if (code in SYMBOL_CODES) return SYMBOL_CODES[code];
+
+  // Last resort: if the key produced a single printable character (covers
+  // exotic layouts and dead keys that the code table doesn't list), use it
+  // verbatim. Uppercasing matches the rest of the chord vocabulary. Without
+  // this, pressing `\` (Backslash on PT-BR via Ctrl+\) on a non-standard
+  // mapping would silently drop the keydown and the dialog would never
+  // commit a chord.
+  if (key && key.length === 1 && key !== " ") {
+    return key.toUpperCase();
+  }
 
   return null;
 }
