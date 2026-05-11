@@ -267,6 +267,7 @@ function SwitchRow({
   tooltip,
   checked,
   onToggle,
+  onLabelClick,
   active,
   elapsed,
   orbVariant,
@@ -278,6 +279,12 @@ function SwitchRow({
   tooltip: string;
   checked: boolean;
   onToggle: () => void;
+  /** Optional click on the label/icon area when the sidebar is expanded.
+   *  Use it to deep-link to a related page (e.g. Rewind → /library/rewind).
+   *  When omitted, the label area is non-interactive in expanded mode and
+   *  only the Switch on the right toggles state. Clicks on the Switch are
+   *  always routed to `onToggle`, never here. */
+  onLabelClick?: () => void;
   /** True when actually running right now (icon pulses). */
   active: boolean;
   /** Human-readable elapsed duration shown below the label. */
@@ -307,10 +314,30 @@ function SwitchRow({
     />
   );
 
+  const expandedClick = onLabelClick;
+  const rowOnClick = isCollapsed ? onToggle : expandedClick;
+  // Use a div (with button-like a11y) instead of <button> because the inner
+  // Radix <Switch> is itself a <button>, and HTML disallows nested buttons.
+  // The previous wrapper was a <button> and triggered React's nesting
+  // validation warning every render.
   const row = (
-    <button
-      onClick={isCollapsed ? onToggle : undefined}
-      className="flex items-center gap-3 h-9 rounded-lg text-muted-foreground w-full overflow-hidden transition-colors hover:bg-accent/50"
+    <div
+      role={rowOnClick ? "button" : undefined}
+      tabIndex={rowOnClick ? 0 : undefined}
+      onClick={rowOnClick}
+      onKeyDown={
+        rowOnClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                rowOnClick();
+              }
+            }
+          : undefined
+      }
+      className={`flex items-center gap-3 h-9 rounded-lg text-muted-foreground w-full overflow-hidden transition-colors hover:bg-accent/50 ${
+        rowOnClick ? "cursor-pointer" : "cursor-default"
+      }`}
       style={{ paddingLeft: ICON_PL, paddingRight: ICON_PL }}
       aria-label={label}
       title={tooltip}
@@ -335,7 +362,7 @@ function SwitchRow({
       >
         <Switch checked={checked} onCheckedChange={onToggle} aria-label={label} />
       </motion.div>
-    </button>
+    </div>
   );
 
   if (isCollapsed) {
@@ -356,18 +383,36 @@ function AuraToggle(props: {
   isCollapsed: boolean;
   textOpacity: ReturnType<typeof useTransform<number, number>>;
 }) {
+  const navigate = useNavigate();
   const { rewindEnabled, isCapturing, inCommercialHours, captureStartedAt, toggleRewind } =
     useRewindStore();
-  const { focusEnabled, isAnalyzing, monitoringStartedAt, toggleFocus } = useFocusStore();
+  const { focusEnabled, monitoringStartedAt, toggleFocus } = useFocusStore();
   const elapsed = useElapsed(captureStartedAt ?? monitoringStartedAt);
 
   const enabled = rewindEnabled || focusEnabled;
-  const active = isCapturing || (focusEnabled && isAnalyzing);
+  // `active` drives the orb's "listening" (green) state. Use only stable
+  // signals — `isCapturing` and `focusEnabled` stay constant for the entire
+  // session. The Focus store also exposes `isAnalyzing`, but that flickers
+  // true/false on every frame analysis (every few seconds) and made the orb
+  // wink green→gray mid-session, which the user reads as "Rewind died on its
+  // own".
+  const active = isCapturing || focusEnabled;
 
-  const onToggle = () => {
+  const onToggle = async () => {
     const turnOn = !enabled;
-    if (rewindEnabled !== turnOn) toggleRewind();
-    if (focusEnabled !== turnOn) toggleFocus();
+    // Read fresh state from each store after the first toggle. `toggleRewind`
+    // already stops focus internally when turning off (and starts it when
+    // turning on), so the second condition has to look at the *post-toggle*
+    // value of `focusEnabled` — not the closure snapshot from render time —
+    // or we'll re-toggle focus and bring it back to the wrong state. The
+    // explicit await ensures `stopCapture` and the focus stop both finish
+    // before we re-read the focus flag.
+    if (useRewindStore.getState().rewindEnabled !== turnOn) {
+      await toggleRewind();
+    }
+    if (useFocusStore.getState().focusEnabled !== turnOn) {
+      toggleFocus();
+    }
   };
 
   const tooltip = !enabled
@@ -385,6 +430,7 @@ function AuraToggle(props: {
       tooltip={tooltip}
       checked={enabled}
       onToggle={onToggle}
+      onLabelClick={() => navigate("/library/rewind")}
       active={active}
       elapsed={elapsed}
       orbVariant="halo"
@@ -491,9 +537,13 @@ function AudioToggle({
   const popoverBody = (
     <PopoverContent
       side="right"
-      align="start"
+      // `align="end"` snaps the bottom of the popover to the bottom of the
+      // "Start a meeting" trigger so the two read as a single block — the
+      // earlier `align="start"` opened it floating up & to the right with no
+      // visible relationship to the button.
+      align="end"
       sideOffset={8}
-      className="w-60 p-3"
+      className="w-64 p-3"
       onOpenAutoFocus={(e) => e.preventDefault()}
     >
       <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">

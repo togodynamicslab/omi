@@ -6,6 +6,7 @@ import {
   getRecentScreenshots,
   getScreenshotImage,
   getScreenshotById,
+  listMonitors,
   searchScreenshots,
   searchScreenshotsSemantic,
   deleteAllScreenshots as deleteAllScreenshotsIpc,
@@ -86,8 +87,23 @@ interface RewindState {
   /** Timestamp of last successful loadCaptureState — used as a freshness gate. */
   lastFetchedAt: number | null;
 
+  /**
+   * True when the Rewind toggle was flipped on but we're waiting for the
+   * user to pick a display in the MonitorPickerDialog. While true,
+   * `rewindEnabled` is still false — we only flip it after the user
+   * confirms in the dialog.
+   */
+  showMonitorPicker: boolean;
+
   // Actions
   toggleRewind: () => Promise<void>;
+  /** Apply the user's monitor pick from the dialog and finish enabling Rewind. */
+  confirmMonitorAndStart: (
+    monitorIndex: number | null,
+    dontShowAgain: boolean,
+  ) => Promise<void>;
+  /** Dismiss the dialog without enabling Rewind. */
+  cancelMonitorPicker: () => void;
   startCapture: () => Promise<void>;
   stopCapture: () => Promise<void>;
   takeSnapshot: () => Promise<void>;
@@ -158,11 +174,98 @@ function rowToScreenshot(row: {
 }
 
 // ---------------------------------------------------------------------------
+// Persistence — rewindEnabled survives reboots so the user's explicit "off"
+// isn't silently flipped back on at boot. localStorage instead of the full
+// zustand persist middleware so we don't have to migrate the rest of the
+// shape.
+// ---------------------------------------------------------------------------
+
+const REWIND_ENABLED_KEY = "nooto.rewind.enabled";
+const MONITOR_INDEX_KEY = "nooto.rewind.monitor_index";
+
+function readRewindEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const v = window.localStorage.getItem(REWIND_ENABLED_KEY);
+    if (v === "true") return true;
+    if (v === "false") return false;
+  } catch {
+    /* localStorage blocked — fall through */
+  }
+  // First boot: stay off so we don't auto-start capture + focus monitoring
+  // until the user opts in.
+  return false;
+}
+
+function writeRewindEnabled(v: boolean): void {
+  try {
+    window.localStorage.setItem(REWIND_ENABLED_KEY, v ? "true" : "false");
+  } catch (e) {
+    console.warn("[rewind] persist enabled flag failed:", e);
+  }
+}
+
+/**
+ * Read the persisted monitor index. `null` means "auto" (primary display) —
+ * also the value we return when localStorage is blocked or missing the key.
+ * Multi-monitor setups: the user picks a display in Settings → Rewind, and
+ * we send that index to the Rust plugin on every capture tick.
+ */
+function readMonitorIndex(): number | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.localStorage.getItem(MONITOR_INDEX_KEY);
+    if (v === null || v === "auto") return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeMonitorIndex(v: number | null | undefined): void {
+  try {
+    if (v == null) {
+      window.localStorage.removeItem(MONITOR_INDEX_KEY);
+    } else {
+      window.localStorage.setItem(MONITOR_INDEX_KEY, String(v));
+    }
+  } catch (e) {
+    console.warn("[rewind] persist monitor index failed:", e);
+  }
+}
+
+const SKIP_MONITOR_PICKER_KEY = "nooto.rewind.skip_monitor_picker";
+
+/**
+ * Whether the "Choose a screen" dialog should be skipped on Rewind enable.
+ * Set to true when the user ticks "Don't show this again" — they can always
+ * revisit the picker in Settings → Rewind → Display.
+ */
+function readSkipMonitorPicker(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(SKIP_MONITOR_PICKER_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeSkipMonitorPicker(v: boolean): void {
+  try {
+    if (v) window.localStorage.setItem(SKIP_MONITOR_PICKER_KEY, "true");
+    else window.localStorage.removeItem(SKIP_MONITOR_PICKER_KEY);
+  } catch (e) {
+    console.warn("[rewind] persist skip-modal flag failed:", e);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
 
 export const useRewindStore = create<RewindState>((set, get) => ({
-  rewindEnabled: true,
+  rewindEnabled: readRewindEnabled(),
   inCommercialHours: isCommercialTime(),
   isCapturing: false,
   captureStartedAt: null,
@@ -171,10 +274,16 @@ export const useRewindStore = create<RewindState>((set, get) => ({
   searchQuery: "",
   searchResults: [],
   isSearching: false,
-  captureConfig: { interval_ms: 3000, quality: 80, max_width: 3000 },
+  captureConfig: {
+    interval_ms: 3000,
+    quality: 80,
+    max_width: 3000,
+    monitor_index: readMonitorIndex(),
+  },
   isLoading: false,
   isLoadingHistory: false,
   lastFetchedAt: null,
+  showMonitorPicker: false,
 
   // -------------------------------------------------------------------------
   // cancelImageLoad — bumps the token so any in-flight eager decode aborts.
@@ -287,14 +396,47 @@ export const useRewindStore = create<RewindState>((set, get) => ({
     if (rewindEnabled) {
       await get().stopCapture();
       set({ rewindEnabled: false });
+      writeRewindEnabled(false);
       const focus = useFocusStore.getState();
       if (focus.focusEnabled) focus.stopFocusMonitoring();
-    } else {
-      set({ rewindEnabled: true });
-      await get().startCapture();
-      const focus = useFocusStore.getState();
-      if (!focus.focusEnabled) focus.startFocusMonitoring();
+      return;
     }
+
+    // Turning on — first-run on a multi-monitor setup gets the
+    // "Choose a screen" dialog so the user explicitly picks. Single-monitor
+    // setups (or users who ticked "Don't show again") skip the modal and
+    // enable Rewind directly.
+    if (!readSkipMonitorPicker()) {
+      const monitors = await listMonitors().catch(() => [] as Array<{ index: number }>);
+      if (monitors.length > 1) {
+        set({ showMonitorPicker: true });
+        return;
+      }
+    }
+
+    set({ rewindEnabled: true });
+    writeRewindEnabled(true);
+    await get().startCapture();
+    const focus = useFocusStore.getState();
+    if (!focus.focusEnabled) focus.startFocusMonitoring();
+  },
+
+  confirmMonitorAndStart: async (monitorIndex, dontShowAgain) => {
+    if (dontShowAgain) writeSkipMonitorPicker(true);
+    // Persist the pick + flip Rewind on. updateConfig handles the localStorage
+    // write for monitor_index; we just need to roll the rest of the on-path
+    // (rewindEnabled, focus, capture loop) like toggleRewind would.
+    get().updateConfig({ monitor_index: monitorIndex });
+    set({ showMonitorPicker: false, rewindEnabled: true });
+    writeRewindEnabled(true);
+    await get().startCapture();
+    const focus = useFocusStore.getState();
+    if (!focus.focusEnabled) focus.startFocusMonitoring();
+  },
+
+  cancelMonitorPicker: () => {
+    // User backed out — leave Rewind off and the monitor pick untouched.
+    set({ showMonitorPicker: false });
   },
 
   // -------------------------------------------------------------------------
@@ -307,23 +449,33 @@ export const useRewindStore = create<RewindState>((set, get) => ({
       return;
     }
 
-    const config = get().captureConfig;
+    const initialConfig = get().captureConfig;
     set({ isCapturing: true, captureStartedAt: Date.now() });
 
-    // `max_width` is the *storage* cap. The Rust side captures at native
-    // resolution internally, runs OCR on the native pixels (Vision needs
-    // them to read small UI text correctly), and only then downscales to
-    // this width before persisting / returning the JPEG to us. So we get
-    // accurate OCR without paying native-res storage cost.
-    const captureConfig = { ...config, max_width: 1280 };
-    const intervalMs = config.interval_ms ?? 3000;
+    const intervalMs = initialConfig.interval_ms ?? 3000;
 
     let tickRunning = false;
 
-    captureIntervalId = setInterval(async () => {
+    // One capture tick — extracted so we can fire it immediately on start
+    // instead of waiting `intervalMs` (3s by default) for the first frame.
+    // Without the eager kick the user clicks "Start Capture" and stares at
+    // an empty page for 3s before the first thumbnail shows up.
+    const runTick = async () => {
       if (tickRunning || !get().isCapturing) return;
+      // Defense in depth: if the user has Rewind off, do not call into the
+      // Rust capture API even if `isCapturing` somehow stayed true (race
+      // conditions on toggle, stale closure, etc). Mirrors the same hard
+      // gate in `proactiveAssistant.captureFrame` — the user's mental model
+      // is "Rewind off ⇒ nothing screenshots my screen".
+      if (!get().rewindEnabled) return;
       tickRunning = true;
       try {
+        // Read the live config every tick so settings changes (especially
+        // `monitor_index`) take effect on the next frame instead of waiting
+        // for a stop/start cycle. `max_width` is the *storage* cap; OCR runs
+        // on native pixels and the Rust side downscales after.
+        const live = get().captureConfig;
+        const captureConfig = { ...live, max_width: 1280 };
         const [ocrResult, windowInfo] = await Promise.all([
           takeScreenshotWithOcr(captureConfig),
           getActiveWindow(),
@@ -363,11 +515,25 @@ export const useRewindStore = create<RewindState>((set, get) => ({
           ).catch((e) => console.warn("[Rewind] embed failed:", e));
         }
       } catch (err) {
-        console.error("[Rewind] capture tick failed:", err);
+        // If the saved monitor was unplugged (or its index moved), the Rust
+        // side returns "monitor_index N out of range". Fall back to auto so
+        // the next tick succeeds instead of the loop spamming the same error.
+        const msg = String(err);
+        if (msg.includes("monitor_index") && msg.includes("out of range")) {
+          console.warn("[Rewind] saved monitor unavailable, falling back to auto");
+          get().updateConfig({ monitor_index: null });
+        } else {
+          console.error("[Rewind] capture tick failed:", err);
+        }
       } finally {
         tickRunning = false;
       }
-    }, intervalMs);
+    };
+
+    // Fire the first capture immediately so the user sees a thumbnail right
+    // after clicking "Start Capture" instead of waiting for the next tick.
+    void runTick();
+    captureIntervalId = setInterval(runTick, intervalMs);
   },
 
   // -------------------------------------------------------------------------
@@ -540,6 +706,12 @@ export const useRewindStore = create<RewindState>((set, get) => ({
   // updateConfig
   // -------------------------------------------------------------------------
   updateConfig: (config) => {
+    // Persist monitor_index across restarts so multi-monitor users don't
+    // lose their pick on every reboot. Other fields stay session-only for
+    // now (they have stable defaults in the UI).
+    if ("monitor_index" in config) {
+      writeMonitorIndex(config.monitor_index);
+    }
     set((state) => ({
       captureConfig: { ...state.captureConfig, ...config },
     }));
