@@ -14,4 +14,4 @@
  * Flip to `false` to revert for one release without a code change beyond this
  * file (and the matching Rust const in `src-tauri/src/feature_flags.rs`).
  */
-export const COMPANION_CUTOVER_ENABLED = true;
+export const COMPANION_CUTOVER_ENABLED = false;

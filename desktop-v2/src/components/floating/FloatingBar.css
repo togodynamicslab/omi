@@ -12,47 +12,51 @@
   overflow: hidden;
 }
 
+/* Win10 doesn't have DWM rounded-corner support, so the OS-level window
+   stays rectangular even when our React card has `border-radius: 14px`.
+   That mismatch is what was showing as a "square box around the rounded
+   card". Clipping the webview itself to a rounded shape masks every pixel
+   outside the rounded path — backdrop blur, residual shadows, Tauri's
+   webview tint, anything. The result on Win10 is the same rounded look
+   Win11 gets from DWM. */
+.floating-window body {
+  clip-path: inset(0 round 14px);
+  -webkit-mask-image: radial-gradient(white, white); /* Safari/WebKit fallback */
+}
+
 .floating-root {
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 8px;
+  justify-content: stretch;
+  align-items: stretch;
+  /* No padding: the card fills the window edge-to-edge so the Windows
+     subtle window border doesn't show as a separate "box" around the card. */
+  padding: 0;
   width: 100%;
   box-sizing: border-box;
   user-select: none;
   -webkit-user-select: none;
 }
 
-/* ---------- Pill (idle) ---------- */
-.floating-pill {
-  width: 52px;
-  height: 14px;
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(0, 0, 0, 0.35);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-  cursor: pointer;
-  transition: transform 120ms ease, background 120ms ease;
-  padding: 0;
-}
-.floating-pill:hover {
-  transform: scale(1.05);
-  background: rgba(255, 255, 255, 1);
-}
-
 /* ---------- Card surfaces ---------- */
 .floating-card {
-  width: 460px;
+  /* Fill the floating window edge-to-edge. No CSS border or drop-shadow:
+     the 1px white border at 8% opacity drew a faint outline around the
+     card, and the 40px blurred shadow got clipped at the window edge,
+     leaving a visible halo / "line" around the rounded card. With both
+     gone the card is just a clean dark rounded surface against whatever
+     is behind the transparent window. */
+  width: 100%;
   background: rgba(22, 22, 24, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 0;
   border-radius: 14px;
   color: #fff;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  box-shadow: none;
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   overflow: hidden;
   user-select: text;
   -webkit-user-select: text;
+  box-sizing: border-box;
 }
 
 .floating-signin {

@@ -4,6 +4,42 @@ pub const FLOATING_LABEL: &str = "floating";
 const TOP_MARGIN: f64 = 20.0;
 pub const DEFAULT_WIDTH: f64 = 500.0;
 
+/// Round the floating bar's OS-level window corners on Windows 11 via DWM.
+///
+/// Win10 doesn't have a clean way to do this — `SetWindowRgn` "works" but
+/// produces visibly jagged edges (no antialiasing) and was uglier than the
+/// problem it tried to solve. So on Win10 we deliberately do nothing here;
+/// the React card carries its own `border-radius`, and the rectangular
+/// window edge stays visible behind the card's transparent corners. That's
+/// the trade-off the platform forces.
+#[cfg(target_os = "windows")]
+fn round_window_corners(window: &tauri::WebviewWindow) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    };
+
+    let hwnd = match window.hwnd() {
+        Ok(h) => HWND(h.0),
+        Err(_) => return,
+    };
+    let pref = DWMWCP_ROUND;
+    unsafe {
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            &pref as *const _ as *const _,
+            std::mem::size_of_val(&pref) as u32,
+        );
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn round_window_corners(_window: &tauri::WebviewWindow) {
+    // Other platforms: macOS already rounds via NSWindow defaults; X11/Wayland
+    // compositor handles or ignores corner rounding without DWM.
+}
+
 pub fn anchor_top_center(app: &AppHandle, width: f64) -> Option<PhysicalPosition<i32>> {
     let window = app.get_webview_window(FLOATING_LABEL)?;
     let monitor = window
@@ -42,6 +78,10 @@ pub async fn toggle_floating_bar(app: AppHandle) -> Result<(), String> {
     }
 
     window.show().map_err(|e| e.to_string())?;
+    // Round the OS-level window corners so they match the card's border-
+    // radius. DWM only takes effect after the window is shown and on
+    // Windows 11+; safe no-op everywhere else.
+    round_window_corners(&window);
     // User-initiated activation: grab OS focus so the textarea can receive
     // keystrokes immediately. `focus: false` in config only suppresses the
     // implicit focus-on-create; set_focus() still works on demand.
@@ -99,6 +139,11 @@ pub async fn resize_floating_bar(app: AppHandle, height: f64) -> Result<(), Stri
     if let Some(pos) = anchor_top_center(&app, DEFAULT_WIDTH) {
         let _ = window.set_position(pos);
     }
+
+    // Re-clip the rounded region after resize. SetWindowRgn coords are
+    // absolute, so a stale region from before the resize would chop the
+    // bottom/right of the now-larger window into squares.
+    round_window_corners(&window);
 
     Ok(())
 }

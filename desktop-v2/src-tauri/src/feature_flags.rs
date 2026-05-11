@@ -10,8 +10,11 @@
 /// - The `floating` and `whispr` windows are closed at startup so they never
 ///   appear in the UI.
 ///
-/// Set to `false` to revert for one release.
-pub const COMPANION_CUTOVER_ENABLED: bool = true;
+/// Currently `false`: the Settings entry "Toggle shortcut" advertises a
+/// floating composer (text-to-Nooto), so the shortcut needs to actually open
+/// that bar. Flip back to `true` once the Companion buddy is the intended
+/// destination for `Cmd+Ctrl+\` and the Settings copy is updated.
+pub const COMPANION_CUTOVER_ENABLED: bool = false;
 
 /// When `true`, the Coding Agent surface (Pi sidecar + chat UI) is shown in the
 /// sidebar and routable. When `false`, the route is unmounted and the nav entry

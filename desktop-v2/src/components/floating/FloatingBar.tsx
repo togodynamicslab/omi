@@ -14,7 +14,7 @@ import { AudioSourceSelector } from "@/components/transcript/AudioSourceSelector
 import { LiveNameSpeakerSheet } from "@/components/transcript/LiveNameSpeakerSheet";
 import "./FloatingBar.css";
 
-type Mode = "pill" | "input" | "response" | "listening" | "alert";
+type Mode = "input" | "response" | "listening" | "alert";
 
 interface AlertPayload {
   title: string;
@@ -87,7 +87,7 @@ export function FloatingBar() {
         window.clearTimeout(alertTimerRef.current);
       }
       alertTimerRef.current = window.setTimeout(() => {
-        setMode((current) => (current === "alert" ? "pill" : current));
+        setMode((current) => (current === "alert" ? "input" : current));
         setAlert(null);
         invoke("hide_floating_bar").catch(() => {});
         alertTimerRef.current = null;
@@ -102,7 +102,9 @@ export function FloatingBar() {
       setLiveTranscript("");
       setLiveSegments([]);
       setLivePartial({});
-      setMode((current) => (current === "listening" ? "pill" : current));
+      // PTT ended — drop back to the input state if we were live, so the
+      // user lands on the textarea instead of an idle placeholder.
+      setMode((current) => (current === "listening" ? "input" : current));
     }).then((fn) => unlisteners.push(fn));
 
     return () => {
@@ -157,19 +159,14 @@ export function FloatingBar() {
     if (isStreaming && mode === "input") setMode("response");
   }, [isStreaming, mode]);
 
-  const collapseToPill = () => {
-    setMode("pill");
-    setDraft("");
-  };
-
   const hideWindow = () => {
     invoke("hide_floating_bar").catch(() => {});
   };
 
-  // Closing the dialog should dismiss the window entirely, matching the
-  // Cmd+Enter toggle — reset state so the next activation starts fresh.
+  // Closing the dialog dismisses the window entirely; next activation rehydrates
+  // straight into the input state so the user can type immediately.
   const dismiss = () => {
-    setMode("pill");
+    setMode("input");
     setDraft("");
     hideWindow();
   };
@@ -215,15 +212,6 @@ export function FloatingBar() {
 
   return (
     <div ref={rootRef} className="floating-root">
-      {mode === "pill" && (
-        <button
-          type="button"
-          className="floating-pill"
-          aria-label="Open Ask Nooto"
-          onClick={() => setMode("input")}
-        />
-      )}
-
       {mode === "alert" && alert && (
         <button
           type="button"
@@ -233,7 +221,7 @@ export function FloatingBar() {
               window.clearTimeout(alertTimerRef.current);
               alertTimerRef.current = null;
             }
-            setMode("pill");
+            setMode("input");
             setAlert(null);
             hideWindow();
           }}
@@ -311,7 +299,9 @@ export function FloatingBar() {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={() => {
-              if (!draft.trim() && !isStreaming) collapseToPill();
+              // Empty + idle → hide the window entirely. The next shortcut
+              // press rehydrates the input directly (no idle pill anymore).
+              if (!draft.trim() && !isStreaming) hideWindow();
             }}
             rows={1}
           />
