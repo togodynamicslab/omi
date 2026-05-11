@@ -9,6 +9,7 @@
 import { api } from "@/services/api";
 import { useGoalStore } from "@/stores/goalStore";
 import { notify } from "@/services/notifications";
+import { tNotif } from "@/i18n/notifications";
 
 // ---------------------------------------------------------------------------
 // Types — mirror `/home/matheus/togodynamics/omi/backend/routers/goals.py`
@@ -58,8 +59,8 @@ function checkRateLimit(key: string): boolean {
   buckets[key] = bucket;
   if (bucket.length >= RATE_LIMIT) {
     void notify(
-      "Rate limit",
-      `Too many ${key} calls. Try again later.`,
+      tNotif("rate_limit_title"),
+      tNotif("rate_limit_body", { key }),
     );
     return false;
   }

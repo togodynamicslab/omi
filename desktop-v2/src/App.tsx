@@ -18,6 +18,7 @@ import { DeviceSettingsPage } from "./components/devices/DeviceSettingsPage";
 import { LibraryPage } from "./components/library/LibraryPage";
 import { PlanPage } from "./components/plan/PlanPage";
 import { MemoryIndicator } from "./components/settings/MemoryIndicator";
+import { MonitorPickerDialog } from "./components/rewind/MonitorPickerDialog";
 import {
   startTaskDeduplication,
   stopTaskDeduplication,
@@ -130,30 +131,53 @@ function App() {
     // Auto-resume Rewind monitoring + capture if the flags say they're on.
     // Both `startFocusMonitoring` and `startCapture` are idempotent and the
     // commercial-hours watcher will pause capture outside work windows.
-    if (useFocusStore.getState().focusEnabled) {
-      useFocusStore.getState().startFocusMonitoring();
-    }
+    //
+    // Focus is intentionally gated by Rewind here: the sidebar shows them
+    // as a single toggle (`enabled = rewindEnabled || focusEnabled`), so a
+    // boot where focus auto-starts while rewind stays off would surface as
+    // "I turned Rewind off but the timer keeps ticking". Couple them so the
+    // user's last-known Rewind state controls all of it.
     if (useRewindStore.getState().rewindEnabled) {
       void useRewindStore.getState().startCapture();
+      if (useFocusStore.getState().focusEnabled) {
+        useFocusStore.getState().startFocusMonitoring();
+      }
     }
 
     // Proactive memory + task extraction — matches Swift ProactiveAssistants.
-    // Each pipeline is gated by its settings `enabled` flag and reacts to
-    // runtime toggles from the Settings UI.
+    // Each pipeline is gated by BOTH its own `enabled` flag AND `rewindEnabled`,
+    // because both pipelines drive the same screen-capture loop in
+    // `proactiveAssistant.ts`. Without the rewind gate, Memory or Task being on
+    // would keep capturing the screen even after the user turned Rewind off —
+    // which the user (rightly) reads as "Rewind is off but my screen is still
+    // being captured".
     const syncAssistant = <S extends { enabled: boolean }>(
       store: { getState: () => S; subscribe: ZustandSubscribe<S> },
       start: () => void,
       stop: () => void,
     ) => {
-      if (store.getState().enabled) start();
-      const unsub = store.subscribe((s, prev) => {
-        if (s.enabled === prev.enabled) return;
-        if (s.enabled) start();
+      let running = false;
+      const desired = () =>
+        store.getState().enabled &&
+        useRewindStore.getState().rewindEnabled;
+      const reconcile = () => {
+        const want = desired();
+        if (want === running) return;
+        if (want) start();
         else stop();
+        running = want;
+      };
+      reconcile();
+      const unsubAssistant = store.subscribe((s, prev) => {
+        if (s.enabled !== prev.enabled) reconcile();
+      });
+      const unsubRewind = useRewindStore.subscribe((s, prev) => {
+        if (s.rewindEnabled !== prev.rewindEnabled) reconcile();
       });
       return () => {
-        unsub();
-        stop();
+        unsubAssistant();
+        unsubRewind();
+        if (running) stop();
       };
     };
 
@@ -202,6 +226,7 @@ function App() {
         </main>
         <MemoryIndicator />
         <GoalCelebrationOverlay />
+        <MonitorPickerDialog />
       </div>
     </TooltipProvider>
   );

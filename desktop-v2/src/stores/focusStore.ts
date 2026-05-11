@@ -23,6 +23,7 @@ import {
   setDelayStateHandler,
 } from "@/services/proactiveAssistant";
 import { sendDistractionAlert, sendFocusNotification } from "@/services/notifications";
+import { tNotif } from "@/i18n/notifications";
 
 // Re-export types for consumers.
 export type { FocusStatus, ScreenAnalysis, FocusSession };
@@ -191,15 +192,15 @@ export const useFocusStore = create<FocusState>()(
               if (analysis.status === "distracted") {
                 sendDistractionAlert(
                   analysis.app_or_site ?? "unknown",
-                  analysis.message ?? "Time to refocus!",
+                  analysis.message ?? tNotif("distraction_default"),
                 );
               } else if (
                 analysis.status === "focused" &&
                 previousStatus === "distracted"
               ) {
                 sendFocusNotification(
-                  "Focus",
-                  analysis.message ?? "Great, you're back on track!",
+                  tNotif("focus_title"),
+                  analysis.message ?? tNotif("focus_back_default"),
                 );
               }
             }

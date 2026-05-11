@@ -16,6 +16,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type { CapturedFrame } from "@/services/proactiveAssistant";
+import { llmLanguageInstruction } from "@/i18n/notifications";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -477,7 +478,10 @@ export class FocusAssistant {
     });
 
     const lines: string[] = [
-      FOCUS_SYSTEM_PROMPT,
+      // Append the user-language directive so the `message` field comes
+      // back in pt-BR when that's the active locale. `description` stays
+      // English (machine-readable, never shown to the user).
+      FOCUS_SYSTEM_PROMPT + llmLanguageInstruction({ humanFields: ["message"] }),
       "",
       "--- CONTEXT ---",
       `Current time: ${timeStr} on ${dateStr}`,

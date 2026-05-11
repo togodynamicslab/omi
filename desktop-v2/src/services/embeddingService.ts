@@ -2,20 +2,25 @@
  * Gemini embedding service — TypeScript port of
  * `desktop/Desktop/Sources/ProactiveAssistants/Services/EmbeddingService.swift`.
  *
- * Calls `gemini-embedding-001` (3072-dim) via the backend proxy at
- * `/v1/proxy/gemini/models/...:embedContent`. Vectors are L2-normalized on
- * the way out so cosine similarity reduces to a dot product downstream.
+ * Calls `gemini-embedding-001` (3072-dim) directly against
+ * `generativelanguage.googleapis.com` using the locally-stored Gemini API
+ * key — same path `sendChatViaGemini` and `companionAssistant` already use.
+ * The previous backend proxy (`/v1/proxy/gemini/...`) returned 404 on
+ * Coolify; it was a leftover from the GCP backend that never ported.
+ *
+ * Vectors are L2-normalized on the way out so cosine similarity reduces to
+ * a dot product downstream.
  *
  * Persistence lives in Rust (see `staged_tasks_db.rs::save_staged_task_embedding`)
  * — this file is pure transport + a tiny in-memory cache for query embeddings.
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { api } from "@/services/api";
+import { getGeminiApiKey } from "@/services/api";
 
 export const EMBEDDING_DIMENSION = 3072;
 const MODEL = "gemini-embedding-001";
-const PROXY_PATH = `/v1/proxy/gemini/models/${MODEL}:embedContent`;
+const GEMINI_EMBED_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:embedContent`;
 
 /** Cache the last few query embeddings so the tool-loop doesn't pay for the
  *  same text twice in one TaskAssistant run. */
@@ -23,14 +28,15 @@ const queryCache = new Map<string, Float32Array>();
 const QUERY_CACHE_MAX = 32;
 
 /**
- * Circuit breaker: when the embedding proxy returns 404 repeatedly (backend
- * endpoint is down or not deployed), stop issuing calls so we don't spam the
- * console and burn CPU. Trips after 3 consecutive 404s and auto-resets after
- * a cooldown so the app self-heals when the endpoint comes back.
+ * Circuit breaker: when the embedding endpoint fails repeatedly (network
+ * down, API key missing/invalid, Gemini outage), stop issuing calls so we
+ * don't spam the console and burn CPU. Trips after 3 consecutive failures
+ * and auto-resets after a cooldown so the app self-heals when the endpoint
+ * comes back.
  */
 const CIRCUIT_FAIL_THRESHOLD = 3;
 const CIRCUIT_COOLDOWN_MS = 5 * 60 * 1000; // 5 min
-let consecutive404s = 0;
+let consecutiveFails = 0;
 let circuitOpenedAt: number | null = null;
 
 function circuitIsOpen(): boolean {
@@ -38,16 +44,11 @@ function circuitIsOpen(): boolean {
   if (Date.now() - circuitOpenedAt >= CIRCUIT_COOLDOWN_MS) {
     // Cooldown elapsed — reset and retry once.
     circuitOpenedAt = null;
-    consecutive404s = 0;
+    consecutiveFails = 0;
     console.info("[embedding] circuit-breaker cooldown elapsed, retrying");
     return false;
   }
   return true;
-}
-
-function is404(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes("404");
 }
 
 class EmbeddingUnavailableError extends Error {
@@ -96,6 +97,8 @@ export async function embedText(
     throw new EmbeddingUnavailableError();
   }
 
+  const apiKey = await getGeminiApiKey();
+
   const body = {
     model: `models/${MODEL}`,
     content: { parts: [{ text: trimmed }] },
@@ -104,26 +107,33 @@ export async function embedText(
 
   let resp: EmbedResponse;
   try {
-    resp = await api.post<EmbedResponse>(PROXY_PATH, body);
+    const httpResp = await fetch(`${GEMINI_EMBED_URL}?key=${encodeURIComponent(apiKey)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!httpResp.ok) {
+      const text = await httpResp.text().catch(() => "");
+      throw new Error(`Gemini embed HTTP ${httpResp.status}: ${text.slice(0, 200)}`);
+    }
+    resp = (await httpResp.json()) as EmbedResponse;
   } catch (err) {
-    if (is404(err)) {
-      consecutive404s++;
-      if (consecutive404s >= CIRCUIT_FAIL_THRESHOLD && circuitOpenedAt == null) {
-        circuitOpenedAt = Date.now();
-        console.warn(
-          `[embedding] circuit-breaker opened after ${consecutive404s} consecutive 404s — ` +
-            `suppressing further calls for ${CIRCUIT_COOLDOWN_MS / 60000} min`,
-        );
-      }
+    consecutiveFails++;
+    if (consecutiveFails >= CIRCUIT_FAIL_THRESHOLD && circuitOpenedAt == null) {
+      circuitOpenedAt = Date.now();
+      console.warn(
+        `[embedding] circuit-breaker opened after ${consecutiveFails} consecutive failures — ` +
+          `suppressing further calls for ${CIRCUIT_COOLDOWN_MS / 60000} min`,
+      );
     }
     throw err;
   }
   // Success — reset the failure counter.
-  consecutive404s = 0;
+  consecutiveFails = 0;
 
   const values = resp?.embedding?.values;
   if (!values || !Array.isArray(values)) {
-    throw new Error("[embedding] proxy returned no embedding values");
+    throw new Error("[embedding] response missing embedding values");
   }
   const normalized = normalize(values);
 

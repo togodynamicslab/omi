@@ -57,13 +57,12 @@ export async function initCompanion(): Promise<void> {
     console.warn("[companion] set_companion_key on boot failed:", e);
   }
 
-  // Ensure overlay windows exist before the first PTT press so there's no
-  // startup delay when the user first holds the key.
-  try {
-    await invoke("companion_ensure_overlays");
-  } catch (e) {
-    console.warn("[companion] ensure_overlays failed:", e);
-  }
+  // Overlay windows are created lazily on the first companion:start (see the
+  // listener below). Eagerly calling `companion_ensure_overlays` at boot kept
+  // 1 WebView2 process per display alive on Windows even when the user never
+  // pressed the companion key — costing ~150 MB and idle CPU per overlay.
+  // The first PTT press now pays a ~200 ms creation delay; subsequent presses
+  // are instant because the overlays remain open.
 
   const store = useCompanionStore.getState();
 

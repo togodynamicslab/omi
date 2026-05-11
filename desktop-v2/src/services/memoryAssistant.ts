@@ -13,6 +13,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { api } from "@/services/api";
 import { notify } from "@/services/notifications";
+import { tNotif, llmLanguageInstruction } from "@/i18n/notifications";
 import {
   CapturedFrame,
   addFrameListener,
@@ -188,7 +189,13 @@ export async function extractMemories(
 
   let raw: string | null;
   try {
-    raw = await callGemini(settings.analysisPrompt, prompt, frame.imageBase64);
+    // Append a language directive so the extracted `content` (which lands
+    // in the OS notification body) comes back in the user's selected
+    // locale; category / source_app / confidence stay machine-parseable.
+    const systemPrompt =
+      settings.analysisPrompt +
+      llmLanguageInstruction({ humanFields: ["content"] });
+    raw = await callGemini(systemPrompt, prompt, frame.imageBase64);
   } catch (err) {
     console.warn("[MemoryAssistant] Gemini call failed:", err);
     return null;
@@ -314,7 +321,10 @@ async function handleFrame(frame: CapturedFrame): Promise<void> {
     await persistMemory(memory, frame, result);
 
     if (settings.notificationsEnabled) {
-      const title = memory.category === "interesting" ? "Wisdom captured" : "Memory saved";
+      const title =
+        memory.category === "interesting"
+          ? tNotif("wisdom_captured")
+          : tNotif("memory_saved");
       void notify(title, memory.content);
     }
   } catch (err) {

@@ -20,6 +20,7 @@ import {
   updateContext,
   resetContext,
 } from "@/services/contextDetection";
+import { useRewindStore } from "@/stores/rewindStore";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,8 +70,11 @@ const ANALYSIS_DELAY_S = 3;
  */
 const FALLBACK_INTERVAL_S = 60;
 
-/** Screenshot config for focus analysis — lower quality than Rewind. */
-const CAPTURE_CONFIG = { quality: 70, max_width: 1280 };
+/** Base screenshot config for focus analysis — lower quality than Rewind.
+ *  `monitor_index` is layered in at capture time from the live rewindStore
+ *  so the user's display pick takes effect immediately without restarting
+ *  the loop. */
+const BASE_CAPTURE_CONFIG = { quality: 70, max_width: 1280 };
 
 // ---------------------------------------------------------------------------
 // Coordinator state
@@ -184,10 +188,22 @@ export function stopMonitoring(): void {
 async function captureFrame(): Promise<void> {
   if (!isCapturing) return;
 
+  // Hard gate on the global Rewind toggle. The user's mental model is
+  // "Rewind off = nothing is capturing my screen", so even if Memory/Task
+  // assistants forget to stop their listeners, this short-circuit guarantees
+  // no actual screenshot leaves the device. Defense in depth — App.tsx also
+  // tears these listeners down when Rewind goes off.
+  if (!useRewindStore.getState().rewindEnabled) return;
+
   try {
-    // 1. Capture screenshot + active window in parallel
+    // 1. Capture screenshot + active window in parallel.
+    //    Pull `monitor_index` fresh from rewindStore so the user's
+    //    Settings → Display change takes effect on the next tick.
+    const monitorIndex =
+      useRewindStore.getState().captureConfig.monitor_index ?? null;
+    const captureConfig = { ...BASE_CAPTURE_CONFIG, monitor_index: monitorIndex };
     const [ocrResult, windowInfo] = await Promise.all([
-      takeScreenshotWithOcr(CAPTURE_CONFIG),
+      takeScreenshotWithOcr(captureConfig),
       getActiveWindow(),
     ]);
 

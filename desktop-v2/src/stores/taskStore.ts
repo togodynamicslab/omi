@@ -69,6 +69,32 @@ function inferSource(appName: string, appId: string): TaskSource {
   return appId;
 }
 
+/** localStorage key for IDs of integration tasks the user marked complete
+ *  inside Nooto without writing back to Jira/Linear. Survives refresh and
+ *  reload, so the user's "I'm done with this ticket in my head" state
+ *  doesn't get clobbered every time `/v1/integrations/tasks` returns the
+ *  ticket as still open in the source tracker. */
+const LOCAL_COMPLETED_KEY = "nooto.tasks.localCompletedIntegrationIds";
+
+function readLocalCompletedSet(): Set<string> {
+  try {
+    const raw = localStorage.getItem(LOCAL_COMPLETED_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? new Set(arr) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function writeLocalCompletedSet(s: Set<string>): void {
+  try {
+    localStorage.setItem(LOCAL_COMPLETED_KEY, JSON.stringify(Array.from(s)));
+  } catch (e) {
+    console.warn("[tasks] persist localCompletedIntegrationIds failed:", e);
+  }
+}
+
 interface TaskState {
   tasks: Task[];
   isLoading: boolean;
@@ -113,12 +139,18 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     if (integrationsRes.status === "fulfilled") {
       const payload = integrationsRes.value;
       Object.assign(integrationErrors, payload?.errors ?? {});
-      integration = (payload?.tasks ?? []).map((t) => ({
+      const localCompleted = readLocalCompletedSet();
+      integration = (payload?.tasks ?? []).map((t) => {
+        const id = `${t.source_app_id}:${t.external_id}`;
+        return {
         // Synthetic id — stable per (app, ticket), kept distinct from native
         // UUIDs so PATCH/DELETE guards can pick it out by `source !== native`.
-        id: `${t.source_app_id}:${t.external_id}`,
+        id,
         description: t.title,
-        completed: t.status_type === "done" || t.status_type === "canceled",
+        completed:
+          localCompleted.has(id) ||
+          t.status_type === "done" ||
+          t.status_type === "canceled",
         created_at: null,
         updated_at: t.updated_at ?? null,
         due_at: t.due_at ?? null,
@@ -134,7 +166,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         priority: t.priority ?? undefined,
         project: t.project ?? undefined,
         assignee: t.assignee ?? undefined,
-      }));
+        };
+      });
     } else {
       console.warn("Failed to load integration tasks:", integrationsRes.reason);
     }
@@ -153,12 +186,29 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     const task = get().tasks.find((t) => t.id === id);
     if (!task) return;
 
-    // Integration task: read-only unless the user has explicitly turned on
-    // two-way sync for this app (Settings → Apps → <app> → Two-way sync).
-    // When on, dispatch a writeback to the plugin's update_*_status tool.
+    // Integration task: when two-way sync is on, dispatch a writeback to the
+    // plugin's update_*_status tool. When it's off, mark the task locally so
+    // the user can clear "done" tickets from their Nooto view without
+    // touching the source tracker — persisted across reloads via
+    // `readLocalCompletedSet`.
     if (task.source && task.source !== "native") {
-      if (!isTwoWaySyncEnabled(task.source_app_id)) return;
-      await syncIntegrationToggle(task, set, get);
+      if (isTwoWaySyncEnabled(task.source_app_id)) {
+        await syncIntegrationToggle(task, set, get);
+        return;
+      }
+      const localCompleted = readLocalCompletedSet();
+      const nowCompleted = !task.completed;
+      if (nowCompleted) {
+        localCompleted.add(id);
+      } else {
+        localCompleted.delete(id);
+      }
+      writeLocalCompletedSet(localCompleted);
+      set((state) => ({
+        tasks: state.tasks.map((t) =>
+          t.id === id ? { ...t, completed: nowCompleted } : t,
+        ),
+      }));
       return;
     }
 
