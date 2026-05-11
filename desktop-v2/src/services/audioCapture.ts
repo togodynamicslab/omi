@@ -184,6 +184,34 @@ export async function retrySyncNow(sessionId: number): Promise<void> {
   await invoke("plugin:audio-capture|retry_sync_now", { sessionId });
 }
 
+export interface RetryAllFailedResult {
+  attempted: number;
+  succeeded: number;
+  failed: number;
+}
+
+/** Retry every session currently in `failed` status. Bypasses the per-session
+ *  `MAX_RETRIES` cap, so meetings stuck after the auth-token-expired bug
+ *  (Firebase ID token expiring while the app stayed open) can be drained in
+ *  one shot once the user has the patched build running. */
+export async function retryAllFailed(): Promise<RetryAllFailedResult> {
+  return invoke<RetryAllFailedResult>("plugin:audio-capture|retry_all_failed");
+}
+
 export async function deleteLocalSession(sessionId: number): Promise<void> {
   await invoke("plugin:audio-capture|delete_local_session", { sessionId });
+}
+
+export interface DeleteAllUnsyncedResult {
+  deleted: number;
+}
+
+/** Bulk-delete every session that didn't make it to the backend — `failed`
+ *  rows plus the `completed`-without-backend-id placeholders that audio-only
+ *  sessions get parked as ("Local only"). Active recordings + in-flight
+ *  uploads are skipped. */
+export async function deleteAllUnsynced(): Promise<DeleteAllUnsyncedResult> {
+  return invoke<DeleteAllUnsyncedResult>(
+    "plugin:audio-capture|delete_all_unsynced",
+  );
 }

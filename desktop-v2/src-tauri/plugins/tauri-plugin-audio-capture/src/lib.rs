@@ -1,4 +1,5 @@
 mod audio_recorder;
+mod auth;
 mod capture;
 mod mixer;
 pub mod models;
@@ -6,6 +7,8 @@ mod retry;
 mod storage;
 #[cfg(target_os = "macos")]
 mod system_audio_macos;
+#[cfg(target_os = "windows")]
+mod system_audio_windows;
 pub mod transcription;
 pub mod vad;
 
@@ -42,12 +45,14 @@ const BACKEND_URL: &str = "http://127.0.0.1:10201";
 /// the real-time HAL callback drops on full rather than blocking. Sized
 /// generously (~2.5 s of 10 ms chunks) so a brief consumer stall (VAD
 /// inference, Deepgram send) can't silently lose tap frames.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 const SYS_AUDIO_CHANNEL_CAPACITY: usize = 256;
 
 #[cfg(target_os = "macos")]
 type SysHandle = system_audio_macos::SystemAudioCapture;
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
+type SysHandle = system_audio_windows::SystemAudioCapture;
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 type SysHandle = ();
 
 /// Live per-channel sample counters, shared between the consumer task and
@@ -159,9 +164,10 @@ async fn run_transcription_consumer<R: Runtime>(
         tracing::warn!("[audio-capture] skipping WS connect — no auth token");
     } else {
         let backend = BACKEND_URL.to_string();
-        let token = id_token.clone();
+        let mut token = id_token.clone();
         let slot = stream_slot.clone();
         let app_for_cb = app.clone();
+        let app_for_supervisor = app.clone();
         let storage_for_cb = storage.clone();
         let on_transcript: transcription::TranscriptCallback =
             Arc::new(move |live: transcription::LiveTranscript| {
@@ -253,6 +259,27 @@ async fn run_transcription_consumer<R: Runtime>(
                             backoff_secs,
                             e
                         );
+                        // The Deepgram WS proxy validates the Firebase token
+                        // (see `Backend-Rust/src/routes/proxy.rs::deepgram_ws_proxy`
+                        // — `_user: AuthUser` rejects with 401 on expiry). If
+                        // we don't refresh here, every retry uses the same
+                        // stale token and the supervisor backs off forever
+                        // while the recording silently captures audio with
+                        // zero segments.
+                        match auth::force_refresh_id_token(&app_for_supervisor).await {
+                            Ok(fresh) => {
+                                tracing::info!(
+                                    "[audio-capture] refreshed Firebase token before next WS retry"
+                                );
+                                token = fresh;
+                            }
+                            Err(refresh_err) => {
+                                tracing::warn!(
+                                    "[audio-capture] token refresh failed before WS retry: {}",
+                                    refresh_err
+                                );
+                            }
+                        }
                         tokio::select! {
                             _ = watchdog_cancel.cancelled() => break,
                             _ = tokio::time::sleep(Duration::from_secs(backoff_secs)) => {}
@@ -868,9 +895,10 @@ async fn start_recording<R: Runtime>(
     Ok(capture_state)
 }
 
-/// Start system-audio capture on macOS (Core Audio Taps, 14.4+). On other
-/// platforms this always errors — callers treat it as a graceful fallback
-/// to mic-only, so the error message is user-facing-friendly.
+/// Start system-audio capture. macOS uses Core Audio Process Taps (14.4+)
+/// via a Swift helper subprocess; Windows uses WASAPI loopback on the
+/// default render endpoint; other platforms error out and the caller falls
+/// back to mic-only.
 #[cfg(target_os = "macos")]
 fn start_system_audio_capture() -> Result<(mpsc::Receiver<Vec<i16>>, SysHandle), String> {
     let (tx, rx) = mpsc::channel::<Vec<i16>>(SYS_AUDIO_CHANNEL_CAPACITY);
@@ -878,9 +906,16 @@ fn start_system_audio_capture() -> Result<(mpsc::Receiver<Vec<i16>>, SysHandle),
     Ok((rx, handle))
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 fn start_system_audio_capture() -> Result<(mpsc::Receiver<Vec<i16>>, SysHandle), String> {
-    Err("system audio capture is only supported on macOS".into())
+    let (tx, rx) = mpsc::channel::<Vec<i16>>(SYS_AUDIO_CHANNEL_CAPACITY);
+    let handle = system_audio_windows::SystemAudioCapture::start(tx)?;
+    Ok((rx, handle))
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn start_system_audio_capture() -> Result<(mpsc::Receiver<Vec<i16>>, SysHandle), String> {
+    Err("system audio capture is not supported on this platform".into())
 }
 
 /// Result of a one-shot diagnostic probe — used by the Settings debug panel.
@@ -1481,6 +1516,52 @@ async fn retry_sync_now<R: Runtime>(
     retry::retry_one(&storage, &app, session_id).await
 }
 
+/// Result of a bulk retry sweep, surfaced to the UI so it can show a toast.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RetryAllResult {
+    pub attempted: usize,
+    pub succeeded: usize,
+    pub failed: usize,
+}
+
+/// User-triggered retry for every session currently in `failed` status —
+/// bypasses both the per-session backoff and the `MAX_RETRIES` cap so meetings
+/// stuck after the auth-token-expired bug can be drained in one click.
+#[tauri::command]
+async fn retry_all_failed<R: Runtime>(app: tauri::AppHandle<R>) -> Result<RetryAllResult, String> {
+    let storage = {
+        let state = app.state::<Mutex<AudioCaptureState>>();
+        let guard = state
+            .lock()
+            .map_err(|e| format!("Failed to lock state: {}", e))?;
+        guard
+            .storage
+            .clone()
+            .ok_or_else(|| "storage not initialised".to_string())?
+    };
+
+    let failed = storage
+        .list_by_status("failed")
+        .map_err(|e| format!("list failed: {e}"))?;
+    let attempted = failed.len();
+    let mut succeeded = 0;
+    let mut failed_count = 0;
+    for session in failed {
+        match retry::retry_one(&storage, &app, session.id).await {
+            Ok(()) => succeeded += 1,
+            Err(e) => {
+                tracing::warn!("[retry_all_failed] session {} failed: {}", session.id, e);
+                failed_count += 1;
+            }
+        }
+    }
+    Ok(RetryAllResult {
+        attempted,
+        succeeded,
+        failed: failed_count,
+    })
+}
+
 /// Delete a local session (and cascade its segments).
 #[tauri::command]
 fn delete_local_session<R: Runtime>(
@@ -1500,6 +1581,61 @@ fn delete_local_session<R: Runtime>(
     storage
         .delete_session(session_id)
         .map_err(|e| format!("delete_session: {e}"))
+}
+
+/// Bulk-delete every session that didn't make it to the backend — this
+/// covers `failed` rows and `completed` rows with no backend_id (the
+/// "Local only" placeholders the audio-only sessions get parked as).
+/// Active sessions (`recording`, `uploading`, `pending_upload`) are
+/// intentionally skipped so an in-flight meeting can't be wiped mid-run.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DeleteAllResult {
+    pub deleted: usize,
+}
+
+#[tauri::command]
+fn delete_all_unsynced<R: Runtime>(app: tauri::AppHandle<R>) -> Result<DeleteAllResult, String> {
+    let state = app.state::<Mutex<AudioCaptureState>>();
+    let storage = {
+        let guard = state
+            .lock()
+            .map_err(|e| format!("Failed to lock state: {}", e))?;
+        guard
+            .storage
+            .clone()
+            .ok_or_else(|| "storage not initialised".to_string())?
+    };
+
+    // Take everything in the table, then keep only the rows that:
+    //   1. are NOT actively recording (don't disrupt an in-flight session), and
+    //   2. don't have a real backend_id (i.e. nothing on the server to sync to).
+    // This covers `failed`, `pending_upload`, `uploading`, audio-only
+    // `completed`-with-empty-backend, and any odd legacy status that
+    // might be lingering from earlier crash recoveries — which is what
+    // a user clicking "Delete all unsynced" actually wants.
+    let all = storage
+        .list_sessions()
+        .map_err(|e| format!("list_sessions: {e}"))?;
+    let targets: Vec<i64> = all
+        .into_iter()
+        .filter(|s| s.status != "recording")
+        .filter(|s| s.backend_id.as_deref().unwrap_or("").is_empty())
+        .map(|s| s.id)
+        .collect();
+
+    tracing::info!(
+        "[delete_all_unsynced] found {} sessions to delete",
+        targets.len()
+    );
+
+    let mut deleted = 0;
+    for id in targets {
+        match storage.delete_session(id) {
+            Ok(()) => deleted += 1,
+            Err(e) => tracing::warn!("[delete_all_unsynced] session {} failed: {}", id, e),
+        }
+    }
+    Ok(DeleteAllResult { deleted })
 }
 
 /// Return the current capture state.
@@ -1547,7 +1683,9 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             list_local_sessions,
             get_local_segments,
             retry_sync_now,
+            retry_all_failed,
             delete_local_session,
+            delete_all_unsynced,
         ])
         .setup(|app, _api| {
             // Try to open the local SQLite store. If this fails the plugin

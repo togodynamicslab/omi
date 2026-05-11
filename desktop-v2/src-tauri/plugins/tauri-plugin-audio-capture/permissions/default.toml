@@ -8,6 +8,12 @@ permissions = [
     "allow-probe-system-audio",
     "allow-probe-live-capture",
     "allow-request-system-audio-permission",
+    "allow-list-local-sessions",
+    "allow-get-local-segments",
+    "allow-retry-sync-now",
+    "allow-retry-all-failed",
+    "allow-delete-local-session",
+    "allow-delete-all-unsynced",
 ]
 
 [[permission]]
@@ -44,3 +50,33 @@ commands.allow = ["probe_live_capture"]
 identifier = "allow-request-system-audio-permission"
 description = "Allows triggering the system-audio TCC prompt and opening System Settings"
 commands.allow = ["request_system_audio_permission"]
+
+[[permission]]
+identifier = "allow-list-local-sessions"
+description = "Allows listing on-device meeting sessions (recording, pending upload, completed, failed)"
+commands.allow = ["list_local_sessions"]
+
+[[permission]]
+identifier = "allow-get-local-segments"
+description = "Allows retrieving the finalized segments for a local session"
+commands.allow = ["get_local_segments"]
+
+[[permission]]
+identifier = "allow-retry-sync-now"
+description = "Allows manually retrying upload/sync of a failed or pending session"
+commands.allow = ["retry_sync_now"]
+
+[[permission]]
+identifier = "allow-retry-all-failed"
+description = "Allows bulk-retrying upload/sync of every session currently in failed status"
+commands.allow = ["retry_all_failed"]
+
+[[permission]]
+identifier = "allow-delete-local-session"
+description = "Allows deleting a local session and cascading its segments"
+commands.allow = ["delete_local_session"]
+
+[[permission]]
+identifier = "allow-delete-all-unsynced"
+description = "Allows bulk-deleting every session that didn't make it to the backend (failed + Local only)"
+commands.allow = ["delete_all_unsynced"]
