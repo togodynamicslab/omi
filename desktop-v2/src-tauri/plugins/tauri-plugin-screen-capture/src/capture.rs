@@ -1,4 +1,6 @@
-use crate::models::{CaptureConfig, DisplayMetadata, DisplayOriginPt, DisplaySizePt, Screenshot};
+use crate::models::{
+    CaptureConfig, DisplayMetadata, DisplayOriginPt, DisplaySizePt, MonitorInfo, Screenshot,
+};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 
@@ -50,6 +52,15 @@ pub fn stop_continuous_capture() {
 /// Returns whether continuous capture is currently running.
 pub fn is_capturing() -> bool {
     CAPTURE_RUNNING.load(Ordering::SeqCst)
+}
+
+/// Enumerate all attached displays in platform order.
+///
+/// On Windows uses `EnumDisplayMonitors` + `GetMonitorInfoW`.
+/// On Linux/macOS returns a single-entry stub (multi-monitor selection
+/// isn't wired in there yet).
+pub fn list_monitors() -> Result<Vec<MonitorInfo>, String> {
+    platform::list_monitors_impl()
 }
 
 /// Build a `DisplayMetadata` value for the given screenshot.
@@ -249,6 +260,19 @@ mod platform {
             },
         }
     }
+
+    pub fn list_monitors_impl() -> Result<Vec<MonitorInfo>, String> {
+        let (conn, screen_num) =
+            RustConnection::connect(None).map_err(|e| format!("X11 connect failed: {}", e))?;
+        let screen = &conn.setup().roots[screen_num];
+        Ok(vec![MonitorInfo {
+            index: 0,
+            name: "Display 0".to_string(),
+            width: screen.width_in_pixels as u32,
+            height: screen.height_in_pixels as u32,
+            is_primary: true,
+        }])
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -432,6 +456,29 @@ mod platform {
             },
         }
     }
+
+    pub fn list_monitors_impl() -> Result<Vec<MonitorInfo>, String> {
+        let main = unsafe { CGMainDisplayID() };
+        let active = CGDisplay::active_displays()
+            .map_err(|e| format!("CGDisplay::active_displays failed: {:?}", e))?;
+        let mut out = Vec::with_capacity(active.len());
+        for (i, id) in active.iter().enumerate() {
+            let cg = CGDisplay::new(*id);
+            let bounds = cg.bounds();
+            let (w_px, h_px) = cg
+                .display_mode()
+                .map(|m| (m.pixel_width() as u32, m.pixel_height() as u32))
+                .unwrap_or((bounds.size.width as u32, bounds.size.height as u32));
+            out.push(MonitorInfo {
+                index: i as u32,
+                name: format!("Display {}", id),
+                width: w_px,
+                height: h_px,
+                is_primary: *id == main,
+            });
+        }
+        Ok(out)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -440,14 +487,233 @@ mod platform {
 #[cfg(target_os = "windows")]
 mod platform {
     use super::*;
+    use image::codecs::jpeg::JpegEncoder;
+    use image::{ImageBuffer, RgbaImage};
+    use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
+    use windows::Win32::Graphics::Gdi::{
+        BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DeleteDC, DeleteObject,
+        EnumDisplayMonitors, GetDC, GetDIBits, GetMonitorInfoW, ReleaseDC, SelectObject,
+        BITMAPINFO, BITMAPINFOHEADER, BI_RGB, CAPTUREBLT, DIB_RGB_COLORS, HDC, HMONITOR,
+        MONITORINFO, MONITORINFOEXW, RGBQUAD, SRCCOPY,
+    };
 
-    pub fn capture_screen_impl(_config: &CaptureConfig) -> Result<Screenshot, String> {
-        Err("Screen capture is not yet implemented on Windows".to_string())
+    /// Win32 flag set in `MONITORINFO::dwFlags` for the primary display.
+    /// Hardcoded because `MONITORINFOF_PRIMARY` isn't re-exported from the
+    /// `windows` crate's `Win32::Graphics::Gdi` module.
+    const MONITORINFOF_PRIMARY: u32 = 1;
+    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+
+    /// Per-monitor record returned by `enumerate_monitors`.
+    struct MonitorRecord {
+        rect: RECT,
+        is_primary: bool,
+        device_name: String,
+    }
+
+    /// Enumerate every connected monitor, in the order Windows reports them.
+    fn enumerate_monitors() -> Vec<MonitorRecord> {
+        unsafe extern "system" fn enum_proc(
+            hmonitor: HMONITOR,
+            _hdc: HDC,
+            _rect: *mut RECT,
+            lparam: LPARAM,
+        ) -> BOOL {
+            let monitors = unsafe { &mut *(lparam.0 as *mut Vec<MonitorRecord>) };
+            let mut info = MONITORINFOEXW::default();
+            info.monitorInfo.cbSize = std::mem::size_of::<MONITORINFOEXW>() as u32;
+            let info_ptr = &mut info as *mut MONITORINFOEXW as *mut MONITORINFO;
+            if unsafe { GetMonitorInfoW(hmonitor, info_ptr) }.as_bool() {
+                let device_name = String::from_utf16_lossy(
+                    &info.szDevice[..info
+                        .szDevice
+                        .iter()
+                        .position(|c| *c == 0)
+                        .unwrap_or(info.szDevice.len())],
+                );
+                monitors.push(MonitorRecord {
+                    rect: info.monitorInfo.rcMonitor,
+                    is_primary: (info.monitorInfo.dwFlags & MONITORINFOF_PRIMARY) != 0,
+                    device_name,
+                });
+            }
+            BOOL(1)
+        }
+
+        let mut monitors: Vec<MonitorRecord> = Vec::new();
+        unsafe {
+            let _ = EnumDisplayMonitors(
+                None,
+                None,
+                Some(enum_proc),
+                LPARAM(&mut monitors as *mut _ as isize),
+            );
+        }
+        monitors
+    }
+
+    pub fn capture_screen_impl(config: &CaptureConfig) -> Result<Screenshot, String> {
+        unsafe {
+            // Resolve the source rect for the requested monitor, or fall back
+            // to the primary display when no index is given (keeps the old
+            // single-monitor behavior).
+            let monitors = enumerate_monitors();
+            let (src_x, src_y, width_i, height_i, display_id) = match config.monitor_index {
+                Some(idx) => {
+                    let m = monitors.get(idx as usize).ok_or_else(|| {
+                        format!(
+                            "monitor_index {} out of range (have {} monitors)",
+                            idx,
+                            monitors.len()
+                        )
+                    })?;
+                    (
+                        m.rect.left,
+                        m.rect.top,
+                        m.rect.right - m.rect.left,
+                        m.rect.bottom - m.rect.top,
+                        idx,
+                    )
+                }
+                None => {
+                    let w = GetSystemMetrics(SM_CXSCREEN);
+                    let h = GetSystemMetrics(SM_CYSCREEN);
+                    (0, 0, w, h, 0)
+                }
+            };
+
+            if width_i <= 0 || height_i <= 0 {
+                return Err(format!("Invalid screen size: {}x{}", width_i, height_i));
+            }
+            let width = width_i as u32;
+            let height = height_i as u32;
+
+            let null_hwnd = HWND(std::ptr::null_mut());
+            let desktop_dc = GetDC(null_hwnd);
+            if desktop_dc.is_invalid() {
+                return Err("GetDC(NULL) failed".to_string());
+            }
+
+            let mem_dc = CreateCompatibleDC(desktop_dc);
+            if mem_dc.is_invalid() {
+                ReleaseDC(null_hwnd, desktop_dc);
+                return Err("CreateCompatibleDC failed".to_string());
+            }
+
+            let bitmap = CreateCompatibleBitmap(desktop_dc, width_i, height_i);
+            if bitmap.is_invalid() {
+                let _ = DeleteDC(mem_dc);
+                ReleaseDC(null_hwnd, desktop_dc);
+                return Err("CreateCompatibleBitmap failed".to_string());
+            }
+
+            let prev = SelectObject(mem_dc, bitmap);
+
+            let blt_ok = BitBlt(
+                mem_dc,
+                0,
+                0,
+                width_i,
+                height_i,
+                desktop_dc,
+                src_x,
+                src_y,
+                SRCCOPY | CAPTUREBLT,
+            );
+            if blt_ok.is_err() {
+                let _ = SelectObject(mem_dc, prev);
+                let _ = DeleteObject(bitmap);
+                let _ = DeleteDC(mem_dc);
+                ReleaseDC(null_hwnd, desktop_dc);
+                return Err("BitBlt failed".to_string());
+            }
+
+            // Top-down DIB (negative biHeight) so rows arrive in scanline order.
+            let mut info = BITMAPINFO {
+                bmiHeader: BITMAPINFOHEADER {
+                    biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                    biWidth: width_i,
+                    biHeight: -height_i,
+                    biPlanes: 1,
+                    biBitCount: 32,
+                    biCompression: BI_RGB.0,
+                    biSizeImage: 0,
+                    biXPelsPerMeter: 0,
+                    biYPelsPerMeter: 0,
+                    biClrUsed: 0,
+                    biClrImportant: 0,
+                },
+                bmiColors: [RGBQUAD::default(); 1],
+            };
+
+            let mut bgra = vec![0u8; (width as usize) * (height as usize) * 4];
+            let lines = GetDIBits(
+                mem_dc,
+                bitmap,
+                0,
+                height,
+                Some(bgra.as_mut_ptr() as *mut _),
+                &mut info,
+                DIB_RGB_COLORS,
+            );
+
+            let _ = SelectObject(mem_dc, prev);
+            let _ = DeleteObject(bitmap);
+            let _ = DeleteDC(mem_dc);
+            ReleaseDC(null_hwnd, desktop_dc);
+
+            if lines == 0 {
+                return Err("GetDIBits returned 0 scanlines".to_string());
+            }
+
+            // BGRX (4 bytes per pixel, X is unused/junk) → RGBA with alpha=255.
+            for px in bgra.chunks_exact_mut(4) {
+                px.swap(0, 2);
+                px[3] = 255;
+            }
+
+            let img: RgbaImage = ImageBuffer::from_raw(width, height, bgra)
+                .ok_or_else(|| "Failed to create image buffer from raw pixels".to_string())?;
+
+            let img = if config.max_width > 0 && width > config.max_width {
+                let scale = config.max_width as f64 / width as f64;
+                let new_height = (height as f64 * scale) as u32;
+                image::imageops::resize(
+                    &img,
+                    config.max_width,
+                    new_height,
+                    image::imageops::FilterType::Triangle,
+                )
+            } else {
+                img
+            };
+
+            let final_w = img.width();
+            let final_h = img.height();
+
+            let mut jpeg_buf: Vec<u8> = Vec::new();
+            let mut encoder = JpegEncoder::new_with_quality(&mut jpeg_buf, config.quality);
+            encoder
+                .encode_image(&img)
+                .map_err(|e| format!("JPEG encode failed: {}", e))?;
+
+            let timestamp = chrono::Utc::now().timestamp_millis();
+
+            Ok(Screenshot {
+                timestamp,
+                image_data: jpeg_buf,
+                width: final_w,
+                height: final_h,
+                format: "jpeg".to_string(),
+                display_id,
+                native_width: width,
+                native_height: height,
+            })
+        }
     }
 
     pub fn display_metadata_impl(screenshot: &Screenshot) -> DisplayMetadata {
         DisplayMetadata {
-            display_id: 0,
+            display_id: screenshot.display_id,
             capture_width_px: screenshot.width,
             capture_height_px: screenshot.height,
             display_width_px: screenshot.native_width,
@@ -459,6 +725,28 @@ mod platform {
                 h: screenshot.native_height as f64,
             },
         }
+    }
+
+    pub fn list_monitors_impl() -> Result<Vec<MonitorInfo>, String> {
+        let monitors = enumerate_monitors();
+        if monitors.is_empty() {
+            return Err("EnumDisplayMonitors returned no monitors".to_string());
+        }
+        Ok(monitors
+            .into_iter()
+            .enumerate()
+            .map(|(i, m)| MonitorInfo {
+                index: i as u32,
+                name: if m.device_name.is_empty() {
+                    format!("Display {}", i + 1)
+                } else {
+                    m.device_name
+                },
+                width: (m.rect.right - m.rect.left).max(0) as u32,
+                height: (m.rect.bottom - m.rect.top).max(0) as u32,
+                is_primary: m.is_primary,
+            })
+            .collect())
     }
 }
 
@@ -487,5 +775,9 @@ mod platform {
                 h: screenshot.native_height as f64,
             },
         }
+    }
+
+    pub fn list_monitors_impl() -> Result<Vec<MonitorInfo>, String> {
+        Err("list_monitors is not supported on this platform".to_string())
     }
 }

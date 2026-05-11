@@ -236,9 +236,70 @@ mod platform {
 #[cfg(target_os = "windows")]
 mod platform {
     use super::*;
+    use std::path::Path;
+    use windows::core::PWSTR;
+    use windows::Win32::Foundation::{CloseHandle, MAX_PATH};
+    use windows::Win32::System::Threading::{
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
+        PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
+    };
 
     pub fn get_active_window_impl() -> Result<ActiveWindow, String> {
-        Err("Active window detection is not yet implemented on Windows".to_string())
+        unsafe {
+            let hwnd = GetForegroundWindow();
+            if hwnd.0.is_null() {
+                return Err("No foreground window".to_string());
+            }
+
+            let title_len = GetWindowTextLengthW(hwnd);
+            let mut title_buf = vec![0u16; (title_len.max(0) as usize) + 1];
+            let copied = GetWindowTextW(hwnd, &mut title_buf);
+            let window_title = if copied > 0 {
+                String::from_utf16_lossy(&title_buf[..copied as usize])
+            } else {
+                String::new()
+            };
+
+            let mut pid: u32 = 0;
+            let _ = GetWindowThreadProcessId(hwnd, Some(&mut pid));
+            if pid == 0 {
+                return Err("GetWindowThreadProcessId returned PID=0".to_string());
+            }
+
+            let app_name = match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+                Ok(handle) => {
+                    let mut path_buf = vec![0u16; MAX_PATH as usize];
+                    let mut size = path_buf.len() as u32;
+                    let result = QueryFullProcessImageNameW(
+                        handle,
+                        PROCESS_NAME_FORMAT(0),
+                        PWSTR(path_buf.as_mut_ptr()),
+                        &mut size,
+                    );
+                    let _ = CloseHandle(handle);
+                    if result.is_ok() && size > 0 {
+                        let path_str = String::from_utf16_lossy(&path_buf[..size as usize]);
+                        Path::new(&path_str)
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("unknown")
+                            .to_string()
+                    } else {
+                        "unknown".to_string()
+                    }
+                }
+                Err(_) => "unknown".to_string(),
+            };
+
+            Ok(ActiveWindow {
+                app_name,
+                window_title,
+                pid,
+            })
+        }
     }
 }
 

@@ -59,6 +59,15 @@ objc2 = "0.6"
 objc2-foundation = { version = "0.3" }
 objc2-app-kit = { version = "0.3", features = ["NSEvent", "NSWindow", "NSScreen", "NSResponder"] }
 
+[target.'cfg(target_os = "windows")'.dependencies]
+# DWM rounds the floating-bar window on Windows 11. Win10 has no clean
+# equivalent (SetWindowRgn produced jagged un-antialiased corners), so we
+# only ship the DWM path. See `commands::floating::round_window_corners`.
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+] }
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

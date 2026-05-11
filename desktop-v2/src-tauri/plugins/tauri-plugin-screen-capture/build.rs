@@ -1,4 +1,5 @@
 const COMMANDS: &[&str] = &[
+    "list_monitors",
     "take_screenshot",
     "take_screenshot_with_ocr",
     "start_screen_capture",
@@ -16,6 +17,10 @@ const COMMANDS: &[&str] = &[
     "save_screenshot_embedding",
     "search_screenshots_semantic",
     "screenshots_missing_embeddings",
+    "save_companion_session",
+    "get_recent_companion_sessions",
+    "delete_companion_session",
+    "update_companion_session",
 ];
 
 fn main() {

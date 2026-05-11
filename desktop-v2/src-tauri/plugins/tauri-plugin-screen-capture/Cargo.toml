@@ -14,20 +14,32 @@ tracing = "0.1"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.21"
-kreuzberg-paddle-ocr = "4.8"
-ort = { version = "2.0.0-rc.12", features = ["download-binaries", "copy-dylibs", "ndarray"] }
 rusqlite = { version = "0.31", features = ["bundled-full", "blob"] }
 dirs = "5"
 
 # Platform-specific
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = { version = "0.13", features = ["randr"] }
+# PaddleOCR (ONNX-based) is the Linux-only fallback. macOS uses Vision and
+# Windows uses Windows.Media.Ocr — neither needs the ort runtime, which
+# weighs hundreds of MB and was the main CPU/RAM hog flagged by users.
+kreuzberg-paddle-ocr = "4.8"
+ort = { version = "2.0.0-rc.12", features = ["download-binaries", "copy-dylibs", "ndarray"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.58", features = [
     "Win32_Graphics_Gdi",
     "Win32_UI_WindowsAndMessaging",
     "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_System_Com",
+    # WinRT namespaces backing the native OCR pipeline (`ocr_windows.rs`).
+    "Foundation",
+    "Foundation_Collections",
+    "Globalization",
+    "Graphics_Imaging",
+    "Media_Ocr",
+    "Storage_Streams",
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]

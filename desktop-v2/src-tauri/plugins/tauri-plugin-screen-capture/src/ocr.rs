@@ -1,9 +1,13 @@
-#[cfg(not(target_os = "macos"))]
+// PaddleOCR is the Linux-only fallback; macOS uses Vision (`ocr_vision.rs`)
+// and Windows uses Windows.Media.Ocr (`ocr_windows.rs`). Keeping PaddleOCR
+// off the Windows build is what reclaims the RAM/CPU budget the user was
+// hitting — the ONNX runtime + recognizer model alone weighs hundreds of MB.
+#[cfg(target_os = "linux")]
 use kreuzberg_paddle_ocr::{OcrLite, OcrResult};
 use serde::{Deserialize, Serialize};
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 use std::path::Path;
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 use std::sync::OnceLock;
 
 /// Result of running OCR on a screenshot.
@@ -27,14 +31,14 @@ pub struct OcrTextBlock {
 }
 
 /// Global OCR engine instance. Initialized once on first use.
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 static OCR_ENGINE: OnceLock<Result<OcrLite, String>> = OnceLock::new();
 
 /// Get or initialize the OCR engine.
 ///
 /// Looks for ONNX model files relative to the executable, then falls back
 /// to the plugin source directory (for development).
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 fn get_ocr_engine() -> Result<&'static OcrLite, String> {
     OCR_ENGINE
         .get_or_init(|| {
@@ -84,7 +88,7 @@ fn get_ocr_engine() -> Result<&'static OcrLite, String> {
 }
 
 /// Search for the models directory in several locations.
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
 fn find_models_dir() -> Result<std::path::PathBuf, String> {
     // 1. Check next to executable (production: bundled with app)
     if let Ok(exe) = std::env::current_exe() {
@@ -112,21 +116,28 @@ fn find_models_dir() -> Result<std::path::PathBuf, String> {
 
 /// Run OCR on a JPEG-encoded image buffer.
 ///
-/// macOS uses Apple's Vision framework (`VNRecognizeTextRequest`) — it's
-/// trained on screen-rendered glyphs and crushes PaddleOCR on UI text.
-/// Other platforms fall back to the bundled PaddleOCR ONNX models.
+/// - macOS: Apple Vision (`VNRecognizeTextRequest`) — trained on
+///   screen-rendered glyphs, crushes PaddleOCR on UI text.
+/// - Windows: `Windows.Media.Ocr` — system recognizer, no models to bundle,
+///   keeps Rewind off the heavy PaddleOCR/ort path that was eating CPU+RAM.
+/// - Linux: PaddleOCR via ONNX runtime (no system OCR available).
 pub fn extract_text(jpeg_data: &[u8]) -> Result<OcrTextResult, String> {
     #[cfg(target_os = "macos")]
     {
         return crate::ocr_vision::extract_text(jpeg_data);
     }
-    #[cfg(not(target_os = "macos"))]
-    extract_text_paddle(jpeg_data)
+    #[cfg(target_os = "windows")]
+    {
+        return crate::ocr_windows::extract_text(jpeg_data);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        extract_text_paddle(jpeg_data)
+    }
 }
 
-/// PaddleOCR fallback used on Linux/Windows where we don't have a system
-/// OCR engine.
-#[cfg(not(target_os = "macos"))]
+/// PaddleOCR fallback used on Linux where we don't have a system OCR engine.
+#[cfg(target_os = "linux")]
 fn extract_text_paddle(jpeg_data: &[u8]) -> Result<OcrTextResult, String> {
     let engine = get_ocr_engine()?;
 

@@ -6,9 +6,11 @@ mod models;
 mod ocr;
 #[cfg(target_os = "macos")]
 mod ocr_vision;
+#[cfg(target_os = "windows")]
+mod ocr_windows;
 
 use database::{CompanionSession, CompanionSessionInput, CompanionSessionPatch, EmbeddingBacklogItem, RewindDatabase, ScreenshotRow, SemanticHit};
-use models::{CaptureConfig, CaptureState, DisplayMetadata};
+use models::{CaptureConfig, CaptureState, DisplayMetadata, MonitorInfo};
 use ocr::OcrTextBlock;
 use std::sync::{Arc, Mutex};
 use tauri::{
@@ -60,6 +62,14 @@ struct ScreenshotWithOcr {
 // ---------------------------------------------------------------------------
 
 /// Take a single screenshot and return it as a base64-encoded JPEG string.
+/// Enumerate all attached displays so the UI can show a picker.
+#[tauri::command]
+async fn list_monitors() -> Result<Vec<MonitorInfo>, String> {
+    tokio::task::spawn_blocking(capture::list_monitors)
+        .await
+        .map_err(|e| format!("list_monitors task panicked: {}", e))?
+}
+
 #[tauri::command]
 async fn take_screenshot(
     state: State<'_, ScreenCaptureState>,
@@ -655,6 +665,7 @@ async fn update_companion_session(
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("screen-capture")
         .invoke_handler(tauri::generate_handler![
+            list_monitors,
             take_screenshot,
             take_screenshot_with_ocr,
             start_screen_capture,

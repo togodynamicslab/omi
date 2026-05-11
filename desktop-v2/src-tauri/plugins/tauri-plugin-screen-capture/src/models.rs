@@ -87,6 +87,11 @@ pub struct CaptureConfig {
     /// Maximum width in pixels; images wider than this will be scaled down.
     #[serde(default = "default_max_width")]
     pub max_width: u32,
+    /// Zero-based index into `list_monitors()` of the display to capture.
+    /// `None` defers to the platform default (primary on Windows/Linux,
+    /// cursor display on macOS).
+    #[serde(default)]
+    pub monitor_index: Option<u32>,
 }
 
 impl Default for CaptureConfig {
@@ -95,8 +100,26 @@ impl Default for CaptureConfig {
             interval_ms: default_interval_ms(),
             quality: default_quality(),
             max_width: default_max_width(),
+            monitor_index: None,
         }
     }
+}
+
+/// Information about a single display, returned by the `list_monitors` command.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MonitorInfo {
+    /// Zero-based position of this monitor in the platform enumeration order.
+    /// Stable across calls within a single boot of the OS but may shift on
+    /// display add/remove.
+    pub index: u32,
+    /// Human-readable name (`\\.\DISPLAY1` on Windows, `Display 0` fallback).
+    pub name: String,
+    /// Native width in physical pixels.
+    pub width: u32,
+    /// Native height in physical pixels.
+    pub height: u32,
+    /// True when this is the OS-designated primary display.
+    pub is_primary: bool,
 }
 
 fn default_interval_ms() -> u64 {
