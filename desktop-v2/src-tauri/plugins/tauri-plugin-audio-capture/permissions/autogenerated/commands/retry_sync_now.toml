@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-retry-sync-now"
+description = "Enables the retry_sync_now command without any pre-configured scope."
+commands.allow = ["retry_sync_now"]
+
+[[permission]]
+identifier = "deny-retry-sync-now"
+description = "Denies the retry_sync_now command without any pre-configured scope."
+commands.deny = ["retry_sync_now"]

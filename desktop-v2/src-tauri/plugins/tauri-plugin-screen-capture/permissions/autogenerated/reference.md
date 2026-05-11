@@ -4,6 +4,7 @@ Default permissions for the screen capture plugin
 
 #### This default permission set includes the following:
 
+- `allow-list-monitors`
 - `allow-take-screenshot`
 - `allow-take-screenshot-with-ocr`
 - `allow-start-screen-capture`
@@ -24,6 +25,7 @@ Default permissions for the screen capture plugin
 - `allow-save-companion-session`
 - `allow-get-recent-companion-sessions`
 - `allow-delete-companion-session`
+- `allow-update-companion-session`
 
 ## Permission Table
 
@@ -297,6 +299,32 @@ Denies the get_screenshot_image command without any pre-configured scope.
 <tr>
 <td>
 
+`screen-capture:allow-list-monitors`
+
+</td>
+<td>
+
+Enables the list_monitors command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`screen-capture:deny-list-monitors`
+
+</td>
+<td>
+
+Denies the list_monitors command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `screen-capture:allow-save-companion-session`
 
 </td>
@@ -557,6 +585,45 @@ Denies the take_screenshot_with_ocr command without any pre-configured scope.
 <tr>
 <td>
 
+`screen-capture:allow-update-companion-session`
+
+</td>
+<td>
+
+Enables the update_companion_session command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`screen-capture:deny-update-companion-session`
+
+</td>
+<td>
+
+Denies the update_companion_session command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`screen-capture:allow-list-monitors`
+
+</td>
+<td>
+
+Allows enumerating attached displays for the monitor picker
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `screen-capture:allow-take-screenshot`
 
 </td>
@@ -810,6 +877,19 @@ Allows retrieving recent companion sessions from the Rewind database
 <td>
 
 Allows deleting a companion session by its database ID
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`screen-capture:allow-update-companion-session`
+
+</td>
+<td>
+
+Allows patching a companion session row with chain outcome telemetry
 
 </td>
 </tr>

@@ -295,6 +295,30 @@
       "type": "string",
       "oneOf": [
         {
+          "description": "Enables the delete_all_unsynced command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-delete-all-unsynced",
+          "markdownDescription": "Enables the delete_all_unsynced command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the delete_all_unsynced command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-delete-all-unsynced",
+          "markdownDescription": "Denies the delete_all_unsynced command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the delete_local_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-delete-local-session",
+          "markdownDescription": "Enables the delete_local_session command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the delete_local_session command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-delete-local-session",
+          "markdownDescription": "Denies the delete_local_session command without any pre-configured scope."
+        },
+        {
           "description": "Enables the get_capture_state command without any pre-configured scope.",
           "type": "string",
           "const": "allow-get-capture-state",
@@ -307,6 +331,18 @@
           "markdownDescription": "Denies the get_capture_state command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_local_segments command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-local-segments",
+          "markdownDescription": "Enables the get_local_segments command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_local_segments command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-local-segments",
+          "markdownDescription": "Denies the get_local_segments command without any pre-configured scope."
+        },
+        {
           "description": "Enables the list_devices command without any pre-configured scope.",
           "type": "string",
           "const": "allow-list-devices",
@@ -317,6 +353,18 @@
           "type": "string",
           "const": "deny-list-devices",
           "markdownDescription": "Denies the list_devices command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the list_local_sessions command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-list-local-sessions",
+          "markdownDescription": "Enables the list_local_sessions command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the list_local_sessions command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-list-local-sessions",
+          "markdownDescription": "Denies the list_local_sessions command without any pre-configured scope."
         },
         {
           "description": "Enables the probe_live_capture command without any pre-configured scope.",
@@ -355,6 +403,30 @@
           "markdownDescription": "Denies the request_system_audio_permission command without any pre-configured scope."
         },
         {
+          "description": "Enables the retry_all_failed command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-retry-all-failed",
+          "markdownDescription": "Enables the retry_all_failed command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the retry_all_failed command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-retry-all-failed",
+          "markdownDescription": "Denies the retry_all_failed command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the retry_sync_now command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-retry-sync-now",
+          "markdownDescription": "Enables the retry_sync_now command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the retry_sync_now command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-retry-sync-now",
+          "markdownDescription": "Denies the retry_sync_now command without any pre-configured scope."
+        },
+        {
           "description": "Enables the start_recording command without any pre-configured scope.",
           "type": "string",
           "const": "allow-start-recording",
@@ -379,10 +451,10 @@
           "markdownDescription": "Denies the stop_recording command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the audio capture plugin\n#### This default permission set includes:\n\n- `allow-list-devices`\n- `allow-start-recording`\n- `allow-stop-recording`\n- `allow-get-capture-state`\n- `allow-probe-system-audio`\n- `allow-probe-live-capture`\n- `allow-request-system-audio-permission`",
+          "description": "Default permissions for the audio capture plugin\n#### This default permission set includes:\n\n- `allow-list-devices`\n- `allow-start-recording`\n- `allow-stop-recording`\n- `allow-get-capture-state`\n- `allow-probe-system-audio`\n- `allow-probe-live-capture`\n- `allow-request-system-audio-permission`\n- `allow-list-local-sessions`\n- `allow-get-local-segments`\n- `allow-retry-sync-now`\n- `allow-retry-all-failed`\n- `allow-delete-local-session`\n- `allow-delete-all-unsynced`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the audio capture plugin\n#### This default permission set includes:\n\n- `allow-list-devices`\n- `allow-start-recording`\n- `allow-stop-recording`\n- `allow-get-capture-state`\n- `allow-probe-system-audio`\n- `allow-probe-live-capture`\n- `allow-request-system-audio-permission`"
+          "markdownDescription": "Default permissions for the audio capture plugin\n#### This default permission set includes:\n\n- `allow-list-devices`\n- `allow-start-recording`\n- `allow-stop-recording`\n- `allow-get-capture-state`\n- `allow-probe-system-audio`\n- `allow-probe-live-capture`\n- `allow-request-system-audio-permission`\n- `allow-list-local-sessions`\n- `allow-get-local-segments`\n- `allow-retry-sync-now`\n- `allow-retry-all-failed`\n- `allow-delete-local-session`\n- `allow-delete-all-unsynced`"
         },
         {
           "description": "Allows listing input audio devices",
@@ -425,6 +497,42 @@
           "type": "string",
           "const": "allow-request-system-audio-permission",
           "markdownDescription": "Allows triggering the system-audio TCC prompt and opening System Settings"
+        },
+        {
+          "description": "Allows listing on-device meeting sessions (recording, pending upload, completed, failed)",
+          "type": "string",
+          "const": "allow-list-local-sessions",
+          "markdownDescription": "Allows listing on-device meeting sessions (recording, pending upload, completed, failed)"
+        },
+        {
+          "description": "Allows retrieving the finalized segments for a local session",
+          "type": "string",
+          "const": "allow-get-local-segments",
+          "markdownDescription": "Allows retrieving the finalized segments for a local session"
+        },
+        {
+          "description": "Allows manually retrying upload/sync of a failed or pending session",
+          "type": "string",
+          "const": "allow-retry-sync-now",
+          "markdownDescription": "Allows manually retrying upload/sync of a failed or pending session"
+        },
+        {
+          "description": "Allows bulk-retrying upload/sync of every session currently in failed status",
+          "type": "string",
+          "const": "allow-retry-all-failed",
+          "markdownDescription": "Allows bulk-retrying upload/sync of every session currently in failed status"
+        },
+        {
+          "description": "Allows deleting a local session and cascading its segments",
+          "type": "string",
+          "const": "allow-delete-local-session",
+          "markdownDescription": "Allows deleting a local session and cascading its segments"
+        },
+        {
+          "description": "Allows bulk-deleting every session that didn't make it to the backend (failed + Local only)",
+          "type": "string",
+          "const": "allow-delete-all-unsynced",
+          "markdownDescription": "Allows bulk-deleting every session that didn't make it to the backend (failed + Local only)"
         }
       ]
     }
