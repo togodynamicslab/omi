@@ -2,7 +2,7 @@ name: nooto_v2
 description: "Nooto v2 — chat-driven Flutter rewrite. Phase 1: onboarding."
 publish_to: 'none'
 
-version: 0.1.0+2
+version: 0.1.0+4
 
 environment:
   sdk: ^3.11.4
