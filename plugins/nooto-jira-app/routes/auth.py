@@ -23,12 +23,21 @@ from fastapi.templating import Jinja2Templates
 
 from db import (
     consume_oauth_state,
+    get_redis,
     is_setup_completed,
     sign_state,
     store_jira_tokens,
     store_oauth_state,
     verify_state,
 )
+
+# Backend-side pre-warm trigger: writing this Redis flag in the OAuth callback's
+# durable-write path lets the backend's Jira cron pick up the new connection
+# at the next tick (within 10 min) and run the workflow-statuses pre-warm
+# without us having to make a plugin -> backend HTTP call. See backend
+# utils/integrations/jira_prewarm.py for the consumer.
+_PREWARM_PENDING_KEY = "jira:prewarm_pending:{uid}:{cloudid}"
+_PREWARM_PENDING_TTL_SECONDS = 600  # 10 minutes — matches the cron cadence
 
 router = APIRouter()
 log = logging.getLogger("nooto-jira-app.auth")
@@ -289,6 +298,23 @@ async def jira_auth_callback(
         default_cloud_id=default_cloud_id,
         scope=scope,
     )
+
+    # Tokens + cloudid are durably stored — signal the backend cron to
+    # pre-warm the workflow status classifier cache for this (uid, cloudid).
+    # Per design Day 3, this prevents the first-sync thundering herd of
+    # inline LLM classifications. Best-effort: if Redis is down or the
+    # write fails, the next normal sync still works (slower, more LLM
+    # calls), so we never block the OAuth success path.
+    try:
+        r = get_redis()
+        if r is not None:
+            r.setex(
+                _PREWARM_PENDING_KEY.format(uid=uid, cloudid=default_cloud_id),
+                _PREWARM_PENDING_TTL_SECONDS,
+                "1",
+            )
+    except Exception as exc:  # pragma: no cover — defensive
+        log.warning("Jira prewarm-pending flag write failed for uid=%s: %s", uid, exc)
 
     display_name: Optional[str] = None
     if me_resp is not None and me_resp.status_code == 200:
