@@ -79,6 +79,37 @@ class IntentDispatcher {
     }
   }
 
+  /// Reads upcoming EventKit events (next [daysAhead] days, all granted
+  /// calendars) and returns them as a JSON-shaped list ready to inline into
+  /// a chat request's `device_context.apple_calendar` field. The backend
+  /// agent's `<device_context>` system block renders these alongside its
+  /// Google Calendar tool, so calendar questions get both sources.
+  ///
+  /// On non-iOS / missing-plugin / permission-denied we return an empty
+  /// list — the agent then falls back to whatever cloud calendars it has
+  /// tools for.
+  Future<List<Map<String, dynamic>>> fetchUpcomingCalendarEvents({int daysAhead = 7}) async {
+    if (!_isSupportedPlatform) return const [];
+    try {
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'fetchUpcomingEvents',
+        {'daysAhead': daysAhead},
+      );
+      if (result == null) return const [];
+      final raw = result['events'];
+      if (raw is! List) return const [];
+      return raw
+          .whereType<Map>()
+          .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+          .toList(growable: false);
+    } on PlatformException catch (e) {
+      debugPrint('[IntentDispatcher] fetchUpcomingEvents failed: $e');
+      return const [];
+    } on MissingPluginException {
+      return const [];
+    }
+  }
+
   /// Reverse-check seam for the proactive-push service. Returns the subset
   /// of [identifiers] that still have a matching `EKReminder` in the user's
   /// Reminders database. Anything missing means the user deleted it in
