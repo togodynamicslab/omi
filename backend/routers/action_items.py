@@ -68,6 +68,7 @@ class ActionItemResponse(BaseModel):
     sort_order: int = 0
     indent_level: int = 0
     external_source: Optional[dict] = None
+    confidence: Optional[float] = None
 
 
 def _get_valid_action_item(uid: str, action_item_id: str) -> dict:
