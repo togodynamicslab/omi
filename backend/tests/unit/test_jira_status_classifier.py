@@ -674,6 +674,174 @@ class TestRewriteActionabilityInPlace:
 
 
 # ---------------------------------------------------------------------------
+# apply_status_override tests (5-bucket v2 endpoint)
+# ---------------------------------------------------------------------------
+
+
+class TestApplyStatusOverride:
+    def _seed_two_matching_docs(self, *, extra_md=None):
+        fake_firestore.docs_by_uid["uid-1"] = [
+            _make_doc("a", extra_md=extra_md),
+            _make_doc("b", extra_md=extra_md),
+            _make_doc("c", status="Other"),  # doesn't match
+            _make_doc("d", cloudid="cloud-2"),  # doesn't match
+        ]
+
+    def _committed_updates(self):
+        all_updates = []
+        for b in fake_firestore.batches:
+            if b.committed:
+                all_updates.extend(b.updates)
+        return all_updates
+
+    def _read_cache_payload(self, cloudid, status_name):
+        key = classifier._status_cache_key(cloudid, status_name)
+        raw = fake_redis.store.get(key)
+        assert raw is not None, "expected override cache write"
+        return json.loads(raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else raw)
+
+    # --- non-terminal buckets -----------------------------------------
+
+    def test_bucket_self_sets_actionability_self_no_terminal_fields(self):
+        self._seed_two_matching_docs(extra_md={"status_type": "indeterminate"})
+        result = classifier.apply_status_override("uid-1", "cloud-1", "In Review", "self")
+        assert result == {"redis_written": True, "items_updated": 2}
+
+        payload = self._read_cache_payload("cloud-1", "In Review")
+        assert payload["actionability"] == "self"
+        assert payload["source"] == "override"
+        assert payload["status_category"] == "indeterminate"  # default for non-terminal
+
+        updates = self._committed_updates()
+        assert len(updates) == 2
+        for _ref, fields in updates:
+            assert fields["external_source.metadata.actionability"] == "self"
+            assert fields["external_source.metadata.resolution"] is None
+            assert fields["external_source.metadata.classification_source"] == "override"
+            # Non-terminal MUST NOT touch status_type or top-level completed.
+            assert "external_source.metadata.status_type" not in fields
+            assert "completed" not in fields
+
+    def test_bucket_waiting_sets_actionability_waiting(self):
+        self._seed_two_matching_docs()
+        result = classifier.apply_status_override("uid-1", "cloud-1", "In Review", "waiting")
+        assert result == {"redis_written": True, "items_updated": 2}
+
+        payload = self._read_cache_payload("cloud-1", "In Review")
+        assert payload["actionability"] == "waiting"
+        assert payload["source"] == "override"
+
+        for _ref, fields in self._committed_updates():
+            assert fields["external_source.metadata.actionability"] == "waiting"
+            assert fields["external_source.metadata.resolution"] is None
+            assert "external_source.metadata.status_type" not in fields
+            assert "completed" not in fields
+
+    def test_bucket_blocked_sets_actionability_blocked(self):
+        self._seed_two_matching_docs()
+        result = classifier.apply_status_override("uid-1", "cloud-1", "In Review", "blocked")
+        assert result == {"redis_written": True, "items_updated": 2}
+
+        payload = self._read_cache_payload("cloud-1", "In Review")
+        assert payload["actionability"] == "blocked"
+
+        for _ref, fields in self._committed_updates():
+            assert fields["external_source.metadata.actionability"] == "blocked"
+            assert fields["external_source.metadata.resolution"] is None
+            assert "completed" not in fields
+
+    # --- terminal buckets ---------------------------------------------
+
+    def test_bucket_completed_forces_done_and_completed_flag(self):
+        # Item starts with status_type=indeterminate and completed=False.
+        self._seed_two_matching_docs(extra_md={"status_type": "indeterminate"})
+        result = classifier.apply_status_override("uid-1", "cloud-1", "In Review", "completed")
+        assert result == {"redis_written": True, "items_updated": 2}
+
+        payload = self._read_cache_payload("cloud-1", "In Review")
+        # Terminal buckets stamp status_category=done into the cache.
+        assert payload["status_category"] == "done"
+        assert payload["source"] == "override"
+
+        updates = self._committed_updates()
+        assert len(updates) == 2
+        for _ref, fields in updates:
+            # actionability cleared (None), resolution set to "completed".
+            assert fields["external_source.metadata.actionability"] is None
+            assert fields["external_source.metadata.resolution"] == "completed"
+            assert fields["external_source.metadata.classification_source"] == "override"
+            # Terminal: status_type forced to "done" and top-level completed flipped True.
+            assert fields["external_source.metadata.status_type"] == "done"
+            assert fields["completed"] is True
+
+    def test_bucket_dropped_forces_done_and_completed_flag(self):
+        self._seed_two_matching_docs(extra_md={"status_type": "indeterminate"})
+        result = classifier.apply_status_override("uid-1", "cloud-1", "In Review", "dropped")
+        assert result == {"redis_written": True, "items_updated": 2}
+
+        payload = self._read_cache_payload("cloud-1", "In Review")
+        assert payload["status_category"] == "done"
+
+        for _ref, fields in self._committed_updates():
+            assert fields["external_source.metadata.actionability"] is None
+            assert fields["external_source.metadata.resolution"] == "dropped"
+            assert fields["external_source.metadata.classification_source"] == "override"
+            assert fields["external_source.metadata.status_type"] == "done"
+            assert fields["completed"] is True
+
+    # --- preservation + edge cases ------------------------------------
+
+    def test_non_terminal_preserves_cached_status_category(self):
+        # Prior LLM classification stamped status_category="new". A self
+        # override should keep "new" (rename-detection accuracy) — not
+        # collapse it to the "indeterminate" default.
+        _seed_cache(
+            "cloud-1",
+            "Backlog",
+            actionability="self",
+            certainty="high",
+            source="llm",
+            status_category="new",
+        )
+        result = classifier.apply_status_override("uid-1", "cloud-1", "Backlog", "waiting")
+        assert result["redis_written"] is True
+        payload = self._read_cache_payload("cloud-1", "Backlog")
+        assert payload["status_category"] == "new"
+        assert payload["actionability"] == "waiting"
+
+    def test_zero_matching_items_returns_zero(self):
+        # No matching action items, but the cache is still written.
+        fake_firestore.docs_by_uid["uid-1"] = [
+            _make_doc("a", cloudid="cloud-2"),
+        ]
+        result = classifier.apply_status_override("uid-1", "cloud-1", "In Review", "waiting")
+        assert result == {"redis_written": True, "items_updated": 0}
+        assert classifier._status_cache_key("cloud-1", "In Review") in fake_redis.store
+
+    def test_invalid_bucket_raises(self):
+        with pytest.raises(ValueError):
+            classifier.apply_status_override("uid-1", "cloud-1", "X", "bogus")  # type: ignore[arg-type]
+
+    def test_redis_write_failure_still_rewrites_items(self):
+        # Redis transient failure: items still updated, redis_written=False.
+        self._seed_two_matching_docs()
+        fake_redis.raise_on_set = RuntimeError("redis down")
+        result = classifier.apply_status_override("uid-1", "cloud-1", "In Review", "self")
+        assert result["redis_written"] is False
+        assert result["items_updated"] == 2
+
+    def test_legacy_wrapper_delegates_and_returns_count(self):
+        # rewrite_actionability_in_place must keep behaving as an int-returning
+        # helper that maps the old 3-bucket actionability arg to the new
+        # bucket value.
+        self._seed_two_matching_docs()
+        count = classifier.rewrite_actionability_in_place("uid-1", "cloud-1", "In Review", "waiting")
+        assert count == 2
+        # And the override cache entry exists.
+        assert classifier._status_cache_key("cloud-1", "In Review") in fake_redis.store
+
+
+# ---------------------------------------------------------------------------
 # Slug helper (light sanity)
 # ---------------------------------------------------------------------------
 
