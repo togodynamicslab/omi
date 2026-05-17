@@ -594,24 +594,174 @@ async def classify_resolution(cloudid: str, resolution_name: Optional[str]) -> O
     return response.resolution
 
 
-def rewrite_actionability_in_place(
-    uid: str,
-    cloudid: str,
-    status_name: str,
-    new_actionability: Actionability,
-) -> int:
-    """Rewrite ``external_source.metadata.actionability`` for matching items.
+# ---------------------------------------------------------------------------
+# Override buckets — v2 UI replaces the legacy 3-bucket actionability CLI with
+# a 5-bucket model that can also flip terminal-state metadata.
+# ---------------------------------------------------------------------------
 
-    Filters Firestore by ``external_source.source == "jira"`` (existing index),
-    then Python-filters on ``external_source.metadata.cloudid == cloudid``
-    AND ``external_source.metadata.status == status_name``. Updates
-    ``actionability`` + sets ``classification_source = "override"``. Commits
-    every 400 docs. Returns count updated.
+Bucket = Literal["self", "waiting", "blocked", "completed", "dropped"]
 
-    No Jira API call. No /sync-now. Pure Firestore mutation.
+_NON_TERMINAL_BUCKETS: frozenset[str] = frozenset({"self", "waiting", "blocked"})
+_TERMINAL_BUCKETS: frozenset[str] = frozenset({"completed", "dropped"})
 
-    Cross-reference: design doc "Override-Triggered Resync Mechanism".
+
+def _bucket_to_actionability(bucket: Bucket) -> Optional[Actionability]:
+    if bucket in _NON_TERMINAL_BUCKETS:
+        return bucket  # type: ignore[return-value]
+    return None
+
+
+def _bucket_to_resolution(bucket: Bucket) -> Optional[ResolutionType]:
+    if bucket == "completed":
+        return "completed"
+    if bucket == "dropped":
+        return "dropped"
+    return None
+
+
+def _bucket_to_status_category(bucket: Bucket, cached_category: Optional[StatusCategory]) -> StatusCategory:
+    """Pick the status_category to persist alongside the override cache entry.
+
+    Terminal buckets force "done" (the whole point of "this is a terminal
+    state"). Non-terminal buckets preserve the cached category when known
+    (keeps rename-detection accurate) and default to "indeterminate" otherwise
+    — matches the legacy CLI's choice.
     """
+    if bucket in _TERMINAL_BUCKETS:
+        return "done"
+    return cached_category or "indeterminate"
+
+
+def _bucket_to_actionability_for_cache(bucket: Bucket) -> Actionability:
+    """The CachedClassification schema requires a non-null actionability.
+
+    For terminal buckets the override semantically nulls actionability on
+    Firestore (resolution wins), but the per-status cache entry still needs
+    an Actionability value. We persist the conservative "self" placeholder
+    — the classifier never reads it back for terminal-bucket statuses
+    because the override path consults bucket via resolution-derivation,
+    not the cached actionability field. See ``apply_status_override``.
+    """
+    actionability = _bucket_to_actionability(bucket)
+    if actionability is not None:
+        return actionability
+    return "self"
+
+
+def _read_cached_status_category(cloudid: str, status_name: str) -> Optional[StatusCategory]:
+    """Best-effort read of the prior cache entry's status_category, for
+    rename-detection preservation on non-terminal overrides."""
+    key = _status_cache_key(cloudid, status_name)
+    try:
+        raw = redis_client.get(key)
+    except Exception:
+        return None
+    if raw is None:
+        return None
+    try:
+        decoded = raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else raw
+        payload = json.loads(decoded)
+        cached = CachedClassification.model_validate(payload)
+    except (ValidationError, ValueError, TypeError, AttributeError, json.JSONDecodeError):
+        return None
+    return cached.status_category
+
+
+def derive_bucket(cached: CachedClassification) -> Bucket:
+    """Map a cached classification back to its 5-bucket label.
+
+    Override entries written by ``apply_status_override`` carry the bucket
+    implicitly via ``actionability``/``status_category`` — the cached
+    ``actionability`` is a placeholder for terminal buckets, so we prefer
+    ``status_category == "done"`` (terminal) over actionability. For
+    terminal entries we can't tell completed-vs-dropped from the cached
+    actionability alone; callers needing that distinction should consult
+    ``external_source.metadata.resolution`` on a matching action item, but
+    the UI typically derives bucket from the action_item metadata, not the
+    cache entry. This helper is a best-effort fallback for unmatched
+    (cache-only) entries.
+    """
+    if cached.status_category == "done":
+        # We cannot disambiguate completed vs dropped from cache alone;
+        # default to "completed" as the higher-frequency case. Override
+        # entries are normally read alongside matching action items where
+        # metadata.resolution is authoritative.
+        return "completed"
+    return cached.actionability  # type: ignore[return-value]
+
+
+def get_cached_classification(cloudid: str, status_name: str) -> Optional[CachedClassification]:
+    """Single-key cache read, used by the status-classifications GET endpoint.
+
+    Returns None on cache miss, malformed payload, or Redis transport error.
+    """
+    key = _status_cache_key(cloudid, status_name)
+    try:
+        raw = redis_client.get(key)
+    except Exception as e:
+        logger.warning(
+            f"jira_status_classifier: cache get failed cloudid={cloudid} "
+            f"status={sanitize_pii(status_name)} err={sanitize(str(e))}"
+        )
+        return None
+    if raw is None:
+        return None
+    try:
+        decoded = raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else raw
+        payload = json.loads(decoded)
+        return CachedClassification.model_validate(payload)
+    except (ValidationError, ValueError, TypeError, AttributeError, json.JSONDecodeError):
+        return None
+
+
+def apply_status_override(uid: str, cloudid: str, status_name: str, bucket: Bucket) -> dict:
+    """Override the per-status classification AND in-place rewrite every
+    matching action item.
+
+    Returns ``{"redis_written": bool, "items_updated": int}``.
+
+    Bucket mapping:
+      - "self":      actionability=self,     resolution=None,      status_type unchanged, completed unchanged
+      - "waiting":   actionability=waiting,  resolution=None,      status_type unchanged, completed unchanged
+      - "blocked":   actionability=blocked,  resolution=None,      status_type unchanged, completed unchanged
+      - "completed": actionability=None,     resolution=completed, status_type=done,      completed=True
+      - "dropped":   actionability=None,     resolution=dropped,   status_type=done,      completed=True
+
+    Terminal buckets ("completed"/"dropped") FORCE status_type=done +
+    completed=True on every matching action item, regardless of Jira's own
+    statusCategory. Non-terminal buckets DO NOT touch status_type or
+    completed — they only change actionability. The cached entry and every
+    rewritten item are stamped with ``classification_source="override"``.
+    """
+    if bucket not in _NON_TERMINAL_BUCKETS and bucket not in _TERMINAL_BUCKETS:
+        raise ValueError(f"unknown bucket: {bucket!r}")
+
+    # 1. Write the override into the per-status Redis cache. Wins forever
+    # against any subsequent LLM re-classification.
+    cached_category = _read_cached_status_category(cloudid, status_name)
+    cached = CachedClassification(
+        actionability=_bucket_to_actionability_for_cache(bucket),
+        certainty="high",
+        source="override",
+        classified_at=_now_iso(),
+        status_category=_bucket_to_status_category(bucket, cached_category),
+    )
+    key = _status_cache_key(cloudid, status_name)
+    redis_written = True
+    try:
+        redis_client.set(key, cached.model_dump_json())
+    except Exception as e:
+        redis_written = False
+        logger.warning(
+            f"jira_status_classifier: override cache write failed cloudid={cloudid} "
+            f"status={sanitize_pii(status_name)} err={sanitize(str(e))}"
+        )
+
+    # 2. In-place rewrite of every matching action item.
+    new_actionability = _bucket_to_actionability(bucket)
+    new_resolution = _bucket_to_resolution(bucket)
+    is_terminal = bucket in _TERMINAL_BUCKETS
+
     coll = firestore_db.collection("users").document(uid).collection("action_items")
     query = coll.where(filter=FieldFilter("external_source.source", "==", "jira"))
 
@@ -626,13 +776,17 @@ def rewrite_actionability_in_place(
             continue
         if md.get("status") != status_name:
             continue
-        batch.update(
-            doc.reference,
-            {
-                "external_source.metadata.actionability": new_actionability,
-                "external_source.metadata.classification_source": "override",
-            },
-        )
+        update_payload: dict = {
+            "external_source.metadata.actionability": new_actionability,
+            "external_source.metadata.resolution": new_resolution,
+            "external_source.metadata.classification_source": "override",
+        }
+        if is_terminal:
+            # Terminal buckets force status_type=done at the metadata level
+            # AND flip the top-level completed flag (NOT inside metadata).
+            update_payload["external_source.metadata.status_type"] = "done"
+            update_payload["completed"] = True
+        batch.update(doc.reference, update_payload)
         count += 1
         pending += 1
         if pending >= _FIRESTORE_BATCH_LIMIT:
@@ -644,7 +798,24 @@ def rewrite_actionability_in_place(
         batch.commit()
 
     logger.info(
-        f"jira_status_classifier: rewrote actionability uid={uid} cloudid={cloudid} "
-        f"status={sanitize_pii(status_name)} new={new_actionability} count={count}"
+        f"jira_status_classifier: applied status override uid={uid} cloudid={cloudid} "
+        f"status={sanitize_pii(status_name)} bucket={bucket} "
+        f"redis_written={redis_written} items_updated={count}"
     )
-    return count
+    return {"redis_written": redis_written, "items_updated": count}
+
+
+def rewrite_actionability_in_place(
+    uid: str,
+    cloudid: str,
+    status_name: str,
+    new_actionability: Actionability,
+) -> int:
+    """Legacy 3-bucket wrapper around :func:`apply_status_override`.
+
+    Preserved so the admin CLI (``scripts/jira_override_classification.py``)
+    and pre-v2 tests keep working unchanged. The new 5-bucket UI calls
+    ``apply_status_override`` directly.
+    """
+    result = apply_status_override(uid, cloudid, status_name, new_actionability)
+    return int(result.get("items_updated", 0))
