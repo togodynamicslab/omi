@@ -114,6 +114,41 @@ def _find_by_external_source(uid: str, source: str, external_id: str) -> Optiona
     return None
 
 
+def list_jira_status_pairs(uid: str) -> List[dict]:
+    """Enumerate distinct (cloudid, status_name) pairs across a user's Jira items.
+
+    Returns a list of dicts with ``cloudid``, ``status_name``, and
+    ``matching_item_count``. Used by the v2 status-override UI to render the
+    universe of overrideable Jira statuses (one row per pair, sorted by
+    impact server-side via the count).
+
+    Only includes items whose ``external_source.metadata.cloudid`` and
+    ``external_source.metadata.status`` are both non-empty strings —
+    defensive against pre-classifier-era docs that may be missing cloudid.
+    """
+    user_ref = db.collection('users').document(uid)
+    query = user_ref.collection(action_items_collection).where(
+        filter=FieldFilter('external_source.source', '==', 'jira')
+    )
+    counts: dict[tuple, int] = {}
+    for doc in query.stream():
+        data = doc.to_dict() or {}
+        ext = data.get('external_source') or {}
+        md = ext.get('metadata') or {}
+        cloudid = md.get('cloudid')
+        status_name = md.get('status')
+        if not isinstance(cloudid, str) or not cloudid:
+            continue
+        if not isinstance(status_name, str) or not status_name:
+            continue
+        key = (cloudid, status_name)
+        counts[key] = counts.get(key, 0) + 1
+    return [
+        {'cloudid': cloudid, 'status_name': status_name, 'matching_item_count': count}
+        for (cloudid, status_name), count in counts.items()
+    ]
+
+
 def upsert_external_action_item(uid: str, external_source: dict, fields: dict) -> str:
     """Idempotent upsert keyed on ``external_source.{source, external_id}``.
 
