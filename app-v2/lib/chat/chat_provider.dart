@@ -325,14 +325,18 @@ class ChatProvider extends ChangeNotifier {
     // On-device calendar read so the cloud agent can answer "what's on my
     // calendar?" against Apple Calendar / iCloud / mirrored work calendars.
     // Mirrors the existing on-device `add_event` write path — same EventKit
-    // pipe. Empty on non-iOS / permission-denied (agent falls back to its
-    // Google Calendar tool). ~50ms; non-blocking failure.
+    // pipe. ~50ms; non-blocking failure.
+    //
+    // We send `apple_calendar` ALWAYS (even when empty) on iOS so the
+    // backend's <device_context> rule block renders and the agent uses its
+    // empty-case wording ("no upcoming events") instead of regressing to
+    // "Apple Calendar isn't connected". Suppressing the field when empty
+    // was the bug: the agent then had zero signal that EventKit was on
+    // tap and fell back to old training.
     Map<String, dynamic>? deviceContext;
     try {
       final events = await _intentBridge.fetchUpcomingCalendarEvents(daysAhead: 7);
-      if (events.isNotEmpty) {
-        deviceContext = {'apple_calendar': events};
-      }
+      deviceContext = {'apple_calendar': events};
     } catch (e) {
       debugPrint('[ChatProvider] fetchUpcomingCalendarEvents failed: $e');
     }
