@@ -15,6 +15,7 @@ import database.users as users_db
 import database.redis_db as redis_db
 import database.integration_prefs as integration_prefs_db
 import database.action_items as action_items_db
+from utils.integrations import jira_sync
 from utils.integrations.jira_sync import sync_user_jira_issues_with_timestamp
 from utils.other import endpoints as auth
 from utils.log_sanitizer import sanitize, sanitize_pii
@@ -562,32 +563,105 @@ class JiraStatusOverrideResponse(BaseModel):
     response_model=JiraStatusClassificationsResponse,
     tags=['integrations'],
 )
-def jira_status_classifications(uid: str = Depends(auth.get_current_user_uid)):
-    """Return every Jira status the current user has encountered, with its
-    cached classification (if any) and matching action-item count.
+async def jira_status_classifications(uid: str = Depends(auth.get_current_user_uid)):
+    """Return every Jira status the current user could override — both the
+    ones that currently appear on their action items AND every other status
+    in their workflow (so terminal states like Done/Won't Do and rarely-used
+    statuses still surface for pre-classification).
+
+    Two sources merged:
+      1. action_items scan → gives (cloudid, status_name, count) for statuses
+         the user actually has tickets in right now.
+      2. Plugin /v1/internal/workflow-statuses → gives the full workflow
+         vocabulary for the user's site (matching_item_count=0 for statuses
+         not in action_items).
 
     Sorted by matching_item_count descending so the most-impactful statuses
     surface first in the override UI.
     """
+    # 1. Pairs from action_items (have counts).
     pairs = action_items_db.list_jira_status_pairs(uid)
-    items: list[JiraStatusClassificationItem] = []
+    # Map (cloudid, status_name) → (count, status_category)
+    merged: dict[tuple[str, str], dict] = {}
     for pair in pairs:
-        cloudid = pair['cloudid']
-        status_name = pair['status_name']
+        key = (pair['cloudid'], pair['status_name'])
+        merged[key] = {
+            'cloudid': pair['cloudid'],
+            'status_name': pair['status_name'],
+            'matching_item_count': pair['matching_item_count'],
+            'status_category': pair.get('status_category'),
+        }
+
+    # 2. Plugin workflow vocabulary (count=0 if not in action_items).
+    # Fail-soft: if the plugin is unreachable, we still return the
+    # action_items-derived set rather than 500'ing the UI.
+    # getattr keeps tests that stub jira_sync without the helper alive.
+    _resolver = getattr(jira_sync, '_resolve_plugin_base_url', None)
+    plugin_base = _resolver() if callable(_resolver) else None
+    if plugin_base:
+        try:
+            client = get_http_client()
+            resp = await client.get(
+                f"{plugin_base}/v1/internal/workflow-statuses",
+                params={'uid': uid},
+                timeout=8.0,
+            )
+            if resp.status_code == 200:
+                body = resp.json() or {}
+                statuses = body.get('statuses') or []
+                # The plugin returns site-scoped statuses but doesn't echo
+                # cloudid per row; use the first cloudid the user has in
+                # action_items as the scope. For multi-site dogfood this is
+                # the active site. v2 follow-up: extend plugin response to
+                # include cloudid per status.
+                default_cloudid = pairs[0]['cloudid'] if pairs else None
+                if default_cloudid:
+                    for s in statuses:
+                        status_name = (s.get('status_name') or '').strip()
+                        if not status_name:
+                            continue
+                        key = (default_cloudid, status_name)
+                        if key in merged:
+                            # Backfill status_category if missing.
+                            if not merged[key].get('status_category'):
+                                merged[key]['status_category'] = s.get('status_category')
+                            continue
+                        merged[key] = {
+                            'cloudid': default_cloudid,
+                            'status_name': status_name,
+                            'matching_item_count': 0,
+                            'status_category': s.get('status_category'),
+                        }
+            else:
+                logger.info(
+                    "[StatusClassifications] Plugin workflow-statuses returned %s — falling back to action_items-only",
+                    resp.status_code,
+                )
+        except (httpx.RequestError, ValueError) as exc:
+            logger.warning(
+                "[StatusClassifications] Plugin workflow-statuses fetch failed err=%s — falling back to action_items-only",
+                sanitize(str(exc)),
+            )
+
+    # 3. Cache lookup + assemble response.
+    items: list[JiraStatusClassificationItem] = []
+    for entry in merged.values():
+        cloudid = entry['cloudid']
+        status_name = entry['status_name']
         cached = jira_status_classifier.get_cached_classification(cloudid, status_name)
         if cached is None:
             items.append(
                 JiraStatusClassificationItem(
                     cloudid=cloudid,
                     status_name=status_name,
-                    status_category=None,
+                    status_category=entry.get('status_category'),
                     bucket=None,
                     actionability=None,
                     resolution=None,
                     source=None,
                     certainty=None,
                     classified_at=None,
-                    matching_item_count=pair['matching_item_count'],
+                    matching_item_count=entry['matching_item_count'],
                 )
             )
             continue
@@ -596,14 +670,14 @@ def jira_status_classifications(uid: str = Depends(auth.get_current_user_uid)):
             JiraStatusClassificationItem(
                 cloudid=cloudid,
                 status_name=status_name,
-                status_category=cached.status_category,
+                status_category=cached.status_category or entry.get('status_category'),
                 bucket=bucket,
                 actionability=cached.actionability,
                 resolution=None,
                 source=cached.source,
                 certainty=cached.certainty,
                 classified_at=cached.classified_at,
-                matching_item_count=pair['matching_item_count'],
+                matching_item_count=entry['matching_item_count'],
             )
         )
     items.sort(key=lambda i: i.matching_item_count, reverse=True)
