@@ -93,7 +93,7 @@ class ConversationsProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await _client.get('v1/conversations?limit=100&offset=0');
+      final res = await _client.get('v1/conversations?limit=100&offset=0&include_discarded=false');
       final body = jsonDecode(res.body);
       final list = body is List
           ? body
