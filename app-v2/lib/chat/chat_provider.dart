@@ -33,11 +33,20 @@ class ChatProvider extends ChangeNotifier {
     required ChatService service,
     IntentBridge? intentBridge,
     FlutterLocalNotificationsPlugin? localNotifications,
+    this.onActionItemsChanged,
   })  : _service = service,
         _intentBridge = intentBridge ?? IntentBridge(),
         _localNotifications = localNotifications ?? FlutterLocalNotificationsPlugin() {
     _hydrate();
   }
+
+  /// Fires when the chat stream reports that an action-item-related tool
+  /// (create_action_item_tool, etc.) executed during this turn. main.dart
+  /// wires this to `ActionItemsProvider.fetchAll` so Plan + ProactivePushService
+  /// pick up the new rows. Without this hook, the chat path silently mutates
+  /// server state and the rest of the app stays stale until the next manual
+  /// Plan-tab attach.
+  final VoidCallback? onActionItemsChanged;
 
   final ChatService _service;
 
@@ -306,6 +315,13 @@ class ChatProvider extends ChangeNotifier {
     final completer = Completer<void>();
     _activeStreamCompleter = completer;
 
+    // Track whether the agent fired an action-item tool during this turn so
+    // we can trigger an ActionItemsProvider.fetchAll() on stream completion.
+    // The chat agent's create_action_item_tool persists straight to
+    // Firestore, bypassing the provider — without this hook Plan stays
+    // stale and ProactivePushService never sees the new rows.
+    var actionItemToolFired = false;
+
     _activeStream = _service.streamChat(trimmed).listen(
       (event) {
         if (event is ChatStreamText) {
@@ -317,6 +333,9 @@ class ChatProvider extends ChangeNotifier {
           if (events.isEmpty || events.last != event.label) {
             events.add(event.label);
             assistant = assistant.copyWith(toolEvents: events);
+          }
+          if (_isActionItemToolLabel(event.label)) {
+            actionItemToolFired = true;
           }
         }
         _replaceMessageInSession(sessionId, assistantId, assistant);
@@ -341,6 +360,9 @@ class ChatProvider extends ChangeNotifier {
         _replaceMessageInSession(sessionId, assistantId, finalMsg);
         _persistMessage(finalMsg);
         _bumpUpdatedAt(sessionId, msgs.length);
+        if (actionItemToolFired) {
+          onActionItemsChanged?.call();
+        }
         if (!completer.isCompleted) completer.complete();
       },
       cancelOnError: true,
@@ -636,6 +658,15 @@ class ChatProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('[ChatProvider] timer schedule failed: $e');
     }
+  }
+
+  /// Heuristic: did this `think:`-label correspond to a server-side action-
+  /// item mutation? The backend emits human labels like "Creating action
+  /// item", "Updating action item", "Completing action item", etc. We catch
+  /// "action item" anywhere in the label rather than fixed strings so a
+  /// label tweak on the backend doesn't silently break the refetch hook.
+  static bool _isActionItemToolLabel(String label) {
+    return label.toLowerCase().contains('action item');
   }
 
   /// Build a friendly assistant message for a successfully dispatched intent.
