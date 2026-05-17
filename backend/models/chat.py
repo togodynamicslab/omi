@@ -200,6 +200,13 @@ class SendMessageRequest(BaseModel):
     file_ids: Optional[List[str]] = []
     context: Optional[PageContext] = None
     today_context: Optional[Dict[str, Any]] = None
+    # On-device EventKit + (future) other device-only data sources, inlined
+    # into the chat request so the cloud agent can answer questions against
+    # them. Today's shape:
+    #   { "apple_calendar": [{"title", "start", "end", "location?", "notes?",
+    #                          "isAllDay", "calendar"}, ...] }
+    # Renders into the agent system prompt as a <device_context> block.
+    device_context: Optional[Dict[str, Any]] = None
 
 
 class ChatSession(BaseModel):
