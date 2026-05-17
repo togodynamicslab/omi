@@ -131,6 +131,7 @@ def list_jira_status_pairs(uid: str) -> List[dict]:
         filter=FieldFilter('external_source.source', '==', 'jira')
     )
     counts: dict[tuple, int] = {}
+    categories: dict[tuple, str] = {}
     for doc in query.stream():
         data = doc.to_dict() or {}
         ext = data.get('external_source') or {}
@@ -143,8 +144,16 @@ def list_jira_status_pairs(uid: str) -> List[dict]:
             continue
         key = (cloudid, status_name)
         counts[key] = counts.get(key, 0) + 1
+        status_type = md.get('status_type')
+        if isinstance(status_type, str) and status_type and key not in categories:
+            categories[key] = status_type
     return [
-        {'cloudid': cloudid, 'status_name': status_name, 'matching_item_count': count}
+        {
+            'cloudid': cloudid,
+            'status_name': status_name,
+            'matching_item_count': count,
+            'status_category': categories.get((cloudid, status_name)),
+        }
         for (cloudid, status_name), count in counts.items()
     ]
 
