@@ -2,6 +2,26 @@
 
 Deferred work captured during planning. Add to a sprint when picking up.
 
+## Promote on-device intent dispatcher into app-v2 once PoC clears accuracy bar
+
+**What:** After the `app-v2/native-poc/{ios,android}/` PoC ships and reports ≥18/20 parses on both platforms, expose the parser+dispatcher as Flutter method channels and surface one entry point in the real Nooto UI (Companion Stream tab, e.g., a quick-action chip "set an alarm…").
+
+**Why:** The PoC is sandboxed to prove the on-device LLM → JSON → system action chain works. Promotion is the path from "we proved it" to "Nooto users can use it." Without this TODO it's easy to leave the PoC dogfooded by Matheus only and never close the loop.
+
+**Pros:**
+- Validates the "Nooto as composer of on-device capabilities" thesis in the real product.
+- Reuses the parsed-intent contract — promotion is a wiring exercise, not a re-design.
+- Closes the founder-only feedback loop flagged in the design doc.
+
+**Cons:**
+- Method-channel marshaling adds latency (~10–30ms per round trip — should still leave warm latency under 700ms total).
+- Once promoted, the parser is on the dogfood path and changes to it have to clear the regular app-v2 review bar.
+- Hand-rolled bindings (Foundation Models, MediaPipe) per platform need a CI/CD story before the integration ships in a release.
+
+**Context:** Surfaced during `/plan-eng-review` of the PoC design (2026-05-16). Full design doc at `~/.gstack/projects/togodynamicslab-omi/matheusoliviera-main-design-poc-on-device-intent-20260516-003859.md`. The PoC's "Next Steps" section lists five other follow-ups (grammar-constrained decoding, LoRA fine-tune, BLE wearable bridge, cloud fallback for unknown, speech input) — those stay in the design doc, not here, because they're improvements to the PoC itself, not the app-v2 integration.
+
+**Depends on:** PoC reports ≥18/20 accuracy AND median warm latency <800ms on both iOS and Android. Recommend handing the PoC to at least one non-Matheus user before promotion (the design doc's Assignment).
+
 ## Bound `home.actions.v1` retention to 90 days
 
 **What:** On `main()` boot, compact the `home.actions.v1` Hive box by deleting rows whose `ts` is older than 90 days.
@@ -192,3 +212,60 @@ Deferred work captured during planning. Add to a sprint when picking up.
 **Context:** Surfaced during `/simplify` review of the notifications-as-chat feature (2026-05-06). Pre-existing duplication that Lane C extended rather than introduced. Out of scope for the inbox feature ship; reasonable to bundle with any future theme-token cleanup.
 
 **Depends on:** None. Trivially actionable any time.
+
+## Jira sync N+1: per-task `_find_by_external_source` round-trip
+
+**What:** Replace the per-task Firestore round-trip in `backend/utils/integrations/jira_sync.py:262` with a batch read. Collect all `ext_id`s for the page, run a single `where("external_source.external_id", "in", ext_ids)` query (Firestore `in` accepts up to 30 values; chunk if needed), then iterate in memory.
+
+**Why:** Today the sync loop reads Firestore once per Jira task to deep-merge metadata. For a power user with 200+ issues, that's 200+ sequential round-trips per sync cycle. Compounds the LLM batch classify added in the Jira terminal-states design (2026-05-17) — even with the classify batched, the Firestore reads dominate latency.
+
+**Pros:**
+- ~10-100x faster sync for users with many issues.
+- Standard Firestore `in` query, no new index needed.
+- Reduces sync-now latency that the freshness design (2026-05-07) is also trying to optimize.
+
+**Cons:**
+- `in` query maxes at 30 values per call — needs chunking for >30 issues per page.
+- Subtle: the deep-merge currently relies on per-doc snapshot; moving to a batch means holding all priors in memory briefly. Trivial for hundreds of items.
+
+**Context:** Pre-existing N+1 flagged during plan-eng-review of the Jira terminal-states design (2026-05-17). Not introduced by that design; carved out as a separate perf pass to avoid scope creep. Bundle with the next Jira sync work.
+
+**Depends on:** None. Independent of the terminal-states design landing.
+
+## Jira terminal-states v2 — Settings → Apps → Jira "Status meanings" subsection
+
+**What:** Add a per-app Settings subsection in `app-v2/lib/apps/app_detail_screen.dart` (or a new `JiraSettingsScreen` route) listing every classified Jira status for the user's site with the LLM's guess and a one-tap override (`Actively working` / `Waiting on others` / `Blocked`). Low-certainty classifications get a "Tap to confirm" badge. Override writes call `POST /v1/integrations/jira/status-overrides` (new endpoint), which triggers `rewrite_actionability_in_place` backend-side.
+
+**Why:** v1 of the Jira terminal-states design (2026-05-17) ships with an admin-CLI override only because dogfood is single-user. v2 makes the override self-serve so the LLM's 70-80% accuracy can be corrected by every user without a backend deploy. Until this lands, default-on rollout to all users is gated by the calibration criterion (≥85% LLM match on a 50-status fixture).
+
+**Pros:**
+- Unblocks default-on rollout to all Nooto users with Jira installed.
+- Establishes a reusable "integration settings subsection" pattern that Linear, GitHub, Notion can adopt for their semantic-layer quirks.
+- Closes the trust loop: users see the LLM's guess and correct it inline, no support escalation needed.
+
+**Cons:**
+- ~1.5-2 days net-new UI work (provider + API client + list/picker widget + override mutation). AppDetailScreen has no per-app subsection slot today.
+- Adds a Settings surface users have to discover.
+
+**Context:** v1 deferred this explicitly to dogfood the LLM accuracy first. See "Deferred to v2" section in the design doc. Plan once Days 4-10 dogfood data lands and we know the LLM accuracy gap on real workflows.
+
+**Depends on:** Jira terminal-states v1 (2026-05-17 design) shipped and ≥1 week of dogfood log data showing the LLM accuracy distribution.
+
+## Jira terminal-states default-on calibration gate
+
+**What:** Before flipping the Jira terminal-states classification to default-on for all Nooto users (post v2 Settings UI), produce a 50-status hand-labeled fixture (Matheus' real workflow statuses + 3-5 other Nooto users' workflows if available) and measure gpt-4.1-mini classification accuracy against it. Require ≥85% match before flag flip.
+
+**Why:** v1 success criterion is "eyeball logs for a week" — fine for single-user dogfood, not rigorous enough for an all-users default-on. Outside-voice reviewer flagged this as a calibration gap (2026-05-17). Without a baseline, "the LLM gets it right most of the time" is not measurable.
+
+**Pros:**
+- Quantifies the LLM accuracy gap with numbers, not vibes.
+- Surfaces specific status names where the LLM consistently mis-classifies, which informs system-prompt tuning.
+- Standard ML evaluation pattern; reusable for Linear / GitHub / Notion when their classifiers ship.
+
+**Cons:**
+- Takes 1-2 hours to build the fixture (real status names + ground-truth labels from 1-3 users).
+- Needs to be re-run each time the system prompt or model changes.
+
+**Context:** Surfaced during plan-eng-review of the Jira terminal-states design (2026-05-17). Outside-voice review noted "you will hit ~70% and have no calibration signal to know whether to ship." This TODO closes that loop.
+
+**Depends on:** Jira terminal-states v2 Settings UI landing (so users can override misclassifications self-serve before any default-on rollout).
