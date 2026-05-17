@@ -524,6 +524,27 @@ def extract_action_items(
     • Merge duplicates
     • Order by: due date → urgency → alphabetical
 
+    CONFIDENCE SCORING (REQUIRED — every action item must include `confidence`):
+    Rate your confidence 0.0–1.0 that this is a real, actionable task the user wants tracked.
+    Client side uses this to gate which items get auto-pushed to the user's native Reminders
+    list — high-confidence items push automatically, lower-confidence items stay in the
+    in-app list only. This is your only lever to keep noise out of the user's iOS Reminders.
+
+    • 0.95–1.00: Explicit task request ("Remind me to X", "Add task X", "Don't forget X").
+      User literally asked for the reminder. Zero doubt this should fire.
+    • 0.80–0.94: Hard commitment with a deadline ("I have to submit taxes by March 31st",
+      "Pay the electric bill before Friday", "Call mom for her birthday tomorrow"). Real
+      consequences if missed, named subject, clear action.
+    • 0.60–0.79: Strong intent without a hard external deadline ("I want to finish the
+      onboarding flow today", "Need to review the contract this week"). Stated goal,
+      specific action, but the deadline is self-imposed.
+    • 0.40–0.59: Implicit task you inferred from context ("Let me look at that", "I should
+      probably reach out to Sarah"). The user didn't explicitly ask for a reminder.
+    • Below 0.40: Don't extract at all (per the STRICT FILTERING RULES above).
+
+    Be honest. A 0.6 from you means "I think this is a task but I'm not sure" — the client
+    will skip it for the proactive push and only show it in-app. Don't inflate scores.
+
     DUE DATE EXTRACTION (CRITICAL):
     IMPORTANT: All due dates must be in the FUTURE and in UTC format with 'Z' suffix.
     IMPORTANT: When parsing dates, FIRST determine the DATE (today/tomorrow/specific date), THEN apply the TIME.
