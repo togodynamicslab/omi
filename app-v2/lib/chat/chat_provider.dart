@@ -1,13 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:hive/hive.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 import 'package:nooto_v2/chat/chat_message.dart';
 import 'package:nooto_v2/chat/chat_session.dart';
 import 'package:nooto_v2/chat/chat_storage.dart';
 import 'package:nooto_v2/services/chat_service.dart';
+import 'package:nooto_v2/services/intents/intent_bridge.dart';
+import 'package:nooto_v2/services/intents/intent_models.dart';
 
 /// Owns chat state across multiple sessions.
 ///
@@ -24,11 +29,28 @@ import 'package:nooto_v2/services/chat_service.dart';
 /// On hydrate: any message without sessionId is migrated into a single
 /// "Welcome chat" session (idempotent — only created if it doesn't exist).
 class ChatProvider extends ChangeNotifier {
-  ChatProvider({required ChatService service}) : _service = service {
+  ChatProvider({
+    required ChatService service,
+    IntentBridge? intentBridge,
+    FlutterLocalNotificationsPlugin? localNotifications,
+  })  : _service = service,
+        _intentBridge = intentBridge ?? IntentBridge(),
+        _localNotifications = localNotifications ?? FlutterLocalNotificationsPlugin() {
     _hydrate();
   }
 
   final ChatService _service;
+
+  /// On-device intent parser (Apple Foundation Models on iOS 26+).
+  /// Composer messages go through this BEFORE the backend stream — when
+  /// the parsed intent is set_alarm / add_event / make_reminder, the
+  /// native bridge dispatches via EventKit. For start_timer the native
+  /// bridge returns success without dispatching and [_localNotifications]
+  /// schedules a notification via flutter_local_notifications.zonedSchedule
+  /// (iOS owns the schedule, fires regardless of app state, zero user setup).
+  /// Unknown intents fall through to [_service.streamChat] as before.
+  final IntentBridge _intentBridge;
+  final FlutterLocalNotificationsPlugin _localNotifications;
   final List<ChatSession> _sessions = [];
   final Map<String, List<ChatMessage>> _messagesBySession = {};
   String? _currentSessionId;
@@ -214,6 +236,70 @@ class ChatProvider extends ChangeNotifier {
     );
     msgs.add(assistant);
     notifyListeners();
+
+    // ---------- On-device intent fast path ----------
+    // Try the Foundation Models parser first. If the user typed an intent
+    // ("set a timer for 15 sec", "remind me to buy milk", "lunch at noon"),
+    // we dispatch locally and short-circuit. Unknown / blocked → fall
+    // through to the backend stream. Keeps the chat UX as the single
+    // input the user already reaches for.
+    //
+    // Native bridge dispatches everything through EventKit (calendar +
+    // reminders). Alarms and timers ride on EKReminder + EKAlarm so they
+    // fire as real OS notifications — no Dart Timer, no app-internal
+    // scheduling.
+    final intent = await _intentBridge.parseAndDispatch(trimmed);
+    if (intent.intentKind != IntentKind.unknown && intent.status == DispatchStatus.success) {
+      // Timer is dispatched here on the Dart side via
+      // flutter_local_notifications.zonedSchedule — the only path that
+      // works with zero user setup (no Shortcut to install, no Reminders
+      // pollution). The native bridge returned success without doing
+      // anything for start_timer. Other intent kinds are already dispatched
+      // by the native bridge (EventKit) by this point.
+      await _maybeScheduleTimerNotification(intent);
+      assistant = assistant.copyWith(
+        text: _confirmationFor(intent),
+        streaming: false,
+      );
+      _replaceMessageInSession(sessionId, assistantId, assistant);
+      _persistMessage(assistant);
+      _sending = false;
+      notifyListeners();
+      return;
+    }
+    if (intent.intentKind != IntentKind.unknown && intent.status == DispatchStatus.failed) {
+      // Parsed as a real intent but the system action failed (e.g. Calendar
+      // permission denied). Surface the reason — don't fall through to the
+      // backend, since the user clearly meant this.
+      assistant = assistant.copyWith(
+        text: "I understood that as ${intent.intentKind.displayLabel.toLowerCase()},"
+            " but the system action failed: ${intent.failureReason ?? 'unknown error'}.",
+        streaming: false,
+      );
+      _replaceMessageInSession(sessionId, assistantId, assistant);
+      _persistMessage(assistant);
+      _sending = false;
+      notifyListeners();
+      return;
+    }
+    if (intent.intentKind == IntentKind.unknown && intent.status == DispatchStatus.failed) {
+      // The orchestrator tried (native or cloud) but the parser itself
+      // failed — backend unreachable, non-JSON response, etc. Surface the
+      // diagnostic. We don't fall through to the backend chat stream
+      // because that's the same endpoint that just failed and would just
+      // produce a generic "Sorry, I encountered an error."
+      assistant = assistant.copyWith(
+        text: "Intent parser failed: ${intent.failureReason ?? 'unknown error'}",
+        streaming: false,
+      );
+      _replaceMessageInSession(sessionId, assistantId, assistant);
+      _persistMessage(assistant);
+      _sending = false;
+      notifyListeners();
+      return;
+    }
+    // Intent was Unknown with no failure → genuinely non-intent input.
+    // Continue with the backend chat stream below.
 
     _activeStreamSessionId = sessionId;
     _activeStreamAssistantId = assistantId;
@@ -491,5 +577,77 @@ class ChatProvider extends ChangeNotifier {
   void dispose() {
     _activeStream?.cancel();
     super.dispose();
+  }
+
+  /// Schedule a timer notification when the parsed intent is a start_timer.
+  /// iOS owns the schedule (UNUserNotificationCenter under the hood via
+  /// flutter_local_notifications); the app does not need to be alive for the
+  /// notification to fire. Zero user setup, no Reminders.app pollution,
+  /// no Clock-app dependency.
+  ///
+  /// Reads `seconds` and optional `label` from the parsed JSON. Best-effort
+  /// — if the schedule call fails we log and continue (the chat reply
+  /// already said "Timer started"; we don't want a noisy error if the
+  /// notification just won't fire).
+  Future<void> _maybeScheduleTimerNotification(IntentResult result) async {
+    if (result.intentKind != IntentKind.startTimer) return;
+    Map<String, dynamic> parsed;
+    try {
+      parsed = jsonDecode(result.parsedJson) as Map<String, dynamic>;
+    } catch (e) {
+      debugPrint('[ChatProvider] timer: could not decode parsedJson: $e');
+      return;
+    }
+    final seconds = parsed['seconds'] as int?;
+    if (seconds == null || seconds <= 0) {
+      debugPrint('[ChatProvider] timer: invalid seconds=$seconds');
+      return;
+    }
+    final label = (parsed['label'] as String?)?.trim();
+    final fireAt = tz.TZDateTime.now(tz.local).add(Duration(seconds: seconds));
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBanner: true,
+      presentSound: true,
+      presentList: true,
+      interruptionLevel: InterruptionLevel.timeSensitive,
+    );
+    const androidDetails = AndroidNotificationDetails(
+      'nooto_timers',
+      'Nooto timers',
+      channelDescription: 'Countdown timer notifications scheduled from the chat composer',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    const details = NotificationDetails(iOS: iosDetails, android: androidDetails);
+
+    final id = DateTime.now().millisecondsSinceEpoch.remainder(1 << 31);
+    try {
+      await _localNotifications.zonedSchedule(
+        id,
+        (label?.isNotEmpty ?? false) ? label : 'Timer',
+        "Time's up.",
+        fireAt,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    } catch (e) {
+      debugPrint('[ChatProvider] timer schedule failed: $e');
+    }
+  }
+
+  /// Build a friendly assistant message for a successfully dispatched intent.
+  /// Reads the parsed JSON to pick out the relevant field — keeps it simple
+  /// without pulling a JSON parser into this layer.
+  String _confirmationFor(IntentResult result) {
+    return switch (result.intentKind) {
+      IntentKind.setAlarm => 'Alarm set in Reminders.',
+      IntentKind.startTimer => "Timer started — I'll notify you when it's up.",
+      IntentKind.addEvent => 'Event added to your calendar.',
+      IntentKind.makeReminder => 'Reminder added to your list.',
+      IntentKind.unknown => "I couldn't interpret that.",
+    };
   }
 }
