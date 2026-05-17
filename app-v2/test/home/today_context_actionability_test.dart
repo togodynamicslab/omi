@@ -210,4 +210,86 @@ void main() {
       expect(ctx['waiting_on_others_count'], 4);
     });
   });
+
+  group('off-plate items excluded from focal-item lists', () {
+    test('blocked item with overdue due_at does NOT appear in overdue list', () {
+      final now = _nowFixture();
+      final yesterday = now.subtract(const Duration(days: 1));
+      final items = <ActionItem>[
+        ActionItem(
+          id: 'B-overdue',
+          description: 'blocked + overdue — user said off plate, exclude from focal',
+          dueAt: yesterday, completed: false,
+          externalSource: ExternalSource(
+            source: 'jira',
+            externalId: 'B-overdue',
+            url: 'https://x.atlassian.net/browse/B-overdue',
+            metadata: const {'actionability': 'blocked'},
+          ),
+        ),
+        _itemWithActionability(id: 'S1', title: 'self on plate', actionability: 'self'),
+      ];
+      final ctx = buildTodayContext(items, now: now);
+      expect((ctx['overdue'] as List), isEmpty);
+      expect(ctx['plan_remaining_count'], 1); // just S1
+      expect(ctx['waiting_on_others_count'], 1); // just B-overdue
+    });
+
+    test('waiting item due in 2h does NOT appear in due_soon list', () {
+      final now = _nowFixture();
+      final inTwoHours = now.add(const Duration(hours: 2));
+      final items = <ActionItem>[
+        ActionItem(
+          id: 'W-soon',
+          description: 'waiting + due soon — off plate, exclude from focal',
+          dueAt: inTwoHours, completed: false,
+          externalSource: ExternalSource(
+            source: 'jira',
+            externalId: 'W-soon',
+            url: 'https://x.atlassian.net/browse/W-soon',
+            metadata: const {'actionability': 'waiting'},
+          ),
+        ),
+      ];
+      final ctx = buildTodayContext(items, now: now);
+      expect((ctx['due_soon'] as List), isEmpty);
+      expect(ctx['waiting_on_others_count'], 1);
+    });
+
+    test('blocked Jira stuck for 7 days does NOT appear in stuck_jira list', () {
+      // ExternalSource.daysAtStatus reads wall-clock DateTime.now() rather
+      // than the test's now fixture. Anchor status_changed_at off real now.
+      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+      final items = <ActionItem>[
+        ActionItem(
+          id: 'B-stuck',
+          description: 'blocked + stuck — off plate, exclude from focal',
+          completed: false,
+          externalSource: ExternalSource(
+            source: 'jira',
+            externalId: 'B-stuck',
+            url: 'https://x.atlassian.net/browse/B-stuck',
+            metadata: {
+              'actionability': 'blocked',
+              'status_changed_at': sevenDaysAgo.toUtc().toIso8601String(),
+            },
+          ),
+        ),
+      ];
+      final ctx = buildTodayContext(items, now: _nowFixture());
+      expect((ctx['stuck_jira'] as List), isEmpty);
+      expect(ctx['waiting_on_others_count'], 1);
+    });
+
+    test('regression: null actionability + overdue STILL flows into overdue (preserves pre-change behavior)', () {
+      final now = _nowFixture();
+      final yesterday = now.subtract(const Duration(days: 1));
+      final items = <ActionItem>[
+        ActionItem(id: 'P-overdue', description: 'plan item overdue', completed: false, dueAt: yesterday),
+      ];
+      final ctx = buildTodayContext(items, now: now);
+      expect((ctx['overdue'] as List).length, 1);
+      expect(ctx['plan_remaining_count'], 1);
+    });
+  });
 }
