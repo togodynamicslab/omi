@@ -163,6 +163,11 @@ Future<void> main() async {
             // parser path can call /v2/intents/parse on devices without
             // Apple Intelligence (iOS < 26 or AI-incompatible hardware).
             intentBridge: IntentBridge(apiClient: apiClient),
+            // Refresh ActionItemsProvider whenever the chat agent fires a
+            // create/update/complete action-item tool. Without this, Plan
+            // stays stale until the user manually pull-to-refreshes, and
+            // ProactivePushService never sees the new rows.
+            onActionItemsChanged: actionItemsProvider.fetchAll,
           ),
         ),
         ChangeNotifierProvider(create: (_) => PlanGuidanceProvider(service: chatService)),
