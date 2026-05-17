@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/home/cards/card_entrance.dart';
 import 'package:nooto_v2/home/companion_card.dart';
+import 'package:nooto_v2/home/companion_stream_provider.dart';
 import 'package:nooto_v2/home/widgets/brief_rich_body.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
+import 'package:nooto_v2/widgets/synthesized_footer.dart';
 
 /// Synthesized daily brief, voice grammar (no chrome). Sits between the
 /// welcome card (priority 1000) and the Today surface card (priority 500),
@@ -118,29 +121,34 @@ class _MorningBriefView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppStyles.spacingS),
-            Text(
-              _synthesizedAgo(card.generatedAt),
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textTertiary,
-              ),
-            ),
+            _BriefFooter(generatedAt: card.generatedAt),
           ],
         ),
       ),
     );
   }
+}
 
-  /// Closes the "is this fresh?" loop. Brief is cached for 24h, so without
-  /// this label a stale brief reads as live.
-  String _synthesizedAgo(DateTime when) {
-    final delta = DateTime.now().difference(when);
-    if (delta.inMinutes < 2) return 'synthesized just now';
-    if (delta.inMinutes < 60) return 'synthesized ${delta.inMinutes}m ago';
-    if (delta.inHours < 6) return 'synthesized ${delta.inHours}h ago';
-    final hour = when.hour;
-    if (hour < 11) return 'synthesized this morning';
-    if (hour < 17) return 'synthesized this afternoon';
-    return 'synthesized this evening';
+/// Footer for [MorningBriefCard]. Watches `CompanionStreamProvider` only for
+/// the `briefInFlight` flag via `Selector` so spinner toggles don't re-run
+/// `BriefRichBody`'s tag parser on the body above it. In card unit tests
+/// without a provider, falls back to the timestamp-only footer.
+class _BriefFooter extends StatelessWidget {
+  const _BriefFooter({required this.generatedAt});
+  final DateTime generatedAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<CompanionStreamProvider?, bool>(
+      selector: (_, stream) => stream?.briefInFlight ?? false,
+      builder: (context, isRefreshing, _) {
+        final stream = context.read<CompanionStreamProvider?>();
+        return SynthesizedFooter(
+          synthesizedAt: generatedAt,
+          onRefresh: stream?.forceRefreshBrief,
+          isRefreshing: isRefreshing,
+        );
+      },
+    );
   }
 }
