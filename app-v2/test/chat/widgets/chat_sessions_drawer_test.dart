@@ -41,8 +41,11 @@ class _StubChatService extends ChatService {
         );
 
   @override
-  Stream<ChatStreamEvent> streamChat(String prompt, {Map<String, dynamic>? todayContext}) =>
-      const Stream<ChatStreamEvent>.empty();
+  Stream<ChatStreamEvent> streamChat(
+    String prompt, {
+    Map<String, dynamic>? todayContext,
+    Map<String, dynamic>? deviceContext,
+  }) => const Stream<ChatStreamEvent>.empty();
 }
 
 /// Wraps the drawer in a Scaffold + ChangeNotifierProvider so the test can

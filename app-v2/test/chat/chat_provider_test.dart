@@ -52,7 +52,11 @@ class _FakeChatService extends ChatService {
   int callCount = 0;
 
   @override
-  Stream<ChatStreamEvent> streamChat(String prompt, {Map<String, dynamic>? todayContext}) {
+  Stream<ChatStreamEvent> streamChat(
+    String prompt, {
+    Map<String, dynamic>? todayContext,
+    Map<String, dynamic>? deviceContext,
+  }) {
     callCount += 1;
     return _streamFactory();
   }

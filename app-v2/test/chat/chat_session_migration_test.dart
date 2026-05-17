@@ -27,7 +27,11 @@ class _FakePathProvider extends PathProviderPlatform {
 /// silently returning empty data.
 class _FakeChatService implements ChatService {
   @override
-  Stream<ChatStreamEvent> streamChat(String message, {Map<String, dynamic>? todayContext}) {
+  Stream<ChatStreamEvent> streamChat(
+    String message, {
+    Map<String, dynamic>? todayContext,
+    Map<String, dynamic>? deviceContext,
+  }) {
     throw StateError(
       'streamChat must not be called during migration tests',
     );
