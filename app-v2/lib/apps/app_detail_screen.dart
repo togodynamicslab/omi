@@ -14,6 +14,17 @@ import 'package:nooto_v2/theme/app_theme.dart';
 /// Catalog id of the Jira integration. Mirrors the constant used elsewhere in
 /// the app (plan_screen, shell_screen, etc.) — keep in sync.
 const String _jiraAppId = 'nooto-jira';
+// Stable identifier: matches any Jira install regardless of per-install ULID.
+// The plugin's app_home_url is always https://nooto-jira.togodynamics.com so
+// substring-matching that is the canonical "is this the Jira app" check.
+// (Backend assigns per-install ULIDs as app.id, so equality on the static
+// 'nooto-jira' template id fails in prod.)
+bool _isJiraApp(NooApp app) {
+  if (app.id == _jiraAppId) return true;
+  final url = app.externalIntegration?.appHomeUrl;
+  if (url == null) return false;
+  return url.contains('nooto-jira');
+}
 
 /// Marketplace detail page for a single app. Hero thumbnail + name + author,
 /// full description, install/uninstall button. Pushed via Navigator from the
@@ -105,7 +116,7 @@ class _Body extends StatelessWidget {
         // classifications and override any that are wrong. Decoupled from
         // the two-way-sync toggle on purpose — this is a read-side override
         // (affects how Plan filters items), not a write to Jira.
-        if (app.id == _jiraAppId && context.watch<AppsProvider>().isEnabled(app.id)) ...[
+        if (_isJiraApp(app) && context.watch<AppsProvider>().isEnabled(app.id)) ...[
           const SizedBox(height: AppStyles.spacingXL),
           const _SectionLabel('STATUSES'),
           const SizedBox(height: AppStyles.spacingM),
