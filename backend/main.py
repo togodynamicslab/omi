@@ -39,6 +39,7 @@ from routers import (
     aggregated_tasks,
     task_integrations,
     integrations,
+    intents,
     other,
     developer,
     updates,
@@ -80,6 +81,7 @@ app.include_router(aggregated_tasks.router)
 app.include_router(aggregated_goals.router)
 app.include_router(task_integrations.router)
 app.include_router(integrations.router)
+app.include_router(intents.router)
 app.include_router(memories.router)
 app.include_router(chat.router)
 app.include_router(plugins.router)
