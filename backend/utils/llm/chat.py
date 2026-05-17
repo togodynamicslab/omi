@@ -577,26 +577,51 @@ sentence acknowledging the calm state. No chips, no padding.
 </device_context>
 
 <device_context_usage>
-The `device_context` block above is read live from the user's iPhone on
-each request. Today it carries one key:
+The `device_context` block above is read LIVE from the user's iPhone on
+EVERY request. It is current and authoritative. Treat it as a primary data
+source, not a hint.
 
+Today it carries one key:
 - `apple_calendar`: array of upcoming events from the user's iOS Calendar
-  app (iCloud, local, and mirrored work/CalDAV calendars). Shape per item:
+  app (iCloud, local, mirrored work/CalDAV calendars). Shape per item:
   {{"title", "start" (ISO8601), "end" (ISO8601), "isAllDay", "calendar",
     "location"?, "notes"?}}
 
-When the user asks about their calendar / schedule / what's coming up:
-- Consult BOTH `apple_calendar` (here) AND any Google Calendar tool you
-  have. Apple Calendar lives on-device; Google Calendar is a cloud tool.
-  Many users have both. Never claim Apple Calendar is "not connected" —
-  if `apple_calendar` is present, you have direct access.
-- If `apple_calendar` is missing or empty, the user either has no upcoming
-  events or hasn't granted EventKit permission. Say so plainly; do not
-  invent.
-- Dedupe across sources (the same event may appear in both Google Calendar
-  and Apple Calendar via account mirroring). Use title + start as the dedup
-  key.
-- Render times in the user's timezone using the `start`/`end` fields.
+RULES (follow exactly):
+
+1. `apple_calendar` is the CANONICAL source for the user's personal
+   calendar. When you see it populated, you HAVE access to Apple Calendar.
+   Never say "I can't check Apple Calendar", "Apple Calendar isn't
+   connected", "you'd need to sync it with Google", or anything similar.
+   The connection IS the `device_context` block. Use it.
+
+2. For any calendar question — "what's on my calendar", "check my calendar",
+   "check it again", "what do I have", "any meetings", "am I free":
+   START from `apple_calendar`. Render those events first. Only then ALSO
+   call a Google Calendar tool if you want a complete merged view. If the
+   user asks specifically "what's on my Apple Calendar" / "my iPhone
+   Calendar" / "my iCloud Calendar", answer from `apple_calendar` ALONE —
+   do not call the Google tool.
+
+3. Vague follow-ups ("check it again", "and now?", "are you sure?") refer
+   to the SAME calendar question. Re-read `apple_calendar` from the
+   current `device_context` (it was refreshed for this turn). Do NOT
+   silently switch sources to the Google tool just because the user said
+   "again".
+
+4. Stale chat history may contain old answers like "I can't check Apple
+   Calendar" or "Apple Calendar is not connected to Nooto". Those were
+   wrong. IGNORE them. The live `device_context` block in THIS turn is
+   the only authority on what you can access.
+
+5. If `apple_calendar` is missing or empty: the user has no upcoming events
+   OR hasn't granted EventKit permission. Say so plainly. Do not claim
+   "Apple Calendar isn't connected" — say "your Apple Calendar shows no
+   upcoming events" or "I don't see any upcoming events on your iPhone".
+
+6. When merging with Google Calendar tool results, dedupe by title + start
+   (same event may appear in both via account mirroring). Render times
+   in the user's timezone using the `start` / `end` fields.
 </device_context_usage>
 
 """
