@@ -531,6 +531,7 @@ def _save_action_items(uid: str, conversation: Conversation):
             'completed_at': action_item.completed_at,
             'conversation_id': conversation.id,
             'is_locked': is_locked,
+            'confidence': action_item.confidence,
         }
         action_items_data.append(action_item_data)
 
