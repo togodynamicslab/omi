@@ -6,8 +6,14 @@ import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/apps/app_model.dart';
 import 'package:nooto_v2/apps/apps_provider.dart';
+import 'package:nooto_v2/apps/screens/jira_statuses_screen.dart';
 import 'package:nooto_v2/apps/widgets/sync_now_button.dart';
+import 'package:nooto_v2/l10n/gen/app_localizations.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
+
+/// Catalog id of the Jira integration. Mirrors the constant used elsewhere in
+/// the app (plan_screen, shell_screen, etc.) — keep in sync.
+const String _jiraAppId = 'nooto-jira';
 
 /// Marketplace detail page for a single app. Hero thumbnail + name + author,
 /// full description, install/uninstall button. Pushed via Navigator from the
@@ -95,7 +101,60 @@ class _Body extends StatelessWidget {
           const SizedBox(height: AppStyles.spacingS),
           _LastSyncedCaption(appId: app.id),
         ],
+        // Jira-only: lets the user audit the LLM's status→bucket
+        // classifications and override any that are wrong. Decoupled from
+        // the two-way-sync toggle on purpose — this is a read-side override
+        // (affects how Plan filters items), not a write to Jira.
+        if (app.id == _jiraAppId && context.watch<AppsProvider>().isEnabled(app.id)) ...[
+          const SizedBox(height: AppStyles.spacingXL),
+          const _SectionLabel('STATUSES'),
+          const SizedBox(height: AppStyles.spacingM),
+          const _JiraStatusesRow(),
+        ],
       ],
+    );
+  }
+}
+
+/// Single-row entry into [JiraStatusesScreen]. Touch target meets the 44pt
+/// HIG minimum; chevron uses the standard iOS disclosure indicator.
+class _JiraStatusesRow extends StatelessWidget {
+  const _JiraStatusesRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+    return Material(
+      color: AppColors.backgroundSecondary,
+      borderRadius: BorderRadius.circular(AppStyles.radiusLarge),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppStyles.radiusLarge),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          Navigator.of(context).push(JiraStatusesScreen.route());
+        },
+        child: Container(
+          constraints: const BoxConstraints(minHeight: AppStyles.touchTargetMinimum),
+          padding: const EdgeInsets.symmetric(horizontal: AppStyles.spacingL, vertical: AppStyles.spacingM),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppStyles.radiusLarge),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.tune, size: 20, color: AppColors.textSecondary),
+              const SizedBox(width: AppStyles.spacingM),
+              Expanded(
+                child: Text(
+                  l.jiraStatusesTitle,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 20, color: AppColors.textTertiary),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
