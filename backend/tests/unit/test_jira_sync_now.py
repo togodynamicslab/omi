@@ -165,6 +165,17 @@ pydantic_pkg.BaseModel = _FakeBaseModel
 pydantic_pkg.Field = _fake_field
 
 
+# ValidationError surfaces in jira_status_classifier; we don't exercise that
+# code path here, but the symbol must exist so the import resolves cleanly when
+# other test modules (e.g. test_jira_status_classifier) later import the real
+# classifier in the same pytest session (sys.modules pollution).
+class _FakeValidationError(Exception):
+    pass
+
+
+pydantic_pkg.ValidationError = _FakeValidationError
+
+
 # httpx — the real one is installed but we don't want network. The router
 # imports `httpx` for OAuth callbacks; we provide a minimal stub so import
 # succeeds in environments without it.
@@ -251,6 +262,38 @@ def _load_module(dotted_name, file_path):
     sys.modules[dotted_name] = mod
     spec.loader.exec_module(mod)
     return mod
+
+
+# Stub jira_status_classifier so jira_sync's top-level import resolves without
+# pulling real pydantic / Redis. The /sync-now endpoint tests don't exercise the
+# classifier path — when classify_statuses_for_sync returns {}, the enrichment is
+# a no-op and existing metadata-shape assertions stay green.
+async def _aiter_empty_dict(*args, **kwargs):
+    return {}
+
+
+async def _aiter_none(*args, **kwargs):
+    return None
+
+
+class _StatusInputStub:
+    """Drop-in placeholder for jira_status_classifier.StatusInput.
+
+    jira_sync.py only constructs StatusInput to pass into the classifier;
+    the stubbed classify_statuses_for_sync ignores its argument and returns
+    an empty dict, so the constructor just needs to accept kwargs without
+    raising.
+    """
+
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+
+classifier_stub = _stub_module("utils.integrations.jira_status_classifier")
+classifier_stub.classify_statuses_for_sync = _aiter_empty_dict
+classifier_stub.classify_resolution = _aiter_none
+classifier_stub.StatusInput = _StatusInputStub
 
 
 jira_sync = _load_module("utils.integrations.jira_sync", BACKEND_DIR / "utils" / "integrations" / "jira_sync.py")
