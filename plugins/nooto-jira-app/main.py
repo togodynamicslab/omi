@@ -8,6 +8,7 @@ file-level conflicts:
     routes.manifest     /.well-known/omi-tools.json slice C
     routes.proactive    /webhook, /memory_created   slice D
     routes.settings     /settings, /settings/...    slice D
+    routes.internal     /v1/internal/*              backend-only (private net)
 """
 
 import asyncio
@@ -18,7 +19,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
-from routes import auth, manifest, proactive, settings, tools
+from routes import auth, internal, manifest, proactive, settings, tools
 
 load_dotenv()
 
@@ -45,6 +46,7 @@ app.include_router(tools.router, tags=["tools"])
 app.include_router(manifest.router, tags=["manifest"])
 app.include_router(proactive.router, tags=["proactive"])
 app.include_router(settings.router, tags=["settings"])
+app.include_router(internal.router, tags=["internal"])
 
 
 @app.get("/health", tags=["health"])
