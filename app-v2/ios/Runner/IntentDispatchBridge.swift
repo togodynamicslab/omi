@@ -71,6 +71,19 @@ class IntentDispatchBridge {
                 let present = await Self.existingReminderIdentifiers(ids: ids)
                 result(["present": present])
             }
+        case "fetchUpcomingEvents":
+            // On-device EventKit read so the chat agent (running in the
+            // cloud) can answer "what's on my calendar?" against Apple
+            // Calendar / iCloud / mirrored work calendars. Mirrors the
+            // existing `add_event` write path — same EventKit pipe, same
+            // permission. We inline the result into each chat request as
+            // device_context.apple_calendar; the agent treats it as a
+            // peer source alongside its Google Calendar tool.
+            let daysAhead = (call.arguments as? [String: Any]).flatMap { $0["daysAhead"] as? Int } ?? 7
+            Task { @MainActor in
+                let events = await Self.fetchUpcomingEvents(daysAhead: daysAhead)
+                result(["events": events])
+            }
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -226,6 +239,50 @@ class IntentDispatchBridge {
         let due: Date? = (args["due"] as? String).flatMap { parseISO8601($0) }
         let notes = (args["notes"] as? String).flatMap(nilIfEmpty)
         return await saveReminder(title: title, due: due, notes: notes)
+    }
+
+    // MARK: - Upcoming events (chat agent inline context)
+
+    /// Reads upcoming EventKit events across all calendars the user has
+    /// granted access to (iCloud, local, mirrored Google, work CalDAV, etc.)
+    /// and returns a flat list the chat composer can attach to its request.
+    ///
+    /// All-calendars by default — Calendar.app shows them all and the user
+    /// usually wants the agent to see what they see. If we ever want to
+    /// filter, the predicate can take a calendar subset; today we keep it
+    /// simple and pass nil.
+    ///
+    /// Returned shape (matches what the backend's `<device_context>` block
+    /// expects):
+    /// ```
+    /// [
+    ///   { "title": "...", "start": "ISO8601", "end": "ISO8601",
+    ///     "location": "...", "calendar": "Personal", "isAllDay": false }
+    /// ]
+    /// ```
+    @MainActor
+    static func fetchUpcomingEvents(daysAhead: Int) async -> [[String: Any]] {
+        let store = EKEventStore()
+        let granted = await requestCalendarAccess(store: store)
+        guard granted else { return [] }
+        let now = Date()
+        let end = Calendar.current.date(byAdding: .day, value: max(1, daysAhead), to: now) ?? now
+        let predicate = store.predicateForEvents(withStart: now, end: end, calendars: nil)
+        let events = store.events(matching: predicate)
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        return events.map { e in
+            var row: [String: Any] = [
+                "title": e.title ?? "",
+                "start": iso.string(from: e.startDate),
+                "end": iso.string(from: e.endDate),
+                "isAllDay": e.isAllDay,
+                "calendar": e.calendar?.title ?? "",
+            ]
+            if let loc = e.location, !loc.isEmpty { row["location"] = loc }
+            if let notes = e.notes, !notes.isEmpty { row["notes"] = notes }
+            return row
+        }
     }
 
     // MARK: - Reverse-check (proactive-push deletion detection)
