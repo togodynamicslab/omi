@@ -52,6 +52,12 @@ post_install do |installer|
         'PERMISSION_LOCATION=1',
         'PERMISSION_LOCATION_WHENINUSE=1',
       ]
+      # Exclude x86_64 on simulator. On Apple Silicon the iOS Simulator
+      # only runs arm64 — keeping x86_64 in ARCHS forces every slice
+      # selector (xcframeworks) to match BOTH arches, which we don't need
+      # and which breaks the patched opus.xcframework that has an
+      # arm64-simulator-only slice.
+      config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'x86_64'
     end
   end
 end
