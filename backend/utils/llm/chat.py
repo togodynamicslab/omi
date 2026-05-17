@@ -395,6 +395,7 @@ def _get_agentic_qa_prompt(
     messages: List[Message] = None,
     context: Optional[PageContext] = None,
     today_context: Optional[Dict[str, Any]] = None,
+    device_context: Optional[Dict[str, Any]] = None,
 ) -> str:
     """
     Build the system prompt for the agentic chat agent.
@@ -556,6 +557,47 @@ FAILURE MODE
 If `today_context` is empty (no overdue, no due_soon, no stuck_jira), one
 sentence acknowledging the calm state. No chips, no padding.
 </brief_style>
+
+"""
+
+    # On-device data inlined by the iOS chat composer. Today's payload:
+    # `apple_calendar` — upcoming EventKit events the user has on iCloud /
+    # local / mirrored work calendars. The cloud agent can't reach EventKit
+    # directly, so the composer reads it and attaches it here before each
+    # chat send. The agent should treat this as a peer source to any
+    # Google-Calendar-style tools it has — when the user asks about their
+    # calendar, check BOTH sources.
+    if device_context:
+        try:
+            device_context_json = json.dumps(device_context, ensure_ascii=False, default=str)
+        except Exception:
+            device_context_json = "{}"
+        context_section += f"""<device_context>
+{device_context_json}
+</device_context>
+
+<device_context_usage>
+The `device_context` block above is read live from the user's iPhone on
+each request. Today it carries one key:
+
+- `apple_calendar`: array of upcoming events from the user's iOS Calendar
+  app (iCloud, local, and mirrored work/CalDAV calendars). Shape per item:
+  {{"title", "start" (ISO8601), "end" (ISO8601), "isAllDay", "calendar",
+    "location"?, "notes"?}}
+
+When the user asks about their calendar / schedule / what's coming up:
+- Consult BOTH `apple_calendar` (here) AND any Google Calendar tool you
+  have. Apple Calendar lives on-device; Google Calendar is a cloud tool.
+  Many users have both. Never claim Apple Calendar is "not connected" —
+  if `apple_calendar` is present, you have direct access.
+- If `apple_calendar` is missing or empty, the user either has no upcoming
+  events or hasn't granted EventKit permission. Say so plainly; do not
+  invent.
+- Dedupe across sources (the same event may appear in both Google Calendar
+  and Apple Calendar via account mirroring). Use title + start as the dedup
+  key.
+- Render times in the user's timezone using the `start`/`end` fields.
+</device_context_usage>
 
 """
 
