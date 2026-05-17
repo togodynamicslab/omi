@@ -565,4 +565,47 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsNotificationsTestFailed => 'Test notification failed.';
+
+  @override
+  String get refreshSummarySemantic => 'Refresh summary';
+
+  @override
+  String get settingsCategoryNativeSync => 'Native Sync';
+
+  @override
+  String get settingsCategoryNativeSyncDescription =>
+      'Auto-push action items to iOS Reminders';
+
+  @override
+  String get nativeSyncScreenTitle => 'Native Sync';
+
+  @override
+  String get nativeSyncEnabledLabel => 'Push to iOS Reminders';
+
+  @override
+  String get nativeSyncEnabledDescription =>
+      'Nooto automatically saves high-confidence action items to your iOS Reminders app. Items you delete in Reminders are never re-pushed.';
+
+  @override
+  String get nativeSyncThresholdLabel => 'Confidence threshold';
+
+  @override
+  String get nativeSyncThresholdHelp =>
+      'Lower the threshold to push more items. Items below this score stay in Nooto only.';
+
+  @override
+  String get nativeSyncDailyBudgetLabel => 'Daily limit';
+
+  @override
+  String get nativeSyncDailyBudgetHelp =>
+      'Max items pushed per day. Prevents flooding Reminders on a chatty day.';
+
+  @override
+  String get nativeSyncRecentlyPushedLabel => 'Recently pushed';
+
+  @override
+  String get nativeSyncRecentlyPushedEmpty => 'Nothing pushed yet';
+
+  @override
+  String get nativeSyncRecentlyPushedTitle => 'Recently pushed';
 }

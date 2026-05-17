@@ -1087,6 +1087,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Test notification failed.'**
   String get settingsNotificationsTestFailed;
+
+  /// Accessibility label for the small refresh icon on the Home brief and Plan guidance cards
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh summary'**
+  String get refreshSummarySemantic;
+
+  /// Settings category label for the proactive iOS Reminders push.
+  ///
+  /// In en, this message translates to:
+  /// **'Native Sync'**
+  String get settingsCategoryNativeSync;
+
+  /// Settings category one-liner under Native Sync.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-push action items to iOS Reminders'**
+  String get settingsCategoryNativeSyncDescription;
+
+  /// Title of the Native Sync sub-screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Native Sync'**
+  String get nativeSyncScreenTitle;
+
+  /// Master toggle label for the proactive Reminders push.
+  ///
+  /// In en, this message translates to:
+  /// **'Push to iOS Reminders'**
+  String get nativeSyncEnabledLabel;
+
+  /// Explanation of what the proactive Reminders push does.
+  ///
+  /// In en, this message translates to:
+  /// **'Nooto automatically saves high-confidence action items to your iOS Reminders app. Items you delete in Reminders are never re-pushed.'**
+  String get nativeSyncEnabledDescription;
+
+  /// Label for the confidence threshold slider.
+  ///
+  /// In en, this message translates to:
+  /// **'Confidence threshold'**
+  String get nativeSyncThresholdLabel;
+
+  /// Help text under the threshold slider.
+  ///
+  /// In en, this message translates to:
+  /// **'Lower the threshold to push more items. Items below this score stay in Nooto only.'**
+  String get nativeSyncThresholdHelp;
+
+  /// Label for the daily push budget stepper.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily limit'**
+  String get nativeSyncDailyBudgetLabel;
+
+  /// Help text under the daily limit stepper.
+  ///
+  /// In en, this message translates to:
+  /// **'Max items pushed per day. Prevents flooding Reminders on a chatty day.'**
+  String get nativeSyncDailyBudgetHelp;
+
+  /// Row that opens the Recently pushed sub-screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently pushed'**
+  String get nativeSyncRecentlyPushedLabel;
+
+  /// Empty state in the Recently pushed list.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing pushed yet'**
+  String get nativeSyncRecentlyPushedEmpty;
+
+  /// Title of the Recently pushed sub-screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently pushed'**
+  String get nativeSyncRecentlyPushedTitle;
 }
 
 class _AppLocalizationsDelegate

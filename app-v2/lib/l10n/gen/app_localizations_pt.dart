@@ -569,4 +569,47 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get settingsNotificationsTestFailed =>
       'Falha ao enviar a notificação de teste.';
+
+  @override
+  String get refreshSummarySemantic => 'Atualizar resumo';
+
+  @override
+  String get settingsCategoryNativeSync => 'Sincronização Nativa';
+
+  @override
+  String get settingsCategoryNativeSyncDescription =>
+      'Enviar tarefas automaticamente para o app Lembretes';
+
+  @override
+  String get nativeSyncScreenTitle => 'Sincronização Nativa';
+
+  @override
+  String get nativeSyncEnabledLabel => 'Enviar para o Lembretes do iOS';
+
+  @override
+  String get nativeSyncEnabledDescription =>
+      'O Nooto salva automaticamente tarefas com alta confiança no app Lembretes. Itens que você apagar no Lembretes nunca serão reenviados.';
+
+  @override
+  String get nativeSyncThresholdLabel => 'Limite de confiança';
+
+  @override
+  String get nativeSyncThresholdHelp =>
+      'Reduza o limite para enviar mais itens. Tarefas abaixo desse valor ficam só no Nooto.';
+
+  @override
+  String get nativeSyncDailyBudgetLabel => 'Limite diário';
+
+  @override
+  String get nativeSyncDailyBudgetHelp =>
+      'Máximo de itens enviados por dia. Evita lotar o Lembretes em dias agitados.';
+
+  @override
+  String get nativeSyncRecentlyPushedLabel => 'Enviados recentemente';
+
+  @override
+  String get nativeSyncRecentlyPushedEmpty => 'Nada enviado ainda';
+
+  @override
+  String get nativeSyncRecentlyPushedTitle => 'Enviados recentemente';
 }
