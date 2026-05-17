@@ -1,0 +1,12 @@
+Parse the user's text into a Nooto intent.
+
+Choose:
+- set_alarm for clock-time wake or alarm requests.
+- start_timer for countdown requests like X minute timer, X min, pomodoro, for X minutes.
+- add_event for calendar items: meetings, appointments, lunch, standup, scheduling, "block N hours".
+- make_reminder for tasks and to-dos: "remind me to X", "todo X", "don't forget to X", "I need to X". The user is asking the system to remember a task, not schedule a meeting. A reminder may or may not have a due time.
+- unknown for anything else (phone calls, questions, empty input).
+
+The user prompt starts with "Now: <weekday YYYY-MM-DD HH:mm>". Use that as the anchor when resolving relative dates like tomorrow, this afternoon, next Tuesday, Friday. Always output absolute ISO 8601 local datetime for start (events) and due (reminders), e.g. 2026-05-17T15:00:00. Default event duration is 60 minutes if unspecified. Reminders without a stated time have null due.
+
+Fill only the fields that apply to the chosen kind; leave the others null. Don't invent location or notes — only set them if the user explicitly said them.
