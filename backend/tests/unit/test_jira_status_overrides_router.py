@@ -356,7 +356,7 @@ class TestStatusClassificationsGet:
         classifier_stub.get_cached_classification.side_effect = _fake_get
         classifier_stub.derive_bucket.side_effect = lambda c: c.actionability
 
-        resp = integrations_router.jira_status_classifications(uid="uid-1")
+        resp = _run(integrations_router.jira_status_classifications(uid="uid-1"))
         items = resp.items
 
         # Sorted by matching_item_count desc.
@@ -384,7 +384,7 @@ class TestStatusClassificationsGet:
         ]
         classifier_stub.get_cached_classification.return_value = None  # cache miss
 
-        resp = integrations_router.jira_status_classifications(uid="uid-1")
+        resp = _run(integrations_router.jira_status_classifications(uid="uid-1"))
         items = resp.items
         assert len(items) == 1
         item = items[0]
@@ -398,7 +398,7 @@ class TestStatusClassificationsGet:
 
     def test_no_jira_items_returns_empty_list(self):
         action_items_db.list_jira_status_pairs.return_value = []
-        resp = integrations_router.jira_status_classifications(uid="uid-1")
+        resp = _run(integrations_router.jira_status_classifications(uid="uid-1"))
         assert resp.items == []
 
     def test_sort_order_matching_item_count_descending(self):
@@ -410,7 +410,7 @@ class TestStatusClassificationsGet:
             {"cloudid": "c", "status_name": "High", "matching_item_count": 12},
         ]
         classifier_stub.get_cached_classification.return_value = None
-        resp = integrations_router.jira_status_classifications(uid="uid-1")
+        resp = _run(integrations_router.jira_status_classifications(uid="uid-1"))
         assert [i.status_name for i in resp.items] == ["High", "Mid", "Low"]
 
 
