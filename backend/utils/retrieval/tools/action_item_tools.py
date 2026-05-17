@@ -356,11 +356,17 @@ def create_action_item_tool(
     if not description or not description.strip():
         return "Error: Description is required to create an action item."
 
-    # Prepare action item data
+    # Prepare action item data. Tag with confidence=1.0: this tool only
+    # fires on an explicit user task request ("add task X", "remind me to Y"),
+    # which is the top tier in the extractor's confidence rubric. Without
+    # this, the client-side proactive-push gate would skip these (confidence
+    # is null on legacy/agent-created rows) and they'd never land in iOS
+    # Reminders even with the toggle on.
     action_item_data = {
         'description': description.strip(),
         'completed': False,
         'conversation_id': conversation_id,
+        'confidence': 1.0,
     }
 
     # Parse or set due date
