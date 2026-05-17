@@ -11,6 +11,7 @@ import 'package:nooto_v2/providers/pendant_provider.dart';
 import 'package:nooto_v2/services/ble/pendant_state.dart';
 import 'package:nooto_v2/services/chat_service.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
+import 'package:nooto_v2/widgets/intent_sheet.dart';
 
 /// The Companion Stream Home — Tab 0 of `ShellScreen`.
 ///
@@ -65,14 +66,24 @@ class _HomeBody extends StatelessWidget {
           selector: (_, p) => p.info,
           builder: (context, info, _) {
             final cards = _mergePendantCard(stream.cards, info);
-            return Column(
+            return Stack(
               children: [
-                Expanded(child: _CardList(cards: cards)),
-                _Composer(
-                  onTap: () {
-                    onSwitchToTab(1); // Chat tab
-                  },
+                Column(
+                  children: [
+                    Expanded(child: _CardList(cards: cards)),
+                    _Composer(
+                      onTap: () {
+                        onSwitchToTab(1); // Chat tab
+                      },
+                    ),
+                  ],
                 ),
+                // On-device "Ask Nooto" entry point — opens the intent
+                // sheet that parses NL via Foundation Models and dispatches
+                // to Calendar / Reminders / Shortcuts on iOS 26+. Sits as a
+                // 44×44 tap target in the safe-area top-right so it doesn't
+                // displace the card stream layout.
+                const _AskNootoButton(),
               ],
             );
           },
@@ -103,10 +114,27 @@ class _CardList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (cards.isEmpty) {
-      return const _QuietEmpty();
-    }
+    return RefreshIndicator(
+      onRefresh: context.read<CompanionStreamProvider>().forceRefreshBrief,
+      color: AppColors.brandPrimary,
+      backgroundColor: AppColors.backgroundSecondary,
+      child: cards.isEmpty ? const _PullableEmpty() : _PopulatedCardList(cards: cards),
+    );
+  }
+}
+
+/// Populated card list, scrollable with always-on physics so the parent
+/// `RefreshIndicator` can capture the pull gesture even when content is
+/// shorter than the viewport.
+class _PopulatedCardList extends StatelessWidget {
+  const _PopulatedCardList({required this.cards});
+
+  final List<CompanionCard> cards;
+
+  @override
+  Widget build(BuildContext context) {
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(
         AppStyles.spacingL,
         AppStyles.spacingS,
@@ -116,6 +144,26 @@ class _CardList extends StatelessWidget {
       itemCount: cards.length,
       separatorBuilder: (_, _) => const SizedBox(height: AppStyles.spacingL),
       itemBuilder: (context, i) => cards[i].render(context),
+    );
+  }
+}
+
+/// Empty-state body wrapped in a viewport-sized scrollable so the parent
+/// `RefreshIndicator` can capture the pull gesture. Without the min-height
+/// constraint a too-short child swallows the drag.
+class _PullableEmpty extends StatelessWidget {
+  const _PullableEmpty();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (_, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: const _QuietEmpty(),
+        ),
+      ),
     );
   }
 }
@@ -190,6 +238,44 @@ class _Composer extends StatelessWidget {
                   isDense: true,
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Ask Nooto" entry point — opens the on-device intent parser sheet.
+/// Positioned in the Home screen's top-right safe area as a 44×44 tap
+/// target. Apple HIG-compliant touch target; uses brand-blue tint so it
+/// reads as an interactive primitive rather than chrome.
+class _AskNootoButton extends StatelessWidget {
+  const _AskNootoButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: MediaQuery.paddingOf(context).top + AppStyles.spacingS,
+      right: AppStyles.spacingL,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => IntentSheet.show(context),
+          borderRadius: BorderRadius.circular(AppStyles.touchTargetMinimum / 2),
+          child: Container(
+            width: AppStyles.touchTargetMinimum,
+            height: AppStyles.touchTargetMinimum,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.brandPrimary.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(AppStyles.touchTargetMinimum / 2),
+              border: Border.all(color: AppColors.brandPrimary.withValues(alpha: 0.3)),
+            ),
+            child: const Icon(
+              Icons.auto_awesome,
+              size: 18,
+              color: AppColors.brandPrimary,
             ),
           ),
         ),
