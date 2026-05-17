@@ -77,6 +77,26 @@ def send_message(
     compat_app_id = app_id or plugin_id
     logger.info(f'send_message {data.text} {compat_app_id} {uid}')
 
+    # Diagnostic: log inbound device_context shape so we can verify the iOS
+    # composer is wiring EventKit events through. apple_calendar=null means
+    # the field wasn't sent; apple_calendar=[] means the read returned no
+    # events; apple_calendar=[{...}] means events are flowing. Used to
+    # triage "agent says it can't see Apple Calendar" reports.
+    if data.device_context is not None:
+        ap = data.device_context.get('apple_calendar')
+        ap_summary = (
+            'null'
+            if ap is None
+            else (
+                f'empty (0)'
+                if isinstance(ap, list) and len(ap) == 0
+                else f'{len(ap)} events' if isinstance(ap, list) else f'unexpected type {type(ap).__name__}'
+            )
+        )
+        logger.info(f'send_message device_context.apple_calendar: {ap_summary}')
+    else:
+        logger.info('send_message device_context: <absent>')
+
     if compat_app_id in ['null', '']:
         compat_app_id = None
 
