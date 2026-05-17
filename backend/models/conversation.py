@@ -109,6 +109,16 @@ class ActionItem(BaseModel):
     conversation_id: Optional[str] = Field(
         default=None, description="ID of the conversation this action item came from"
     )
+    confidence: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Extractor confidence in 0..1 that this is a real, actionable task (vs. an aside, "
+            "intention, or filler). Used by the client-side proactive-push gate to decide which "
+            "items get auto-pushed to iOS Reminders."
+        ),
+    )
 
     @staticmethod
     def actions_to_string(action_items: List['ActionItem']) -> str:
