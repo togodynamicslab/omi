@@ -264,11 +264,41 @@ class IntentDispatchBridge {
 
     // MARK: - EKReminder save helper (used by alarm + timer + reminder)
 
+    /// Name of the dedicated Reminders list we file Nooto-pushed items into.
+    /// Lets the user see "what did Nooto put here?" at a glance, and lets
+    /// them nuke the whole list in one swipe (reverse-check will catch the
+    /// deletion and mark every tracked row as `userDeleted`).
+    private static let nootoRemindersListTitle = "Nooto"
+
+    /// Returns the "Nooto" Reminders list, creating it on first use. Source
+    /// is chosen to match the user's default reminders list (so it lives in
+    /// iCloud if they sync, local otherwise). Returns nil only if both
+    /// lookup and creation fail — caller falls back to the default list.
+    private static func nootoRemindersCalendar(in store: EKEventStore) -> EKCalendar? {
+        if let existing = store.calendars(for: .reminder).first(where: { $0.title == nootoRemindersListTitle }) {
+            return existing
+        }
+        let cal = EKCalendar(for: .reminder, eventStore: store)
+        cal.title = nootoRemindersListTitle
+        let source = store.defaultCalendarForNewReminders()?.source
+            ?? store.sources.first(where: { $0.sourceType == .calDAV && $0.title.lowercased().contains("icloud") })
+            ?? store.sources.first(where: { $0.sourceType == .local })
+            ?? store.sources.first
+        guard let source else { return nil }
+        cal.source = source
+        do {
+            try store.saveCalendar(cal, commit: true)
+            return cal
+        } catch {
+            return nil
+        }
+    }
+
     private static func saveReminder(title: String, due: Date?, notes: String?) async -> Outcome {
         let store = EKEventStore()
         let granted = await requestRemindersAccess(store: store)
         guard granted else { return .failed(reason: "Reminders access denied") }
-        guard let calendar = store.defaultCalendarForNewReminders() else {
+        guard let calendar = nootoRemindersCalendar(in: store) ?? store.defaultCalendarForNewReminders() else {
             return .failed(reason: "No default reminders list")
         }
         let reminder = EKReminder(eventStore: store)
