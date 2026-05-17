@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'package:nooto_v2/home/companion_stream_provider.dart' show buildTodayContext;
 import 'package:nooto_v2/home/widgets/brief_rich_body.dart';
 import 'package:nooto_v2/plan/plan_guidance_provider.dart';
+import 'package:nooto_v2/providers/action_items_provider.dart';
 import 'package:nooto_v2/theme/app_theme.dart';
+import 'package:nooto_v2/widgets/synthesized_footer.dart';
 
 /// Voice-grammar guidance line at the top of the Plan tab. No chrome, direct
 /// text on background — reads as the assistant speaking, mirroring the home
@@ -23,6 +26,7 @@ class PlanGuidanceCard extends StatelessWidget {
       return const SizedBox.shrink();
     }
     final synthesizedAt = guidance.synthesizedAt;
+    final isLoading = guidance.status == PlanGuidanceStatus.loading;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppStyles.spacingL,
@@ -48,27 +52,18 @@ class PlanGuidanceCard extends StatelessWidget {
           ),
           if (synthesizedAt != null) ...[
             const SizedBox(height: AppStyles.spacingS),
-            Text(
-              _synthesizedAgo(synthesizedAt),
-              style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
+            SynthesizedFooter(
+              synthesizedAt: synthesizedAt,
+              isRefreshing: isLoading,
+              onRefresh: () async {
+                final items = context.read<ActionItemsProvider>().items;
+                final ctx = buildTodayContext(items, now: DateTime.now());
+                await context.read<PlanGuidanceProvider>().forceRefresh(ctx);
+              },
             ),
           ],
         ],
       ),
     );
-  }
-
-  /// Closes the "is this fresh?" loop. Cache TTL is 30 min, so without this
-  /// label a stale entry reads as live. Mirrors `MorningBriefCard`'s helper
-  /// so the two surfaces phrase freshness identically.
-  String _synthesizedAgo(DateTime when) {
-    final delta = DateTime.now().difference(when);
-    if (delta.inMinutes < 2) return 'synthesized just now';
-    if (delta.inMinutes < 60) return 'synthesized ${delta.inMinutes}m ago';
-    if (delta.inHours < 6) return 'synthesized ${delta.inHours}h ago';
-    final hour = when.hour;
-    if (hour < 11) return 'synthesized this morning';
-    if (hour < 17) return 'synthesized this afternoon';
-    return 'synthesized this evening';
   }
 }
