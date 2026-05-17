@@ -103,6 +103,7 @@ class ActionItem {
     this.dueAt,
     this.conversationId,
     this.externalSource,
+    this.confidence,
   });
 
   final String id;
@@ -116,9 +117,21 @@ class ActionItem {
   /// the integration chip on Plan / Home and the proactive stuck-issues card.
   final ExternalSource? externalSource;
 
+  /// Extractor confidence 0..1 that this is a real, actionable task. Null on
+  /// items created before the field shipped or on manually-created items.
+  /// Used by [ProactivePushService] as the gate threshold input — items
+  /// below the user-configured threshold stay in-app and don't get pushed to
+  /// iOS Reminders.
+  final double? confidence;
+
   factory ActionItem.fromJson(Map<String, dynamic> json) {
     final extRaw = json['external_source'];
     final externalSource = extRaw is Map ? ExternalSource.fromJson(Map<String, dynamic>.from(extRaw)) : null;
+    final rawConfidence = json['confidence'];
+    double? confidence;
+    if (rawConfidence is num) {
+      confidence = rawConfidence.toDouble().clamp(0.0, 1.0);
+    }
     return ActionItem(
       id: json['id'] as String,
       description: json['description'] as String? ?? '',
@@ -127,6 +140,7 @@ class ActionItem {
       dueAt: json['due_at'] != null ? DateTime.parse(json['due_at'] as String).toLocal() : null,
       conversationId: json['conversation_id'] as String?,
       externalSource: externalSource,
+      confidence: confidence,
     );
   }
 
@@ -138,6 +152,7 @@ class ActionItem {
     dueAt: dueAt ?? this.dueAt,
     conversationId: conversationId,
     externalSource: externalSource ?? this.externalSource,
+    confidence: confidence,
   );
 }
 
@@ -374,6 +389,19 @@ class ActionItemsProvider extends ChangeNotifier {
       debugPrint('[ActionItemsProvider] fetchJiraIssueDetails failed: $e');
       return null;
     }
+  }
+
+  /// Test seam — pokes the internal items list and broadcasts. Production
+  /// code MUST NOT call this; it bypasses the server round-trip used by
+  /// every real write path. Used by [ProactivePushService] unit tests to
+  /// simulate provider broadcasts without hitting `/v1/action-items`.
+  @visibleForTesting
+  void debugReplaceItemsForTest(List<ActionItem> incoming) {
+    _items
+      ..clear()
+      ..addAll(incoming);
+    _ready = true;
+    notifyListeners();
   }
 
   /// Maps an exception to a stable string the UI can branch on. We treat the
