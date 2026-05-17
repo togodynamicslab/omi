@@ -9,3 +9,10 @@ const bool kEnableFirebaseAuth = true;
 /// user to tap "Sync now". Disable to revert to cron-only behavior (10-min
 /// Modal cron remains active in either case as a safety net).
 const bool kEnableAttentionDrivenJiraRefresh = true;
+
+/// Build-time gate for the proactive action-item → iOS Reminders push.
+/// When true the ProactivePushService attaches to ActionItemsProvider and
+/// fires `make_reminder` dispatches behind the user-controlled toggle in
+/// Settings → Native Sync. When false the entire feature is dead code and
+/// no Hive boxes are opened — safe to flip off for a hotfix release.
+const bool kEnableProactiveRemindersPush = true;
