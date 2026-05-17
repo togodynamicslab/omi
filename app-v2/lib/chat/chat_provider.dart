@@ -322,7 +322,22 @@ class ChatProvider extends ChangeNotifier {
     // stale and ProactivePushService never sees the new rows.
     var actionItemToolFired = false;
 
-    _activeStream = _service.streamChat(trimmed).listen(
+    // On-device calendar read so the cloud agent can answer "what's on my
+    // calendar?" against Apple Calendar / iCloud / mirrored work calendars.
+    // Mirrors the existing on-device `add_event` write path — same EventKit
+    // pipe. Empty on non-iOS / permission-denied (agent falls back to its
+    // Google Calendar tool). ~50ms; non-blocking failure.
+    Map<String, dynamic>? deviceContext;
+    try {
+      final events = await _intentBridge.fetchUpcomingCalendarEvents(daysAhead: 7);
+      if (events.isNotEmpty) {
+        deviceContext = {'apple_calendar': events};
+      }
+    } catch (e) {
+      debugPrint('[ChatProvider] fetchUpcomingCalendarEvents failed: $e');
+    }
+
+    _activeStream = _service.streamChat(trimmed, deviceContext: deviceContext).listen(
       (event) {
         if (event is ChatStreamText) {
           assistant = assistant.copyWith(text: assistant.text + event.text);
