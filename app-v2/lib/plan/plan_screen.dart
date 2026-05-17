@@ -164,7 +164,21 @@ class _PlanScreenState extends State<PlanScreen> {
 
     final topInset = MediaQuery.of(context).padding.top + AppStyles.spacingS;
     return RefreshIndicator(
-      onRefresh: () => provider.fetchAll(),
+      // Sequence matters: refresh items first, then ground guidance against
+      // the post-fetch item set. Running them in parallel would feed stale
+      // pre-refresh items into the LLM call AND write a fresh _cacheKey, so
+      // the next 30 min of `refreshIfStale` would short-circuit on stale
+      // grounding.
+      onRefresh: () async {
+        final guidance = context.read<PlanGuidanceProvider>();
+        await provider.fetchAll();
+        if (!mounted) return;
+        final freshItems = provider.items.where((i) => !i.completed).toList();
+        final freshContext = buildTodayContext(freshItems, now: DateTime.now());
+        if (!isTodayContextEmpty(freshContext)) {
+          await guidance.forceRefresh(freshContext);
+        }
+      },
       color: AppColors.brandPrimary,
       backgroundColor: AppColors.backgroundSecondary,
       child: CustomScrollView(
