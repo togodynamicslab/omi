@@ -1,422 +1,471 @@
 {
-  "@@locale": "pt",
-  "appName": "Nooto",
-  "welcomeBrandLine": "Bem-vindo ao {brand}",
-  "@welcomeBrandLine": {
-    "placeholders": {
-      "brand": {
-        "type": "String"
-      }
+    "@@locale": "pt",
+    "appName": "Nooto",
+    "welcomeBrandLine": "Bem-vindo ao {brand}",
+    "@welcomeBrandLine": {
+        "placeholders": {
+            "brand": {
+                "type": "String"
+            }
+        }
+    },
+    "welcomeTaglinePrefix": "Inteligência pessoal que transforma ",
+    "welcomeTaglineEmphasis": "pensamento em ação.",
+    "welcomeContinueWithApple": "Continuar com Apple",
+    "welcomeContinueWithGoogle": "Continuar com Google",
+    "welcomeWaitingForBrowser": "Aguardando o navegador…",
+    "welcomeAgreeFooter": "Ao continuar você concorda com nossos Termos e Política de Privacidade.",
+    "onboardingPromptHintTyped": "Digite sua resposta…",
+    "onboardingPromptHintTap": "Toque em uma opção acima para continuar",
+    "onboardingOpenerName": "Oi — como você quer que eu te chame?",
+    "onboardingOpenerLanguage": "Prazer em te conhecer, {name}. Em qual idioma você quer que eu fale?",
+    "@onboardingOpenerLanguage": {
+        "placeholders": {
+            "name": {
+                "type": "String"
+            }
+        }
+    },
+    "onboardingOpenerMicrophone": "Vou precisar do seu microfone para ouvir o que importa.",
+    "onboardingOpenerNotifications": "Tudo bem se eu te avisar quando algo precisar da sua atenção?",
+    "onboardingOpenerBackground": "Funciono melhor se puder continuar ouvindo em segundo plano.",
+    "onboardingOpenerLocation": "Quer que eu marque onde as coisas acontecem? Opcional — pode pular.",
+    "onboardingOpenerDevice": "Tem um aparelho Nooto com você? Podemos conectar depois — o pareamento chega na próxima fase.",
+    "onboardingOpenerSpeechProfile": "Deixa eu aprender sua voz para te reconhecer no meio de outras.",
+    "onboardingOpenerAcknowledge": "Tudo pronto. Vamos lá.",
+    "onboardingSkipped": "Claro, podemos fazer isso depois.",
+    "onboardingChipMoreLanguages": "Mais idiomas…",
+    "onboardingChipSkipForNow": "Pular por agora",
+    "onboardingChipPairLater": "Vou parear depois",
+    "onboardingAckLetsGo": "Vamos lá",
+    "onboardingAckGotIt": "Entendi",
+    "onboardingPermissionAllow": "Permitir",
+    "onboardingPermissionPending": "Pendente",
+    "onboardingPermissionGranted": "Permitido",
+    "onboardingPermissionDenied": "Negado",
+    "onboardingPermissionDeniedAction": "Abrir ajustes",
+    "onboardingPermissionLabelMicrophone": "Acesso ao microfone",
+    "onboardingPermissionLabelMicrophoneHelper": "O áudio é processado no seu dispositivo; só a transcrição sai.",
+    "onboardingPermissionLabelNotifications": "Acesso a notificações",
+    "onboardingPermissionLabelNotificationsHelper": "Só avisos úteis e silenciosos — nunca ruído.",
+    "onboardingPermissionLabelBackground": "Atividade em segundo plano",
+    "onboardingPermissionLabelBackgroundHelper": "Permite que o Nooto continue ativo enquanto você usa outros apps.",
+    "onboardingPermissionLabelLocation": "Localização",
+    "onboardingPermissionLabelLocationHelper": "Marca conversas com o local em que aconteceram. Opcional.",
+    "onboardingSpeechCardTitle": "Leia isto em voz alta",
+    "onboardingSpeechCardBody": "Quando estiver pronto, segure o botão e leia isto em voz normal por uns cinco segundos.",
+    "onboardingSpeechCardSample": "Oi, estou configurando o Nooto. É assim que minha voz soa numa sala normal.",
+    "onboardingSpeechRecording": "Ouvindo…",
+    "onboardingSpeechCaptured": "Voz capturada ✓",
+    "onboardingSpeechSkip": "Pular por agora",
+    "shellTabHome": "Início",
+    "shellTabChat": "Chat",
+    "shellTabLibrary": "Biblioteca",
+    "shellTabPlan": "Plano",
+    "shellTabApps": "Apps",
+    "shellComingSoonTitle": "{tab} chega em breve",
+    "@shellComingSoonTitle": {
+        "placeholders": {
+            "tab": {
+                "type": "String"
+            }
+        }
+    },
+    "shellComingSoonBody": "Esta tela chega em uma fase futura. Por enquanto, o Nooto v2 é só o fluxo de boas-vindas e onboarding.",
+    "todayCardHeader": "Hoje",
+    "todayCardCountPartial": "{visible} de {total}",
+    "@todayCardCountPartial": {
+        "placeholders": {
+            "visible": {
+                "type": "int"
+            },
+            "total": {
+                "type": "int"
+            }
+        }
+    },
+    "todayCardCountFull": "{count, plural, =1{1 item} other{{count} itens}}",
+    "@todayCardCountFull": {
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "todayCardSeeAll": "Ver tudo",
+    "todayCardSeeAllSemantics": "Ver todas as ações, abre a aba Plano",
+    "summaryTemplate": "Summary template",
+    "summarizedBy": "Summarized by {name}",
+    "@summarizedBy": {
+        "placeholders": {
+            "name": {
+                "type": "String"
+            }
+        }
+    },
+    "noSummaryForApp": "No summary available — tap to choose another app",
+    "reprocessingConversation": "Reprocessing…",
+    "reprocessFailed": "Couldn't reprocess. Try again.",
+    "chooseSummarizationApp": "Choose a summarization app",
+    "currentlyUsing": "Currently using",
+    "suggestedForThisConversation": "Suggested for this conversation",
+    "summarizedAppsSuggestedSection": "Suggested",
+    "summarizedAppsAvailableSection": "Installed",
+    "summarizedAppsEmpty": "No apps installed yet",
+    "summarizeWithApp": "Summarize with an app",
+    "pendantPillLive": "Ao vivo",
+    "@pendantPillLive": {
+        "description": "Status pill label when pendant is connected and streaming."
+    },
+    "pendantPillConnecting": "Conectando…",
+    "@pendantPillConnecting": {
+        "description": "Status pill label during initial connection or first-pair handshake."
+    },
+    "pendantPillReconnecting": "Reconectando",
+    "@pendantPillReconnecting": {
+        "description": "Status pill label after a BLE drop while auto-reconnect is in flight."
+    },
+    "pendantPillOfflineSince": "Offline desde {time}",
+    "@pendantPillOfflineSince": {
+        "description": "Status pill label after 30s with no successful reconnect.",
+        "placeholders": {
+            "time": {
+                "type": "String"
+            }
+        }
+    },
+    "pendantPillPaused": "Pausado",
+    "@pendantPillPaused": {
+        "description": "Status pill label while AVAudioSession interruption is active (call, Siri, etc.)."
+    },
+    "pendantPairTitle": "Conectar pendant",
+    "@pendantPairTitle": {
+        "description": "Pairing sheet title."
+    },
+    "pendantPairConnecting": "Configurando seu pendant…",
+    "@pendantPairConnecting": {
+        "description": "Pairing sheet progress message during 5-15s first-pair characteristic discovery."
+    },
+    "pendantPairIncompatible": "Este pendant não expõe o serviço de áudio correto. Verifique se o firmware está atualizado.",
+    "@pendantPairIncompatible": {
+        "description": "Pairing sheet error message when the device does not expose the Omi audio service."
+    },
+    "pendantPairPermissionDenied": "Acesso a Bluetooth e microfone é necessário para conectar.",
+    "@pendantPairPermissionDenied": {
+        "description": "Pairing sheet error message when BLE or mic permission is denied."
+    },
+    "pendantPairOpenSettings": "Abrir Ajustes",
+    "@pendantPairOpenSettings": {
+        "description": "Pairing sheet CTA that opens the OS settings app."
+    },
+    "pendantPairTryAgain": "Tentar novamente",
+    "@pendantPairTryAgain": {
+        "description": "Pairing sheet CTA shown after an incompatible-device error."
+    },
+    "pendantVoiceCardConnectTitle": "Conecte seu pendant",
+    "@pendantVoiceCardConnectTitle": {
+        "description": "Home voice card title shown while no pendant is paired."
+    },
+    "pendantVoiceCardConnectBody": "Toque para conectar seu pendant.",
+    "@pendantVoiceCardConnectBody": {
+        "description": "Home voice card body shown while no pendant is paired."
+    },
+    "pendantVoiceCardOfflineTitle": "Seu pendant desconectou às {time}.",
+    "@pendantVoiceCardOfflineTitle": {
+        "description": "Home voice card title shown after the pendant has been offline for at least 5 minutes.",
+        "placeholders": {
+            "time": {
+                "type": "String"
+            }
+        }
+    },
+    "pendantVoiceCardOfflineBody": "Toque para reconectar.",
+    "@pendantVoiceCardOfflineBody": {
+        "description": "Home voice card body shown after the pendant has been offline for at least 5 minutes."
+    },
+    "pendantPausePrompt": "Pausar pendant por {seconds}s para gravar sua voz?",
+    "@pendantPausePrompt": {
+        "description": "Sheet prompt shown when phone-mic capture is requested while pendant is live.",
+        "placeholders": {
+            "seconds": {
+                "type": "int"
+            }
+        }
+    },
+    "pendantPauseConfirm": "Pausar e continuar",
+    "@pendantPauseConfirm": {
+        "description": "Confirm CTA on the pause-pendant sheet."
+    },
+    "pendantOnboardingTurnText": "Conecte seu pendant quando estiver pronto. Mantenha-o perto do telefone para que eu possa encontrá-lo.",
+    "@pendantOnboardingTurnText": {
+        "description": "Onboarding chat turn text introducing pendant pairing after speech profile."
+    },
+    "pendantScreenTitle": "Pendant",
+    "@pendantScreenTitle": {
+        "description": "AppBar title for the dedicated pendant connection screen."
+    },
+    "pendantScreenMenuItem": "Pendant",
+    "@pendantScreenMenuItem": {
+        "description": "Kebab menu entry that opens the pendant connection screen."
+    },
+    "pendantScreenPairCta": "Conectar pendant",
+    "@pendantScreenPairCta": {
+        "description": "Primary CTA on the pendant screen when no pendant is paired."
+    },
+    "pendantScreenPairHint": "Deixe seu pendant perto.",
+    "@pendantScreenPairHint": {
+        "description": "Hint shown under the pair CTA on the pendant screen."
+    },
+    "pendantScreenConnectedHeader": "Conectado",
+    "@pendantScreenConnectedHeader": {
+        "description": "Header on the pendant screen when the pendant is live."
+    },
+    "pendantScreenDisconnectCta": "Desconectar",
+    "@pendantScreenDisconnectCta": {
+        "description": "Outlined button on the pendant screen to disconnect a live pendant."
+    },
+    "pendantScreenReconnectCta": "Reconectar",
+    "@pendantScreenReconnectCta": {
+        "description": "Button on the pendant screen to reconnect when offline."
+    },
+    "pendantScreenInterruptedExplain": "Pausado enquanto outra sessão de áudio está ativa.",
+    "@pendantScreenInterruptedExplain": {
+        "description": "Explanation shown when the pendant is in interrupted state."
+    },
+    "pendantScreenBatteryLabel": "{percent}% de bateria",
+    "@pendantScreenBatteryLabel": {
+        "description": "Battery percentage row label on the pendant screen.",
+        "placeholders": {
+            "percent": {
+                "type": "int"
+            }
+        }
+    },
+    "pendantScreenCodecLabel": "Codec: {codec}",
+    "@pendantScreenCodecLabel": {
+        "description": "Codec badge label on the pendant screen.",
+        "placeholders": {
+            "codec": {
+                "type": "String"
+            }
+        }
+    },
+    "settingsScreenTitle": "Configurações",
+    "settingsMenuItem": "Configurações",
+    "settingsDevModeHeader": "Modo Desenvolvedor",
+    "settingsPermissionsLabel": "Permissões",
+    "settingsPermissionMicrophone": "Microfone",
+    "settingsPermissionBluetooth": "Bluetooth",
+    "settingsPermissionNotifications": "Notificações",
+    "settingsPermissionLocation": "Localização",
+    "settingsPendantLabel": "Pendant",
+    "settingsAuthLabel": "Conta",
+    "settingsAuthSignedInAs": "Conectado como {email}",
+    "@settingsAuthSignedInAs": {
+        "placeholders": {
+            "email": {
+                "type": "String"
+            }
+        }
+    },
+    "settingsAuthNotSignedIn": "Não conectado",
+    "settingsBuildLabel": "Build",
+    "settingsActionOpenIosSettings": "Abrir Ajustes do iOS",
+    "settingsActionResetOnboarding": "Reiniciar onboarding",
+    "settingsPermissionStatusGranted": "Permitido",
+    "settingsPermissionStatusDenied": "Negado",
+    "settingsPermissionStatusPermanentlyDenied": "Permanentemente negado",
+    "settingsPermissionStatusRestricted": "Restrito",
+    "settingsPermissionStatusLimited": "Limitado",
+    "settingsPermissionOpenSettingsCta": "Abrir Ajustes",
+    "pendantScreenDefaultDeviceName": "Pendant Nooto",
+    "@pendantScreenDefaultDeviceName": {
+        "description": "Default device name shown in PendantScreen when info.deviceName is null"
+    },
+    "pendantCeremonySearching": "Procurando.",
+    "@pendantCeremonySearching": {
+        "description": "First beat of the pendant pairing ceremony, shown while scanning for the pendant. AI-voiced first-person calm register."
+    },
+    "pendantCeremonyFound": "Encontrei você.",
+    "@pendantCeremonyFound": {
+        "description": "Second beat of the pendant pairing ceremony, shown when a pendant has been discovered and is connecting. AI-voiced first-person calm register."
+    },
+    "pendantCeremonySettingUp": "Conectando.",
+    "@pendantCeremonySettingUp": {
+        "description": "Third beat of the pendant pairing ceremony, shown while the pendant is finalizing connection. AI-voiced first-person calm register."
+    },
+    "pendantCeremonyGreetingNamed": "Olá, {name}.",
+    "@pendantCeremonyGreetingNamed": {
+        "description": "Personalized greeting shown on the final beat of the pendant pairing ceremony, when the user's display name is available.",
+        "placeholders": {
+            "name": {
+                "type": "String",
+                "example": "Matheus"
+            }
+        }
+    },
+    "pendantCeremonyGreetingFallback": "Olá.",
+    "@pendantCeremonyGreetingFallback": {
+        "description": "Greeting shown on the final beat of the pendant pairing ceremony, when no user display name is available."
+    },
+    "pendantCeremonyTimeout": "Não consigo ver seu pendant daqui. Deixe ele perto e vamos tentar de novo.",
+    "@pendantCeremonyTimeout": {
+        "description": "Failure copy shown when the pendant pairing ceremony times out without finding a pendant. AI-voiced first-person register matches the ceremony beats."
+    },
+    "pendantCeremonyBleError": "Algo interrompeu a conexão. Vamos tentar mais uma vez.",
+    "@pendantCeremonyBleError": {
+        "description": "Failure copy shown when a BLE error interrupts the pendant pairing ceremony mid-connect. AI-voiced first-person register matches the ceremony beats."
+    },
+    "pendantCeremonyIncompatible": "Este pendant não fala minha língua. Verifique se o firmware está atualizado.",
+    "@pendantCeremonyIncompatible": {
+        "description": "Failure copy shown when an incompatible pendant is detected mid-ceremony. AI-voiced first-person register matches the ceremony beats. Pre-pair incompatible (no ceremony lead-in) keeps the existing functional copy in pendantPairIncompatible."
+    },
+    "pendantCeremonyBluetoothOff": "Bluetooth está desligado. Ative no Centro de Controle e vamos tentar de novo.",
+    "@pendantCeremonyBluetoothOff": {
+        "description": "AI-voiced ceremony failure surface card shown when iOS reports the Bluetooth adapter is OFF during scan."
+    },
+    "pendantScreenBackLabel": "Voltar",
+    "@pendantScreenBackLabel": {
+        "description": "Generic back button label on the pendant screen."
+    },
+    "inboxEmptyTitle": "Nada por aqui ainda",
+    "inboxEmptyDescription": "Seus apps vão te enviar mensagens aqui. Conecte um app para começar.",
+    "inboxEmptyAction": "Ver apps",
+    "inboxErrorTitle": "Não foi possível conectar ao servidor",
+    "inboxErrorRetry": "Tentar novamente",
+    "inboxScreenTitle": "Caixa de entrada",
+    "inboxFilterAll": "Todos",
+    "inboxBubbleCopy": "Copiar",
+    "inboxBubbleShare": "Compartilhar",
+    "inboxBubbleCancel": "Cancelar",
+    "drawerInboxLabel": "Caixa de entrada",
+    "settingsNotificationsLabel": "Notificações",
+    "settingsNotificationsStateOn": "Ativadas",
+    "settingsNotificationsStateOff": "Desativadas — toque para ativar",
+    "settingsNotificationsStateOpenSettings": "Abra Configurações para ativar",
+    "settingsCategoryAccount": "Conta",
+    "@settingsCategoryAccount": {
+        "description": "Settings category label: account/sign-in/sign-out."
+    },
+    "settingsCategoryAccountDescription": "Login, identidade",
+    "@settingsCategoryAccountDescription": {
+        "description": "Settings category one-liner under Account (used by search match, not currently rendered as a row subtitle)."
+    },
+    "settingsCategoryPermissions": "Permissões",
+    "@settingsCategoryPermissions": {
+        "description": "Settings category label: OS permissions."
+    },
+    "settingsCategoryPermissionsDescription": "Microfone, Bluetooth, Notificações, Localização",
+    "@settingsCategoryPermissionsDescription": {
+        "description": "Settings category one-liner under Permissions."
+    },
+    "settingsCategoryPendant": "Pendant",
+    "@settingsCategoryPendant": {
+        "description": "Settings category label: pendant diagnostics."
+    },
+    "settingsCategoryPendantDescription": "Status de conexão, codec, bateria",
+    "@settingsCategoryPendantDescription": {
+        "description": "Settings category one-liner under Pendant."
+    },
+    "settingsCategoryNotifications": "Notificações",
+    "@settingsCategoryNotifications": {
+        "description": "Settings category label: notifications-as-chat toggle."
+    },
+    "settingsCategoryNotificationsDescription": "Alertas de apps e do Brief",
+    "@settingsCategoryNotificationsDescription": {
+        "description": "Settings category one-liner under Notifications."
+    },
+    "settingsCategoryAbout": "Sobre",
+    "@settingsCategoryAbout": {
+        "description": "Settings category label: app info."
+    },
+    "settingsCategoryAboutDescription": "Versão do build, suporte",
+    "@settingsCategoryAboutDescription": {
+        "description": "Settings category one-liner under About."
+    },
+    "settingsCategoryDeveloper": "Desenvolvedor",
+    "@settingsCategoryDeveloper": {
+        "description": "Settings category label: developer/debug surface."
+    },
+    "settingsCategoryDeveloperDescription": "Diagnósticos e reinício",
+    "@settingsCategoryDeveloperDescription": {
+        "description": "Settings category one-liner under Developer."
+    },
+    "settingsSearchPlaceholder": "Buscar configurações",
+    "@settingsSearchPlaceholder": {
+        "description": "Placeholder text inside the iOS-style search field at the top of Settings."
+    },
+    "settingsSearchEmpty": "Nenhuma configuração encontrada",
+    "@settingsSearchEmpty": {
+        "description": "Empty-state copy when the Settings search query matches nothing."
+    },
+    "settingsNotificationsDescription": "Apps e Brief enviam mensagens proativas para sua Caixa de entrada. Desative para silenciar o push do dispositivo sem perder o feed dentro do app.",
+    "@settingsNotificationsDescription": {
+        "description": "Long-form description below the Notifications toggle on the Notifications sub-page."
+    },
+    "settingsAccountSignOut": "Sair",
+    "@settingsAccountSignOut": {
+        "description": "Sign-out button on the Account sub-page."
+    },
+    "settingsDeveloperResetOnboarding": "Reiniciar onboarding",
+    "@settingsDeveloperResetOnboarding": {
+        "description": "Reset onboarding button on the Developer sub-page."
+    },
+    "settingsDeveloperOpenSystemSettings": "Abrir Ajustes do iOS",
+    "@settingsDeveloperOpenSystemSettings": {
+        "description": "Open system Settings shortcut button on the Developer sub-page."
+    },
+    "settingsNotificationsTestAction": "Enviar notificação de teste",
+    "settingsNotificationsTestHint": "Cria uma mensagem de teste na sua Caixa de entrada e dispara o push do sistema (5 por hora).",
+    "settingsNotificationsTestSent": "Notificação de teste enviada. Veja a Caixa de entrada.",
+    "settingsNotificationsTestFailed": "Falha ao enviar a notificação de teste.",
+    "refreshSummarySemantic": "Atualizar resumo",
+    "settingsCategoryNativeSync": "Sincronização Nativa",
+    "@settingsCategoryNativeSync": {
+        "description": "Settings category label for the proactive iOS Reminders push."
+    },
+    "settingsCategoryNativeSyncDescription": "Enviar tarefas automaticamente para o app Lembretes",
+    "@settingsCategoryNativeSyncDescription": {
+        "description": "Settings category one-liner under Native Sync."
+    },
+    "nativeSyncScreenTitle": "Sincronização Nativa",
+    "@nativeSyncScreenTitle": {
+        "description": "Title of the Native Sync sub-screen."
+    },
+    "nativeSyncEnabledLabel": "Enviar para o Lembretes do iOS",
+    "@nativeSyncEnabledLabel": {
+        "description": "Master toggle label for the proactive Reminders push."
+    },
+    "nativeSyncEnabledDescription": "O Nooto salva automaticamente tarefas com alta confiança no app Lembretes. Itens que você apagar no Lembretes nunca serão reenviados.",
+    "@nativeSyncEnabledDescription": {
+        "description": "Explanation of what the proactive Reminders push does."
+    },
+    "nativeSyncThresholdLabel": "Limite de confiança",
+    "@nativeSyncThresholdLabel": {
+        "description": "Label for the confidence threshold slider."
+    },
+    "nativeSyncThresholdHelp": "Reduza o limite para enviar mais itens. Tarefas abaixo desse valor ficam só no Nooto.",
+    "@nativeSyncThresholdHelp": {
+        "description": "Help text under the threshold slider."
+    },
+    "nativeSyncDailyBudgetLabel": "Limite diário",
+    "@nativeSyncDailyBudgetLabel": {
+        "description": "Label for the daily push budget stepper."
+    },
+    "nativeSyncDailyBudgetHelp": "Máximo de itens enviados por dia. Evita lotar o Lembretes em dias agitados.",
+    "@nativeSyncDailyBudgetHelp": {
+        "description": "Help text under the daily limit stepper."
+    },
+    "nativeSyncRecentlyPushedLabel": "Enviados recentemente",
+    "@nativeSyncRecentlyPushedLabel": {
+        "description": "Row that opens the Recently pushed sub-screen."
+    },
+    "nativeSyncRecentlyPushedEmpty": "Nada enviado ainda",
+    "@nativeSyncRecentlyPushedEmpty": {
+        "description": "Empty state in the Recently pushed list."
+    },
+    "nativeSyncRecentlyPushedTitle": "Enviados recentemente",
+    "@nativeSyncRecentlyPushedTitle": {
+        "description": "Title of the Recently pushed sub-screen."
     }
-  },
-  "welcomeTaglinePrefix": "Inteligência pessoal que transforma ",
-  "welcomeTaglineEmphasis": "pensamento em ação.",
-  "welcomeContinueWithApple": "Continuar com Apple",
-  "welcomeContinueWithGoogle": "Continuar com Google",
-  "welcomeWaitingForBrowser": "Aguardando o navegador…",
-  "welcomeAgreeFooter": "Ao continuar você concorda com nossos Termos e Política de Privacidade.",
-  "onboardingPromptHintTyped": "Digite sua resposta…",
-  "onboardingPromptHintTap": "Toque em uma opção acima para continuar",
-  "onboardingOpenerName": "Oi — como você quer que eu te chame?",
-  "onboardingOpenerLanguage": "Prazer em te conhecer, {name}. Em qual idioma você quer que eu fale?",
-  "@onboardingOpenerLanguage": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "onboardingOpenerMicrophone": "Vou precisar do seu microfone para ouvir o que importa.",
-  "onboardingOpenerNotifications": "Tudo bem se eu te avisar quando algo precisar da sua atenção?",
-  "onboardingOpenerBackground": "Funciono melhor se puder continuar ouvindo em segundo plano.",
-  "onboardingOpenerLocation": "Quer que eu marque onde as coisas acontecem? Opcional — pode pular.",
-  "onboardingOpenerDevice": "Tem um aparelho Nooto com você? Podemos conectar depois — o pareamento chega na próxima fase.",
-  "onboardingOpenerSpeechProfile": "Deixa eu aprender sua voz para te reconhecer no meio de outras.",
-  "onboardingOpenerAcknowledge": "Tudo pronto. Vamos lá.",
-  "onboardingSkipped": "Claro, podemos fazer isso depois.",
-  "onboardingChipMoreLanguages": "Mais idiomas…",
-  "onboardingChipSkipForNow": "Pular por agora",
-  "onboardingChipPairLater": "Vou parear depois",
-  "onboardingAckLetsGo": "Vamos lá",
-  "onboardingAckGotIt": "Entendi",
-  "onboardingPermissionAllow": "Permitir",
-  "onboardingPermissionPending": "Pendente",
-  "onboardingPermissionGranted": "Permitido",
-  "onboardingPermissionDenied": "Negado",
-  "onboardingPermissionDeniedAction": "Abrir ajustes",
-  "onboardingPermissionLabelMicrophone": "Acesso ao microfone",
-  "onboardingPermissionLabelMicrophoneHelper": "O áudio é processado no seu dispositivo; só a transcrição sai.",
-  "onboardingPermissionLabelNotifications": "Acesso a notificações",
-  "onboardingPermissionLabelNotificationsHelper": "Só avisos úteis e silenciosos — nunca ruído.",
-  "onboardingPermissionLabelBackground": "Atividade em segundo plano",
-  "onboardingPermissionLabelBackgroundHelper": "Permite que o Nooto continue ativo enquanto você usa outros apps.",
-  "onboardingPermissionLabelLocation": "Localização",
-  "onboardingPermissionLabelLocationHelper": "Marca conversas com o local em que aconteceram. Opcional.",
-  "onboardingSpeechCardTitle": "Leia isto em voz alta",
-  "onboardingSpeechCardBody": "Quando estiver pronto, segure o botão e leia isto em voz normal por uns cinco segundos.",
-  "onboardingSpeechCardSample": "Oi, estou configurando o Nooto. É assim que minha voz soa numa sala normal.",
-  "onboardingSpeechRecording": "Ouvindo…",
-  "onboardingSpeechCaptured": "Voz capturada ✓",
-  "onboardingSpeechSkip": "Pular por agora",
-  "shellTabHome": "Início",
-  "shellTabChat": "Chat",
-  "shellTabLibrary": "Biblioteca",
-  "shellTabPlan": "Plano",
-  "shellTabApps": "Apps",
-  "shellComingSoonTitle": "{tab} chega em breve",
-  "@shellComingSoonTitle": {
-    "placeholders": {
-      "tab": {
-        "type": "String"
-      }
-    }
-  },
-  "shellComingSoonBody": "Esta tela chega em uma fase futura. Por enquanto, o Nooto v2 é só o fluxo de boas-vindas e onboarding.",
-  "todayCardHeader": "Hoje",
-  "todayCardCountPartial": "{visible} de {total}",
-  "@todayCardCountPartial": {
-    "placeholders": {
-      "visible": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
-    }
-  },
-  "todayCardCountFull": "{count, plural, =1{1 item} other{{count} itens}}",
-  "@todayCardCountFull": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "todayCardSeeAll": "Ver tudo",
-  "todayCardSeeAllSemantics": "Ver todas as ações, abre a aba Plano",
-  "summaryTemplate": "Summary template",
-  "summarizedBy": "Summarized by {name}",
-  "@summarizedBy": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "noSummaryForApp": "No summary available — tap to choose another app",
-  "reprocessingConversation": "Reprocessing…",
-  "reprocessFailed": "Couldn't reprocess. Try again.",
-  "chooseSummarizationApp": "Choose a summarization app",
-  "currentlyUsing": "Currently using",
-  "suggestedForThisConversation": "Suggested for this conversation",
-  "summarizedAppsSuggestedSection": "Suggested",
-  "summarizedAppsAvailableSection": "Installed",
-  "summarizedAppsEmpty": "No apps installed yet",
-  "summarizeWithApp": "Summarize with an app",
-  "pendantPillLive": "Ao vivo",
-  "@pendantPillLive": {
-    "description": "Status pill label when pendant is connected and streaming."
-  },
-  "pendantPillConnecting": "Conectando…",
-  "@pendantPillConnecting": {
-    "description": "Status pill label during initial connection or first-pair handshake."
-  },
-  "pendantPillReconnecting": "Reconectando",
-  "@pendantPillReconnecting": {
-    "description": "Status pill label after a BLE drop while auto-reconnect is in flight."
-  },
-  "pendantPillOfflineSince": "Offline desde {time}",
-  "@pendantPillOfflineSince": {
-    "description": "Status pill label after 30s with no successful reconnect.",
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "pendantPillPaused": "Pausado",
-  "@pendantPillPaused": {
-    "description": "Status pill label while AVAudioSession interruption is active (call, Siri, etc.)."
-  },
-  "pendantPairTitle": "Conectar pendant",
-  "@pendantPairTitle": {
-    "description": "Pairing sheet title."
-  },
-  "pendantPairConnecting": "Configurando seu pendant…",
-  "@pendantPairConnecting": {
-    "description": "Pairing sheet progress message during 5-15s first-pair characteristic discovery."
-  },
-  "pendantPairIncompatible": "Este pendant não expõe o serviço de áudio correto. Verifique se o firmware está atualizado.",
-  "@pendantPairIncompatible": {
-    "description": "Pairing sheet error message when the device does not expose the Omi audio service."
-  },
-  "pendantPairPermissionDenied": "Acesso a Bluetooth e microfone é necessário para conectar.",
-  "@pendantPairPermissionDenied": {
-    "description": "Pairing sheet error message when BLE or mic permission is denied."
-  },
-  "pendantPairOpenSettings": "Abrir Ajustes",
-  "@pendantPairOpenSettings": {
-    "description": "Pairing sheet CTA that opens the OS settings app."
-  },
-  "pendantPairTryAgain": "Tentar novamente",
-  "@pendantPairTryAgain": {
-    "description": "Pairing sheet CTA shown after an incompatible-device error."
-  },
-  "pendantVoiceCardConnectTitle": "Conecte seu pendant",
-  "@pendantVoiceCardConnectTitle": {
-    "description": "Home voice card title shown while no pendant is paired."
-  },
-  "pendantVoiceCardConnectBody": "Toque para conectar seu pendant.",
-  "@pendantVoiceCardConnectBody": {
-    "description": "Home voice card body shown while no pendant is paired."
-  },
-  "pendantVoiceCardOfflineTitle": "Seu pendant desconectou às {time}.",
-  "@pendantVoiceCardOfflineTitle": {
-    "description": "Home voice card title shown after the pendant has been offline for at least 5 minutes.",
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "pendantVoiceCardOfflineBody": "Toque para reconectar.",
-  "@pendantVoiceCardOfflineBody": {
-    "description": "Home voice card body shown after the pendant has been offline for at least 5 minutes."
-  },
-  "pendantPausePrompt": "Pausar pendant por {seconds}s para gravar sua voz?",
-  "@pendantPausePrompt": {
-    "description": "Sheet prompt shown when phone-mic capture is requested while pendant is live.",
-    "placeholders": {
-      "seconds": {
-        "type": "int"
-      }
-    }
-  },
-  "pendantPauseConfirm": "Pausar e continuar",
-  "@pendantPauseConfirm": {
-    "description": "Confirm CTA on the pause-pendant sheet."
-  },
-  "pendantOnboardingTurnText": "Conecte seu pendant quando estiver pronto. Mantenha-o perto do telefone para que eu possa encontrá-lo.",
-  "@pendantOnboardingTurnText": {
-    "description": "Onboarding chat turn text introducing pendant pairing after speech profile."
-  },
-  "pendantScreenTitle": "Pendant",
-  "@pendantScreenTitle": {
-    "description": "AppBar title for the dedicated pendant connection screen."
-  },
-  "pendantScreenMenuItem": "Pendant",
-  "@pendantScreenMenuItem": {
-    "description": "Kebab menu entry that opens the pendant connection screen."
-  },
-  "pendantScreenPairCta": "Conectar pendant",
-  "@pendantScreenPairCta": {
-    "description": "Primary CTA on the pendant screen when no pendant is paired."
-  },
-  "pendantScreenPairHint": "Deixe seu pendant perto.",
-  "@pendantScreenPairHint": {
-    "description": "Hint shown under the pair CTA on the pendant screen."
-  },
-  "pendantScreenConnectedHeader": "Conectado",
-  "@pendantScreenConnectedHeader": {
-    "description": "Header on the pendant screen when the pendant is live."
-  },
-  "pendantScreenDisconnectCta": "Desconectar",
-  "@pendantScreenDisconnectCta": {
-    "description": "Outlined button on the pendant screen to disconnect a live pendant."
-  },
-  "pendantScreenReconnectCta": "Reconectar",
-  "@pendantScreenReconnectCta": {
-    "description": "Button on the pendant screen to reconnect when offline."
-  },
-  "pendantScreenInterruptedExplain": "Pausado enquanto outra sessão de áudio está ativa.",
-  "@pendantScreenInterruptedExplain": {
-    "description": "Explanation shown when the pendant is in interrupted state."
-  },
-  "pendantScreenBatteryLabel": "{percent}% de bateria",
-  "@pendantScreenBatteryLabel": {
-    "description": "Battery percentage row label on the pendant screen.",
-    "placeholders": {
-      "percent": {
-        "type": "int"
-      }
-    }
-  },
-  "pendantScreenCodecLabel": "Codec: {codec}",
-  "@pendantScreenCodecLabel": {
-    "description": "Codec badge label on the pendant screen.",
-    "placeholders": {
-      "codec": {
-        "type": "String"
-      }
-    }
-  },
-  "settingsScreenTitle": "Configurações",
-  "settingsMenuItem": "Configurações",
-  "settingsDevModeHeader": "Modo Desenvolvedor",
-  "settingsPermissionsLabel": "Permissões",
-  "settingsPermissionMicrophone": "Microfone",
-  "settingsPermissionBluetooth": "Bluetooth",
-  "settingsPermissionNotifications": "Notificações",
-  "settingsPermissionLocation": "Localização",
-  "settingsPendantLabel": "Pendant",
-  "settingsAuthLabel": "Conta",
-  "settingsAuthSignedInAs": "Conectado como {email}",
-  "@settingsAuthSignedInAs": {
-    "placeholders": {
-      "email": {
-        "type": "String"
-      }
-    }
-  },
-  "settingsAuthNotSignedIn": "Não conectado",
-  "settingsBuildLabel": "Build",
-  "settingsActionOpenIosSettings": "Abrir Ajustes do iOS",
-  "settingsActionResetOnboarding": "Reiniciar onboarding",
-  "settingsPermissionStatusGranted": "Permitido",
-  "settingsPermissionStatusDenied": "Negado",
-  "settingsPermissionStatusPermanentlyDenied": "Permanentemente negado",
-  "settingsPermissionStatusRestricted": "Restrito",
-  "settingsPermissionStatusLimited": "Limitado",
-  "settingsPermissionOpenSettingsCta": "Abrir Ajustes",
-  "pendantScreenDefaultDeviceName": "Pendant Nooto",
-  "@pendantScreenDefaultDeviceName": {
-    "description": "Default device name shown in PendantScreen when info.deviceName is null"
-  },
-  "pendantCeremonySearching": "Procurando.",
-  "@pendantCeremonySearching": {
-    "description": "First beat of the pendant pairing ceremony, shown while scanning for the pendant. AI-voiced first-person calm register."
-  },
-  "pendantCeremonyFound": "Encontrei você.",
-  "@pendantCeremonyFound": {
-    "description": "Second beat of the pendant pairing ceremony, shown when a pendant has been discovered and is connecting. AI-voiced first-person calm register."
-  },
-  "pendantCeremonySettingUp": "Conectando.",
-  "@pendantCeremonySettingUp": {
-    "description": "Third beat of the pendant pairing ceremony, shown while the pendant is finalizing connection. AI-voiced first-person calm register."
-  },
-  "pendantCeremonyGreetingNamed": "Olá, {name}.",
-  "@pendantCeremonyGreetingNamed": {
-    "description": "Personalized greeting shown on the final beat of the pendant pairing ceremony, when the user's display name is available.",
-    "placeholders": {
-      "name": {
-        "type": "String",
-        "example": "Matheus"
-      }
-    }
-  },
-  "pendantCeremonyGreetingFallback": "Olá.",
-  "@pendantCeremonyGreetingFallback": {
-    "description": "Greeting shown on the final beat of the pendant pairing ceremony, when no user display name is available."
-  },
-  "pendantCeremonyTimeout": "Não consigo ver seu pendant daqui. Deixe ele perto e vamos tentar de novo.",
-  "@pendantCeremonyTimeout": {
-    "description": "Failure copy shown when the pendant pairing ceremony times out without finding a pendant. AI-voiced first-person register matches the ceremony beats."
-  },
-  "pendantCeremonyBleError": "Algo interrompeu a conexão. Vamos tentar mais uma vez.",
-  "@pendantCeremonyBleError": {
-    "description": "Failure copy shown when a BLE error interrupts the pendant pairing ceremony mid-connect. AI-voiced first-person register matches the ceremony beats."
-  },
-  "pendantCeremonyIncompatible": "Este pendant não fala minha língua. Verifique se o firmware está atualizado.",
-  "@pendantCeremonyIncompatible": {
-    "description": "Failure copy shown when an incompatible pendant is detected mid-ceremony. AI-voiced first-person register matches the ceremony beats. Pre-pair incompatible (no ceremony lead-in) keeps the existing functional copy in pendantPairIncompatible."
-  },
-  "pendantCeremonyBluetoothOff": "Bluetooth está desligado. Ative no Centro de Controle e vamos tentar de novo.",
-  "@pendantCeremonyBluetoothOff": {
-    "description": "AI-voiced ceremony failure surface card shown when iOS reports the Bluetooth adapter is OFF during scan."
-  },
-  "pendantScreenBackLabel": "Voltar",
-  "@pendantScreenBackLabel": {
-    "description": "Generic back button label on the pendant screen."
-  },
-  "inboxEmptyTitle": "Nada por aqui ainda",
-  "inboxEmptyDescription": "Seus apps vão te enviar mensagens aqui. Conecte um app para começar.",
-  "inboxEmptyAction": "Ver apps",
-  "inboxErrorTitle": "Não foi possível conectar ao servidor",
-  "inboxErrorRetry": "Tentar novamente",
-  "inboxScreenTitle": "Caixa de entrada",
-  "inboxFilterAll": "Todos",
-  "inboxBubbleCopy": "Copiar",
-  "inboxBubbleShare": "Compartilhar",
-  "inboxBubbleCancel": "Cancelar",
-  "drawerInboxLabel": "Caixa de entrada",
-  "settingsNotificationsLabel": "Notificações",
-  "settingsNotificationsStateOn": "Ativadas",
-  "settingsNotificationsStateOff": "Desativadas — toque para ativar",
-  "settingsNotificationsStateOpenSettings": "Abra Configurações para ativar",
-  "settingsCategoryAccount": "Conta",
-  "@settingsCategoryAccount": {
-    "description": "Settings category label: account/sign-in/sign-out."
-  },
-  "settingsCategoryAccountDescription": "Login, identidade",
-  "@settingsCategoryAccountDescription": {
-    "description": "Settings category one-liner under Account (used by search match, not currently rendered as a row subtitle)."
-  },
-  "settingsCategoryPermissions": "Permissões",
-  "@settingsCategoryPermissions": {
-    "description": "Settings category label: OS permissions."
-  },
-  "settingsCategoryPermissionsDescription": "Microfone, Bluetooth, Notificações, Localização",
-  "@settingsCategoryPermissionsDescription": {
-    "description": "Settings category one-liner under Permissions."
-  },
-  "settingsCategoryPendant": "Pendant",
-  "@settingsCategoryPendant": {
-    "description": "Settings category label: pendant diagnostics."
-  },
-  "settingsCategoryPendantDescription": "Status de conexão, codec, bateria",
-  "@settingsCategoryPendantDescription": {
-    "description": "Settings category one-liner under Pendant."
-  },
-  "settingsCategoryNotifications": "Notificações",
-  "@settingsCategoryNotifications": {
-    "description": "Settings category label: notifications-as-chat toggle."
-  },
-  "settingsCategoryNotificationsDescription": "Alertas de apps e do Brief",
-  "@settingsCategoryNotificationsDescription": {
-    "description": "Settings category one-liner under Notifications."
-  },
-  "settingsCategoryAbout": "Sobre",
-  "@settingsCategoryAbout": {
-    "description": "Settings category label: app info."
-  },
-  "settingsCategoryAboutDescription": "Versão do build, suporte",
-  "@settingsCategoryAboutDescription": {
-    "description": "Settings category one-liner under About."
-  },
-  "settingsCategoryDeveloper": "Desenvolvedor",
-  "@settingsCategoryDeveloper": {
-    "description": "Settings category label: developer/debug surface."
-  },
-  "settingsCategoryDeveloperDescription": "Diagnósticos e reinício",
-  "@settingsCategoryDeveloperDescription": {
-    "description": "Settings category one-liner under Developer."
-  },
-  "settingsSearchPlaceholder": "Buscar configurações",
-  "@settingsSearchPlaceholder": {
-    "description": "Placeholder text inside the iOS-style search field at the top of Settings."
-  },
-  "settingsSearchEmpty": "Nenhuma configuração encontrada",
-  "@settingsSearchEmpty": {
-    "description": "Empty-state copy when the Settings search query matches nothing."
-  },
-  "settingsNotificationsDescription": "Apps e Brief enviam mensagens proativas para sua Caixa de entrada. Desative para silenciar o push do dispositivo sem perder o feed dentro do app.",
-  "@settingsNotificationsDescription": {
-    "description": "Long-form description below the Notifications toggle on the Notifications sub-page."
-  },
-  "settingsAccountSignOut": "Sair",
-  "@settingsAccountSignOut": {
-    "description": "Sign-out button on the Account sub-page."
-  },
-  "settingsDeveloperResetOnboarding": "Reiniciar onboarding",
-  "@settingsDeveloperResetOnboarding": {
-    "description": "Reset onboarding button on the Developer sub-page."
-  },
-  "settingsDeveloperOpenSystemSettings": "Abrir Ajustes do iOS",
-  "@settingsDeveloperOpenSystemSettings": {
-    "description": "Open system Settings shortcut button on the Developer sub-page."
-  },
-  "settingsNotificationsTestAction": "Enviar notificação de teste",
-  "settingsNotificationsTestHint": "Cria uma mensagem de teste na sua Caixa de entrada e dispara o push do sistema (5 por hora).",
-  "settingsNotificationsTestSent": "Notificação de teste enviada. Veja a Caixa de entrada.",
-  "settingsNotificationsTestFailed": "Falha ao enviar a notificação de teste."
 }
