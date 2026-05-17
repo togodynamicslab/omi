@@ -44,13 +44,18 @@ class ChatService {
   /// [todayContext] is optional structured grounding for the morning brief —
   /// the backend renders it as a `<today_context>` system block. Chat-tab
   /// traffic passes null and the field is omitted from the wire body.
-  Stream<ChatStreamEvent> streamChat(String prompt, {Map<String, dynamic>? todayContext}) async* {
+  Stream<ChatStreamEvent> streamChat(
+    String prompt, {
+    Map<String, dynamic>? todayContext,
+    Map<String, dynamic>? deviceContext,
+  }) async* {
     final stream = await _client.stream(
       'v2/messages',
       body: {
         'text': prompt,
         'file_ids': null,
         if (todayContext != null) 'today_context': todayContext,
+        if (deviceContext != null) 'device_context': deviceContext,
       },
     );
 
