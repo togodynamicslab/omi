@@ -608,4 +608,93 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nativeSyncRecentlyPushedTitle => 'Recently pushed';
+
+  @override
+  String get jiraStatusesTitle => 'Jira statuses';
+
+  @override
+  String get jiraStatusesEmptyTitle => 'No Jira statuses yet';
+
+  @override
+  String get jiraStatusesEmptySubtitle => 'Sync your tickets first.';
+
+  @override
+  String get jiraStatusBucketSelf => 'Actively working';
+
+  @override
+  String get jiraStatusBucketSelfDesc =>
+      'On your plate; you\'re the next actor.';
+
+  @override
+  String get jiraStatusBucketWaiting => 'Waiting on others';
+
+  @override
+  String get jiraStatusBucketWaitingDesc =>
+      'Off your plate; review/QA/sign-off pending.';
+
+  @override
+  String get jiraStatusBucketBlocked => 'Blocked';
+
+  @override
+  String get jiraStatusBucketBlockedDesc =>
+      'Can\'t progress without an unblocking event.';
+
+  @override
+  String get jiraStatusBucketCompleted => 'Completed';
+
+  @override
+  String get jiraStatusBucketCompletedDesc => 'Terminal — work is done.';
+
+  @override
+  String get jiraStatusBucketCompletedBadge => 'Marks as done';
+
+  @override
+  String get jiraStatusBucketDropped => 'Dropped / Not doing';
+
+  @override
+  String get jiraStatusBucketDroppedDesc => 'Terminal — cancelled, won\'t fix.';
+
+  @override
+  String get jiraStatusBucketDroppedBadge => 'Marks as done';
+
+  @override
+  String get jiraStatusBucketUnclassified => 'Unclassified';
+
+  @override
+  String get jiraStatusSourceLlm => 'LLM-classified';
+
+  @override
+  String get jiraStatusSourceOverride => 'You overrode';
+
+  @override
+  String get jiraStatusSourceDefault => 'Default';
+
+  @override
+  String get jiraStatusNeedsReview => 'needs your review';
+
+  @override
+  String jiraStatusItemsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+      zero: 'No items',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String jiraStatusOverrideToast(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+    );
+    return 'Updated $_temp0';
+  }
+
+  @override
+  String get jiraStatusOverrideError => 'Couldn\'t update. Try again.';
 }

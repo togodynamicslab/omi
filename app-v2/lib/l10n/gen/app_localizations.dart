@@ -1165,6 +1165,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recently pushed'**
   String get nativeSyncRecentlyPushedTitle;
+
+  /// AppBar title of the Jira statuses sub-page.
+  ///
+  /// In en, this message translates to:
+  /// **'Jira statuses'**
+  String get jiraStatusesTitle;
+
+  /// Empty state title when no Jira statuses have been classified.
+  ///
+  /// In en, this message translates to:
+  /// **'No Jira statuses yet'**
+  String get jiraStatusesEmptyTitle;
+
+  /// Empty state subtitle prompting the user to sync Jira.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync your tickets first.'**
+  String get jiraStatusesEmptySubtitle;
+
+  /// Bucket label for statuses where the user is the next actor.
+  ///
+  /// In en, this message translates to:
+  /// **'Actively working'**
+  String get jiraStatusBucketSelf;
+
+  /// Description of the Actively working bucket.
+  ///
+  /// In en, this message translates to:
+  /// **'On your plate; you\'re the next actor.'**
+  String get jiraStatusBucketSelfDesc;
+
+  /// Bucket label for statuses where the ticket is off the user's plate.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting on others'**
+  String get jiraStatusBucketWaiting;
+
+  /// Description of the Waiting on others bucket.
+  ///
+  /// In en, this message translates to:
+  /// **'Off your plate; review/QA/sign-off pending.'**
+  String get jiraStatusBucketWaitingDesc;
+
+  /// Bucket label for blocked statuses.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked'**
+  String get jiraStatusBucketBlocked;
+
+  /// Description of the Blocked bucket.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t progress without an unblocking event.'**
+  String get jiraStatusBucketBlockedDesc;
+
+  /// Bucket label for completed statuses.
+  ///
+  /// In en, this message translates to:
+  /// **'Completed'**
+  String get jiraStatusBucketCompleted;
+
+  /// Description of the Completed bucket.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal — work is done.'**
+  String get jiraStatusBucketCompletedDesc;
+
+  /// Badge on the Completed bucket option indicating items will be marked done.
+  ///
+  /// In en, this message translates to:
+  /// **'Marks as done'**
+  String get jiraStatusBucketCompletedBadge;
+
+  /// Bucket label for dropped or cancelled statuses.
+  ///
+  /// In en, this message translates to:
+  /// **'Dropped / Not doing'**
+  String get jiraStatusBucketDropped;
+
+  /// Description of the Dropped bucket.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal — cancelled, won\'t fix.'**
+  String get jiraStatusBucketDroppedDesc;
+
+  /// Badge on the Dropped bucket option indicating items will be marked done.
+  ///
+  /// In en, this message translates to:
+  /// **'Marks as done'**
+  String get jiraStatusBucketDroppedBadge;
+
+  /// Chip label when a status has not yet been classified into a bucket.
+  ///
+  /// In en, this message translates to:
+  /// **'Unclassified'**
+  String get jiraStatusBucketUnclassified;
+
+  /// Subtitle suffix when the bucket was assigned by the LLM.
+  ///
+  /// In en, this message translates to:
+  /// **'LLM-classified'**
+  String get jiraStatusSourceLlm;
+
+  /// Subtitle suffix when the user manually overrode the bucket.
+  ///
+  /// In en, this message translates to:
+  /// **'You overrode'**
+  String get jiraStatusSourceOverride;
+
+  /// Subtitle suffix when the bucket comes from a seed or fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get jiraStatusSourceDefault;
+
+  /// Subtitle hint when LLM certainty is low and the user should verify.
+  ///
+  /// In en, this message translates to:
+  /// **'needs your review'**
+  String get jiraStatusNeedsReview;
+
+  /// Pluralized item count prefix in the status row subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No items} =1{1 item} other{{count} items}}'**
+  String jiraStatusItemsCount(int count);
+
+  /// Snackbar after a successful bucket override.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated {count, plural, =1{1 item} other{{count} items}}'**
+  String jiraStatusOverrideToast(int count);
+
+  /// Snackbar / error state message when an override fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t update. Try again.'**
+  String get jiraStatusOverrideError;
 }
 
 class _AppLocalizationsDelegate

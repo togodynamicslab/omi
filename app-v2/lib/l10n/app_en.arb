@@ -515,5 +515,107 @@
     "nativeSyncRecentlyPushedTitle": "Recently pushed",
     "@nativeSyncRecentlyPushedTitle": {
         "description": "Title of the Recently pushed sub-screen."
+    },
+    "jiraStatusesTitle": "Jira statuses",
+    "@jiraStatusesTitle": {
+        "description": "AppBar title of the Jira statuses sub-page."
+    },
+    "jiraStatusesEmptyTitle": "No Jira statuses yet",
+    "@jiraStatusesEmptyTitle": {
+        "description": "Empty state title when no Jira statuses have been classified."
+    },
+    "jiraStatusesEmptySubtitle": "Sync your tickets first.",
+    "@jiraStatusesEmptySubtitle": {
+        "description": "Empty state subtitle prompting the user to sync Jira."
+    },
+    "jiraStatusBucketSelf": "Actively working",
+    "@jiraStatusBucketSelf": {
+        "description": "Bucket label for statuses where the user is the next actor."
+    },
+    "jiraStatusBucketSelfDesc": "On your plate; you're the next actor.",
+    "@jiraStatusBucketSelfDesc": {
+        "description": "Description of the Actively working bucket."
+    },
+    "jiraStatusBucketWaiting": "Waiting on others",
+    "@jiraStatusBucketWaiting": {
+        "description": "Bucket label for statuses where the ticket is off the user's plate."
+    },
+    "jiraStatusBucketWaitingDesc": "Off your plate; review/QA/sign-off pending.",
+    "@jiraStatusBucketWaitingDesc": {
+        "description": "Description of the Waiting on others bucket."
+    },
+    "jiraStatusBucketBlocked": "Blocked",
+    "@jiraStatusBucketBlocked": {
+        "description": "Bucket label for blocked statuses."
+    },
+    "jiraStatusBucketBlockedDesc": "Can't progress without an unblocking event.",
+    "@jiraStatusBucketBlockedDesc": {
+        "description": "Description of the Blocked bucket."
+    },
+    "jiraStatusBucketCompleted": "Completed",
+    "@jiraStatusBucketCompleted": {
+        "description": "Bucket label for completed statuses."
+    },
+    "jiraStatusBucketCompletedDesc": "Terminal — work is done.",
+    "@jiraStatusBucketCompletedDesc": {
+        "description": "Description of the Completed bucket."
+    },
+    "jiraStatusBucketCompletedBadge": "Marks as done",
+    "@jiraStatusBucketCompletedBadge": {
+        "description": "Badge on the Completed bucket option indicating items will be marked done."
+    },
+    "jiraStatusBucketDropped": "Dropped / Not doing",
+    "@jiraStatusBucketDropped": {
+        "description": "Bucket label for dropped or cancelled statuses."
+    },
+    "jiraStatusBucketDroppedDesc": "Terminal — cancelled, won't fix.",
+    "@jiraStatusBucketDroppedDesc": {
+        "description": "Description of the Dropped bucket."
+    },
+    "jiraStatusBucketDroppedBadge": "Marks as done",
+    "@jiraStatusBucketDroppedBadge": {
+        "description": "Badge on the Dropped bucket option indicating items will be marked done."
+    },
+    "jiraStatusBucketUnclassified": "Unclassified",
+    "@jiraStatusBucketUnclassified": {
+        "description": "Chip label when a status has not yet been classified into a bucket."
+    },
+    "jiraStatusSourceLlm": "LLM-classified",
+    "@jiraStatusSourceLlm": {
+        "description": "Subtitle suffix when the bucket was assigned by the LLM."
+    },
+    "jiraStatusSourceOverride": "You overrode",
+    "@jiraStatusSourceOverride": {
+        "description": "Subtitle suffix when the user manually overrode the bucket."
+    },
+    "jiraStatusSourceDefault": "Default",
+    "@jiraStatusSourceDefault": {
+        "description": "Subtitle suffix when the bucket comes from a seed or fallback."
+    },
+    "jiraStatusNeedsReview": "needs your review",
+    "@jiraStatusNeedsReview": {
+        "description": "Subtitle hint when LLM certainty is low and the user should verify."
+    },
+    "jiraStatusItemsCount": "{count, plural, =0{No items} =1{1 item} other{{count} items}}",
+    "@jiraStatusItemsCount": {
+        "description": "Pluralized item count prefix in the status row subtitle.",
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "jiraStatusOverrideToast": "Updated {count, plural, =1{1 item} other{{count} items}}",
+    "@jiraStatusOverrideToast": {
+        "description": "Snackbar after a successful bucket override.",
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "jiraStatusOverrideError": "Couldn't update. Try again.",
+    "@jiraStatusOverrideError": {
+        "description": "Snackbar / error state message when an override fails."
     }
 }
