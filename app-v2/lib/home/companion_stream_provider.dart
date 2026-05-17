@@ -102,6 +102,11 @@ class CompanionStreamProvider extends ChangeNotifier {
   List<CompanionCard> get cards => List.unmodifiable(_cards);
   bool get ready => _ready;
 
+  /// True while a brief LLM fetch is in flight. Drives the small refresh-
+  /// affordance spinner on `MorningBriefCard` so the user gets immediate
+  /// feedback that their tap registered.
+  bool get briefInFlight => _briefInFlight;
+
   Box<Map> get _cardsBox => Hive.box<Map>(HomeBoxes.cards);
   Box<Map> get _actionsBox => Hive.box<Map>(HomeBoxes.actions);
   Box<Map> get _briefBox => Hive.box<Map>(HomeBoxes.brief);
@@ -211,9 +216,7 @@ class CompanionStreamProvider extends ChangeNotifier {
   /// True when the body contains at least one `<plan/>` or `<ticket/>` tag
   /// without a `title=` attribute. Plain-prose bodies (zero tags) and new-
   /// format bodies (every tag has `title=`) both return false.
-  static final RegExp _oldFormatTag = RegExp(
-    r'<\s*(ticket|plan)\s+id\s*=\s*"[^"]+"\s*/\s*>',
-  );
+  static final RegExp _oldFormatTag = RegExp(r'<\s*(ticket|plan)\s+id\s*=\s*"[^"]+"\s*/\s*>');
   bool _briefBodyMissingTitleAttribute(String body) {
     return _oldFormatTag.hasMatch(body);
   }
@@ -244,10 +247,7 @@ class CompanionStreamProvider extends ChangeNotifier {
 
     _briefInFlight = true;
     try {
-      final body = await _chatService.fetchBrief(
-        prompt: _briefPrompt,
-        todayContext: todayContext,
-      );
+      final body = await _chatService.fetchBrief(prompt: _briefPrompt, todayContext: todayContext);
       if (_disposed) return;
       final trimmed = body.trim();
       if (trimmed.isEmpty) {
@@ -441,6 +441,26 @@ class CompanionStreamProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// User-initiated full refresh. Single entry point for the pull-to-refresh
+  /// gesture and the inline refresh icon, so both surfaces produce identical
+  /// end state and never race the action-items debounce path into a duplicate
+  /// LLM call.
+  Future<void> forceRefreshBrief() async {
+    try {
+      await _actionItems.fetchAll();
+    } catch (e) {
+      debugPrint('[CompanionStream] force refresh: action items fetch failed: $e');
+      // Fall through to brief refetch anyway — the local items are still
+      // a valid grounding for the brief.
+    }
+    if (_disposed) return;
+    // _onActionItemsChanged ran during the await above and (re)scheduled the
+    // 5s debounced brief refresh. Cancel it — we're about to fetch directly,
+    // and letting the debounce fire would double-bill the LLM.
+    _briefRefreshDebounce?.cancel();
+    await _invalidateAndRefetchBrief();
+  }
+
   /// Records an action and removes the card from the active stream. Dismissed
   /// cards stay suppressed via `_isDismissed`; snoozed cards re-emerge once
   /// `now > until`.
@@ -484,9 +504,20 @@ Map<String, dynamic> buildTodayContext(Iterable<ActionItem> items, {required Dat
   final dueSoon = <Map<String, dynamic>>[];
   final stuckJira = <Map<String, dynamic>>[];
   var planRemainingCount = 0;
+  var waitingOnOthersCount = 0;
   for (final item in items) {
     if (item.completed) continue;
-    planRemainingCount++;
+    // Jira terminal-states design (2026-05-17): an item counts toward
+    // `plan_remaining_count` only when the user is the next actor. Items
+    // parked with a reviewer/QA/blocker move to `waiting_on_others_count`.
+    // Null (non-Jira items, or Jira items the classifier hasn't seen yet)
+    // preserves today's behavior: counted as "on plate".
+    final actionability = _readActionability(item.externalSource?.metadata);
+    if (actionability == 'waiting' || actionability == 'blocked') {
+      waitingOnOthersCount++;
+    } else {
+      planRemainingCount++;
+    }
     final due = item.dueAt;
     if (due != null) {
       if (due.isBefore(now)) {
@@ -512,12 +543,7 @@ Map<String, dynamic> buildTodayContext(Iterable<ActionItem> items, {required Dat
     if (ext != null && ext.source == 'jira') {
       final days = ext.daysAtStatus;
       if (days != null && days >= _stuckThresholdDays) {
-        stuckJira.add({
-          'id': ext.externalId,
-          'title': item.description,
-          'age_in_days': days,
-          'source': 'jira',
-        });
+        stuckJira.add({'id': ext.externalId, 'title': item.description, 'age_in_days': days, 'source': 'jira'});
       }
     }
     // Otherwise: counted in plan_remaining_count but not surfaced as a chip.
@@ -527,7 +553,22 @@ Map<String, dynamic> buildTodayContext(Iterable<ActionItem> items, {required Dat
     'due_soon': dueSoon,
     'stuck_jira': stuckJira,
     'plan_remaining_count': planRemainingCount,
+    // Additive — emit only when non-zero so old prompt readers / payload
+    // consumers don't trip on a missing/zero key.
+    if (waitingOnOthersCount > 0) 'waiting_on_others_count': waitingOnOthersCount,
   };
+}
+
+/// Defensive read of `metadata.actionability` written by the backend Jira
+/// classifier (`backend/utils/integrations/jira_status_classifier.py`).
+/// Returns the value only when it's one of the three known buckets; null,
+/// missing key, non-string, or any unrecognized value all collapse to null
+/// — equivalent to the "self" bucket for counting purposes.
+String? _readActionability(Map<String, dynamic>? metadata) {
+  final raw = metadata?['actionability'];
+  if (raw is! String) return null;
+  if (raw == 'self' || raw == 'waiting' || raw == 'blocked') return raw;
+  return null;
 }
 
 /// True when no actionable items exist (overdue/due-soon/stuck all empty).
