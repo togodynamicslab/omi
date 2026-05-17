@@ -24,6 +24,8 @@ import database.action_items as action_items_db
 import database.integration_prefs as integration_prefs_db
 from database.apps import get_app_by_id_db
 from database.redis_db import is_app_enabled, r as redis_client
+from utils.integrations import jira_status_classifier
+from utils.integrations.jira_status_classifier import StatusInput
 from utils.log_sanitizer import sanitize
 
 logger = logging.getLogger(__name__)
@@ -51,7 +53,24 @@ _STATUS_TYPE_TO_METADATA = {
 # Fields that get re-derived from Jira on every sync. These must always be
 # overwritten (never preserved from a stale prior sync) — the whole point of
 # the periodic puller is that Jira is the source of truth for these.
-_METADATA_REFRESHABLE_KEYS = ("status", "status_type", "project_key", "priority", "status_changed_at")
+#
+# `cloudid` is REQUIRED by jira_status_classifier.rewrite_actionability_in_place
+# scoping (per-site override filter). The classifier-enrichment fields
+# (`actionability`, `resolution`, `classification_source`, `classification_certainty`)
+# must also be refreshable so a status transition (e.g. "In Progress" → "In Review")
+# overwrites the prior actionability rather than getting stuck behind the merge.
+_METADATA_REFRESHABLE_KEYS = (
+    "status",
+    "status_type",
+    "project_key",
+    "priority",
+    "status_changed_at",
+    "cloudid",
+    "actionability",
+    "resolution",
+    "classification_source",
+    "classification_certainty",
+)
 
 
 def _resolve_plugin_base_url(integration_id: Optional[str] = None) -> Optional[str]:
@@ -126,6 +145,14 @@ def _build_metadata_from_task(task: dict) -> dict:
     value. Translates ``status_type`` from the chat-tool vocabulary
     (``in_progress``) to the canonical Jira ``statusCategory`` key
     (``indeterminate``) per the Plan-view metadata contract.
+
+    Classifier enrichment fields (``actionability``, ``resolution``,
+    ``classification_source``, ``classification_certainty``) are read from
+    underscore-prefixed keys (``task["_actionability"]`` etc.) that the
+    sync loop mutates onto the task BEFORE this function runs. Underscore
+    prefix avoids collision with plugin-emitted keys. Missing / None values
+    are skipped so the merge layer preserves the prior metadata (per design
+    doc "Override-Triggered Resync Mechanism").
     """
     md: dict = {}
     if isinstance(task.get("status"), str) and task["status"]:
@@ -140,6 +167,22 @@ def _build_metadata_from_task(task: dict) -> dict:
         md["priority"] = task["priority"]
     if isinstance(task.get("status_changed_at"), str) and task["status_changed_at"]:
         md["status_changed_at"] = task["status_changed_at"]
+    # cloudid — required by the override-rewrite scoping (per-site).
+    if isinstance(task.get("cloudid"), str) and task["cloudid"]:
+        md["cloudid"] = task["cloudid"]
+    # Classifier enrichment (added by the sync loop before normalize):
+    actionability = task.get("_actionability")
+    if isinstance(actionability, str) and actionability:
+        md["actionability"] = actionability
+    resolution = task.get("_resolution")
+    if isinstance(resolution, str) and resolution:
+        md["resolution"] = resolution
+    classification_source = task.get("_classification_source")
+    if isinstance(classification_source, str) and classification_source:
+        md["classification_source"] = classification_source
+    classification_certainty = task.get("_classification_certainty")
+    if isinstance(classification_certainty, str) and classification_certainty:
+        md["classification_certainty"] = classification_certainty
     # NOTE: do NOT cache the Jira description body in metadata. Jira is the
     # source of truth; the Plan detail screen fetches it on demand via
     # GET /v1/integrations/jira/issue/{action_item_id}/details so users
@@ -187,6 +230,105 @@ def _build_external_source(task: dict, prior_external_source: Optional[dict] = N
     if merged_metadata:
         out["metadata"] = merged_metadata
     return out
+
+
+async def _enrich_tasks_with_classifications(uid: str, tasks: list) -> None:
+    """Batch-classify the page's distinct status names + per-task resolution.
+
+    Mutates ``tasks`` in place to add four underscore-prefixed keys per task:
+    ``_actionability``, ``_classification_source``, ``_classification_certainty``,
+    ``_resolution``. ``_build_metadata_from_task`` reads them and writes to
+    ``metadata.actionability`` / ``metadata.resolution`` / etc.
+
+    All tasks in a single sync page belong to one Jira site (per project
+    memory: one connected site per user at a time), so we pull ``cloudid``
+    from the first task. When ``cloudid`` is missing (defensive — should
+    never happen post-plugin-contract Lane A), we skip enrichment for the
+    entire page and warn; the sync still succeeds with prior metadata
+    preserved.
+
+    The status classifier is called ONCE per page (batched). The resolution
+    classifier is called per task (deterministic seed allowlist short-
+    circuits before any LLM call for the common case).
+    """
+    if not tasks:
+        return
+
+    cloudid = tasks[0].get("cloudid") if isinstance(tasks[0], dict) else None
+    if not isinstance(cloudid, str) or not cloudid:
+        logger.warning(
+            "[JiraSync] No cloudid on first task uid=%s tasks=%d — skipping classifier enrichment for page",
+            uid,
+            len(tasks),
+        )
+        return
+
+    # Build distinct StatusInput list keyed by (status_name) — dedup since
+    # many tasks share a status. Last-write-wins on status_category is fine;
+    # all tasks with the same status_name necessarily share the same category
+    # within a single sync (workflow categories don't drift per-issue).
+    distinct: dict[str, StatusInput] = {}
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        status_name = task.get("status")
+        if not isinstance(status_name, str) or not status_name:
+            continue
+        raw_type = task.get("status_type")
+        canonical = _STATUS_TYPE_TO_METADATA.get(raw_type) if isinstance(raw_type, str) else None
+        if canonical not in ("new", "indeterminate", "done"):
+            # Defensive: plugin always emits one of the three buckets. If
+            # something exotic shows up, skip this status from the batch
+            # rather than failing schema validation downstream.
+            continue
+        distinct.setdefault(
+            status_name,
+            StatusInput(
+                status_name=status_name,
+                status_category=canonical,
+                project_key=task.get("project_key") or task.get("project"),
+            ),
+        )
+
+    classifications: dict = {}
+    if distinct:
+        try:
+            classifications = await jira_status_classifier.classify_statuses_for_sync(
+                uid, cloudid, list(distinct.values())
+            )
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning(
+                "[JiraSync] classify_statuses_for_sync raised uid=%s cloudid=%s err=%s",
+                uid,
+                cloudid,
+                sanitize(str(exc)),
+            )
+            classifications = {}
+
+    # Per-task: merge in classification + resolve resolution.
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        status_name = task.get("status")
+        if isinstance(status_name, str) and status_name:
+            cached = classifications.get(status_name)
+            if cached is not None:
+                task["_actionability"] = cached.actionability
+                task["_classification_source"] = cached.source
+                task["_classification_certainty"] = cached.certainty
+
+        try:
+            resolution = await jira_status_classifier.classify_resolution(cloudid, task.get("resolution_name"))
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning(
+                "[JiraSync] classify_resolution raised uid=%s cloudid=%s err=%s",
+                uid,
+                cloudid,
+                sanitize(str(exc)),
+            )
+            resolution = None
+        if resolution is not None:
+            task["_resolution"] = resolution
 
 
 async def sync_user_jira_issues(
@@ -248,6 +390,11 @@ async def sync_user_jira_issues(
 
     data = body.get("data") or {}
     tasks = data.get("tasks") or []
+
+    # Classifier enrichment — page-level batch BEFORE the per-task upsert loop.
+    # Mutates each task in-place to add underscore-prefixed enrichment keys
+    # that _build_metadata_from_task picks up. See design doc "Data Flow".
+    await _enrich_tasks_with_classifications(uid, tasks)
 
     synced = 0
     errors = 0
