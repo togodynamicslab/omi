@@ -54,6 +54,11 @@ _DEFAULT_FIELDS = [
     # Pulled into list_my_issues so the desktop chat / Plan view can show a
     # short snippet under the title without a follow-up `get_issue` call.
     "description",
+    # Terminal-state signal — `fields.resolution.name` distinguishes
+    # "Done" (completed) from "Won't Do" / "Cancelled" / "Duplicate" (dropped).
+    # Backend's jira_status_classifier uses this to derive `resolution`
+    # metadata so "completed today" counts stop including dropped work.
+    "resolution",
     # Surfaces "X days at this status" on the Plan card; the backend's
     # action-item metadata keeps it under `external_source.metadata.status_changed_at`.
     "statuscategorychangedate",
@@ -69,11 +74,18 @@ _STATUS_CATEGORY_MAP = {
 }
 
 
-def _normalize_jira_issue(it: dict, site_url: str) -> dict:
+def _normalize_jira_issue(it: dict, site_url: str, cloudid: str) -> dict:
     """Reduce a raw Jira REST issue to the cross-plugin task shape consumed
     by the unified Plan view aggregator. Keep this in sync with the
     `IntegrationTask` shape in the Linear plugin and the backend's
-    `NormalizedTask` model."""
+    `NormalizedTask` model.
+
+    `cloudid` is passed through into the returned payload so the backend's
+    `jira_status_classifier` can scope its per-status classification cache
+    by site — distinct Jira sites can share a workflow name but mean
+    different things, so the cache key must include cloudid (see Jira
+    terminal-states design, cross-model tension fix #6).
+    """
     key = it.get("key", "") or ""
     f = (it.get("fields") or {}) or {}
     status = f.get("status") or {}
@@ -81,6 +93,12 @@ def _normalize_jira_issue(it: dict, site_url: str) -> dict:
     project = key.split("-")[0] if "-" in key else None
     assignee = (f.get("assignee") or {}).get("displayName")
     priority = (f.get("priority") or {}).get("name")
+    # `fields.resolution` is `{"name": "Done", ...}` once the issue has
+    # been resolved, and null/missing while it's still open. The plain
+    # name is what the backend's seed allowlist + LLM fallback classify
+    # against to derive `completed` vs `dropped`.
+    resolution = f.get("resolution") or {}
+    resolution_name = resolution.get("name") if isinstance(resolution, dict) else None
     # Jira stores description as ADF (Atlassian Document Format) — flatten
     # to plain text and cap. The 2000 char cap balances "rich enough for the
     # Plan detail screen" with "small enough to fit comfortably in Firestore
@@ -112,6 +130,14 @@ def _normalize_jira_issue(it: dict, site_url: str) -> dict:
         # may omit it, in which case the field is None and the Plan card
         # falls back to `updated_at` for "X days at this status".
         "status_changed_at": f.get("statuscategorychangedate"),
+        # Resolution name when the issue is terminal (e.g. "Done", "Won't
+        # Do"); None for open issues. Backend classifies into
+        # `completed` / `dropped` resolution buckets downstream.
+        "resolution_name": resolution_name,
+        # Jira cloudid for the source site — required so backend metadata
+        # and per-site classification caches stay correctly scoped when a
+        # user has multiple Jira sites connected.
+        "cloudid": cloudid,
     }
 
 
@@ -250,7 +276,7 @@ async def tool_list_my_issues(req: JiraListMyIssuesRequest) -> ChatToolResponse:
             data={"tasks": [], "raw": result},
         )
 
-    tasks = [_normalize_jira_issue(it, site_url) for it in issues[:limit]]
+    tasks = [_normalize_jira_issue(it, site_url, cloudid) for it in issues[:limit]]
     lines = [f"- **{t['external_id']}** [{t['status']}] {_truncate(t['title'], 80)}" for t in tasks]
     # `tasks` is the cross-plugin shape consumed by the Plan-view aggregator;
     # `raw` is preserved so the chat agent can still read the full Jira payload.
@@ -376,14 +402,20 @@ async def get_issue_details(issue_key: str, uid: str) -> JiraIssueDetailsRespons
     try:
         result = jira_client.get_issue(cloudid, token, key=issue_key, fields=_DETAIL_FIELDS)
     except JiraAuthError:
-        return JiraIssueDetailsResponse(issue_key=issue_key, summary="", error="Jira auth failed.", oauth_url=_oauth_url(uid))
+        return JiraIssueDetailsResponse(
+            issue_key=issue_key, summary="", error="Jira auth failed.", oauth_url=_oauth_url(uid)
+        )
     except JiraNotFound:
         return JiraIssueDetailsResponse(issue_key=issue_key, summary="", error=f"Issue {issue_key} not found.")
     except JiraRateLimit:
-        return JiraIssueDetailsResponse(issue_key=issue_key, summary="", error="Jira is rate-limiting; try again shortly.")
+        return JiraIssueDetailsResponse(
+            issue_key=issue_key, summary="", error="Jira is rate-limiting; try again shortly."
+        )
     except httpx.HTTPStatusError as e:
         log.warning("get_issue_details failed: %s", e)
-        return JiraIssueDetailsResponse(issue_key=issue_key, summary="", error=f"Failed to fetch issue: {e.response.status_code}")
+        return JiraIssueDetailsResponse(
+            issue_key=issue_key, summary="", error=f"Failed to fetch issue: {e.response.status_code}"
+        )
     except Exception as e:  # pragma: no cover
         log.exception("get_issue_details unexpected error")
         return JiraIssueDetailsResponse(issue_key=issue_key, summary="", error=f"Failed to fetch issue: {e}")
