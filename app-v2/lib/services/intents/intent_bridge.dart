@@ -36,6 +36,14 @@ class IntentBridge {
   final CloudIntentParser? _cloudParser;
   final IntentDispatcher _dispatcher = IntentDispatcher();
 
+  /// Convenience pass-through to the internal dispatcher's EventKit read.
+  /// Used by the chat composer to inline upcoming calendar events into each
+  /// chat request as `device_context.apple_calendar`. Returns an empty list
+  /// on non-iOS / permission-denied — caller treats absence as "no context"
+  /// rather than failure.
+  Future<List<Map<String, dynamic>>> fetchUpcomingCalendarEvents({int daysAhead = 7}) =>
+      _dispatcher.fetchUpcomingCalendarEvents(daysAhead: daysAhead);
+
   /// Whether the on-device LLM bridge is reachable. Cloud is treated as
   /// available whenever a `ChatService` was injected — we don't ping the
   /// backend up-front.
