@@ -29,7 +29,8 @@ The user message contains a JSON block named `today_context` with these keys:
 - overdue: items past their due date — list of `{id, title, due_at, source}`
 - due_soon: items due in the next 24h — list of `{id, title, due_at, source}`
 - stuck_jira: Jira tickets parked at one status for 3+ days — list of `{id, title, age_in_days, source}`
-- plan_remaining_count: total non-completed items (int)
+- plan_remaining_count: items on the user's plate — not completed AND not waiting on someone else (int)
+- waiting_on_others_count: items parked with a reviewer/QA/blocker (int, optional — present only when non-zero). When non-zero, you may briefly acknowledge them ("X waiting on others") but they are NOT candidates for the focal item.
 
 PRIORITY ORDER for picking the focal item
 1. The most-overdue item with a `due_at` (longest past-due wins).
@@ -72,9 +73,7 @@ def _user_message(today_context: Dict[str, Any], now_iso: Optional[str]) -> str:
     return f"```json\n{json.dumps(payload, ensure_ascii=False)}\n```"
 
 
-async def stream_plan_guidance(
-    today_context: Dict[str, Any], now_iso: Optional[str] = None
-) -> AsyncIterator[str]:
+async def stream_plan_guidance(today_context: Dict[str, Any], now_iso: Optional[str] = None) -> AsyncIterator[str]:
     """Yield plain text chunks of the plan-guidance response.
 
     Caller is responsible for SSE framing (`data: ...\\n\\n`). Yielding plain
