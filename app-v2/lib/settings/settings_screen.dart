@@ -3,9 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:nooto_v2/l10n/gen/app_localizations.dart';
+import 'package:nooto_v2/env_flags.dart';
 import 'package:nooto_v2/settings/screens/about_settings_screen.dart';
 import 'package:nooto_v2/settings/screens/account_settings_screen.dart';
 import 'package:nooto_v2/settings/screens/developer_settings_screen.dart';
+import 'package:nooto_v2/settings/screens/native_sync_settings_screen.dart';
 import 'package:nooto_v2/settings/screens/notifications_settings_screen.dart';
 import 'package:nooto_v2/settings/screens/pendant_settings_screen.dart';
 import 'package:nooto_v2/settings/screens/permissions_settings_screen.dart';
@@ -121,6 +123,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             openAppSettings: widget.openAppSettings,
           ),
         ),
+        if (kEnableProactiveRemindersPush)
+          _CategoryMeta(
+            id: _CategoryId.nativeSync,
+            icon: Icons.checklist_rtl,
+            label: l.settingsCategoryNativeSync,
+            description: l.settingsCategoryNativeSyncDescription,
+            keywords: const ['reminders', 'native', 'sync', 'apple', 'ios', 'auto', 'push', 'tasks'],
+            buildRoute: () => NativeSyncSettingsScreen.route(),
+          ),
       ]),
       _CategoryGroup([
         _CategoryMeta(
@@ -298,4 +309,4 @@ class _CategoryMeta {
   final Route<void> Function() buildRoute;
 }
 
-enum _CategoryId { account, permissions, pendant, notifications, about, developer }
+enum _CategoryId { account, permissions, pendant, notifications, nativeSync, about, developer }
