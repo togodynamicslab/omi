@@ -513,11 +513,18 @@ Map<String, dynamic> buildTodayContext(Iterable<ActionItem> items, {required Dat
     // Null (non-Jira items, or Jira items the classifier hasn't seen yet)
     // preserves today's behavior: counted as "on plate".
     final actionability = _readActionability(item.externalSource?.metadata);
-    if (actionability == 'waiting' || actionability == 'blocked') {
+    final offPlate = actionability == 'waiting' || actionability == 'blocked';
+    if (offPlate) {
       waitingOnOthersCount++;
     } else {
       planRemainingCount++;
     }
+    // Off-plate items (user-overridden as waiting/blocked) are excluded from
+    // the focal-item candidates the brief picks from. The user said "this is
+    // not on me" — surfacing it as something to act on contradicts the override.
+    // Items with null actionability (non-Jira or unclassified Jira) still flow
+    // through the chip lists per today's behavior.
+    if (offPlate) continue;
     final due = item.dueAt;
     if (due != null) {
       if (due.isBefore(now)) {
