@@ -14,10 +14,12 @@ import httpx
 import database.users as users_db
 import database.redis_db as redis_db
 import database.integration_prefs as integration_prefs_db
+import database.action_items as action_items_db
 from utils.integrations.jira_sync import sync_user_jira_issues_with_timestamp
 from utils.other import endpoints as auth
-from utils.log_sanitizer import sanitize
+from utils.log_sanitizer import sanitize, sanitize_pii
 from utils.integrations import jira_actions
+from utils.integrations import jira_status_classifier
 import logging
 
 logger = logging.getLogger(__name__)
@@ -497,6 +499,176 @@ async def jira_sync_now(
         synced=int(result.get("synced", 0)),
         errors=int(result.get("errors", 0)),
         last_synced_at=str(result.get("last_synced_at", "")),
+    )
+
+
+# *****************************
+# *** JIRA STATUS OVERRIDES ***
+# *****************************
+#
+# v2 UI: per-user view of every Jira status the user has encountered, plus a
+# one-shot override endpoint. Replaces the v1 admin CLI
+# (scripts/jira_override_classification.py). The classifier writes a
+# "source=override" entry to the per-site Redis cache (wins forever) and
+# in-place rewrites every matching action item so the next brief reflects
+# the override immediately — no Jira API call, no /sync-now.
+
+_VALID_OVERRIDE_BUCKETS = {"self", "waiting", "blocked", "completed", "dropped"}
+
+
+class JiraStatusClassificationItem(BaseModel):
+    cloudid: str
+    status_name: str
+    status_category: Optional[str] = Field(
+        default=None,
+        description="Jira's own statusCategory.key ('new'/'indeterminate'/'done') — null when unclassified.",
+    )
+    bucket: Optional[str] = Field(
+        default=None,
+        description=(
+            "One of self/waiting/blocked/completed/dropped. Null when the status has been "
+            "observed in a sync but never classified (rare race; UI shows 'tap to classify')."
+        ),
+    )
+    actionability: Optional[str] = None
+    resolution: Optional[str] = None
+    source: Optional[str] = Field(
+        default=None,
+        description="llm | override | seed | fallback. Null when unclassified.",
+    )
+    certainty: Optional[str] = None
+    classified_at: Optional[str] = None
+    matching_item_count: int
+
+
+class JiraStatusClassificationsResponse(BaseModel):
+    items: list[JiraStatusClassificationItem]
+
+
+class JiraStatusOverrideRequest(BaseModel):
+    cloudid: str = Field(description="Atlassian site cloudid (matches external_source.metadata.cloudid).")
+    status_name: str = Field(description='Exact Jira status label, e.g. "Code Review (Backend)".')
+    bucket: str = Field(description="Target bucket: self | waiting | blocked | completed | dropped.")
+
+
+class JiraStatusOverrideResponse(BaseModel):
+    redis_written: bool
+    items_updated: int
+    bucket: str
+
+
+@router.get(
+    "/v1/integrations/jira/status-classifications",
+    response_model=JiraStatusClassificationsResponse,
+    tags=['integrations'],
+)
+def jira_status_classifications(uid: str = Depends(auth.get_current_user_uid)):
+    """Return every Jira status the current user has encountered, with its
+    cached classification (if any) and matching action-item count.
+
+    Sorted by matching_item_count descending so the most-impactful statuses
+    surface first in the override UI.
+    """
+    pairs = action_items_db.list_jira_status_pairs(uid)
+    items: list[JiraStatusClassificationItem] = []
+    for pair in pairs:
+        cloudid = pair['cloudid']
+        status_name = pair['status_name']
+        cached = jira_status_classifier.get_cached_classification(cloudid, status_name)
+        if cached is None:
+            items.append(
+                JiraStatusClassificationItem(
+                    cloudid=cloudid,
+                    status_name=status_name,
+                    status_category=None,
+                    bucket=None,
+                    actionability=None,
+                    resolution=None,
+                    source=None,
+                    certainty=None,
+                    classified_at=None,
+                    matching_item_count=pair['matching_item_count'],
+                )
+            )
+            continue
+        bucket = jira_status_classifier.derive_bucket(cached)
+        items.append(
+            JiraStatusClassificationItem(
+                cloudid=cloudid,
+                status_name=status_name,
+                status_category=cached.status_category,
+                bucket=bucket,
+                actionability=cached.actionability,
+                resolution=None,
+                source=cached.source,
+                certainty=cached.certainty,
+                classified_at=cached.classified_at,
+                matching_item_count=pair['matching_item_count'],
+            )
+        )
+    items.sort(key=lambda i: i.matching_item_count, reverse=True)
+    return JiraStatusClassificationsResponse(items=items)
+
+
+@router.post(
+    "/v1/integrations/jira/status-classifications/override",
+    response_model=JiraStatusOverrideResponse,
+    tags=['integrations'],
+)
+def jira_status_classification_override(
+    payload: JiraStatusOverrideRequest,
+    uid: str = Depends(auth.get_current_user_uid),
+):
+    """Override the classification for one Jira status (per-user, per-site).
+
+    Writes a ``source=override`` entry into the per-site Redis cache AND
+    in-place rewrites every matching action item's metadata. Terminal
+    buckets (completed/dropped) additionally flip ``status_type=done`` and
+    the top-level ``completed=True`` flag on every matching item.
+    """
+    cloudid = (payload.cloudid or "").strip()
+    status_name = (payload.status_name or "").strip()
+    bucket = (payload.bucket or "").strip()
+    if not cloudid:
+        raise HTTPException(status_code=400, detail="cloudid_required")
+    if not status_name:
+        raise HTTPException(status_code=400, detail="status_name_required")
+    if bucket not in _VALID_OVERRIDE_BUCKETS:
+        raise HTTPException(status_code=400, detail="invalid_bucket")
+
+    try:
+        result = jira_status_classifier.apply_status_override(
+            uid=uid,
+            cloudid=cloudid,
+            status_name=status_name,
+            bucket=bucket,
+        )
+    except Exception as exc:
+        logger.error(
+            "[StatusOverride] failed uid=%s cloudid=%s status=%s bucket=%s err=%s",
+            uid,
+            cloudid,
+            sanitize_pii(status_name),
+            bucket,
+            sanitize(str(exc)),
+        )
+        raise HTTPException(status_code=500, detail="override_failed")
+
+    items_updated = int(result.get("items_updated", 0))
+    redis_written = bool(result.get("redis_written", False))
+    logger.info(
+        "[StatusOverride] applied uid=%s cloudid=%s status=%s bucket=%s items_updated=%d redis_written=%s",
+        uid,
+        cloudid,
+        sanitize_pii(status_name),
+        bucket,
+        items_updated,
+        redis_written,
+    )
+    return JiraStatusOverrideResponse(
+        redis_written=redis_written,
+        items_updated=items_updated,
+        bucket=bucket,
     )
 
 
