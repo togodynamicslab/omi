@@ -99,6 +99,28 @@ log_san.sanitize = lambda v: str(v)
 log_san.sanitize_pii = lambda v: str(v)
 
 
+# --- Stub jira_status_classifier (heavy deps: LLM, firestore) -----------
+# We replace this module-level stub per-test via patch.object on the methods
+# we care about — classify_statuses_for_sync (AsyncMock) and
+# classify_resolution (AsyncMock). The StatusInput class is preserved from
+# the real module via lazy import in tests that need to inspect call args.
+jira_classifier_stub = _stub_module("utils.integrations.jira_status_classifier")
+
+
+class _StubStatusInput:
+    def __init__(self, status_name, status_category, project_key=None):
+        self.status_name = status_name
+        self.status_category = status_category
+        self.project_key = project_key
+
+
+jira_classifier_stub.StatusInput = _StubStatusInput
+# Default: classifier returns empty (no enrichment). Per-test code overrides
+# these via patch.object or by replacing the AsyncMock's return_value.
+jira_classifier_stub.classify_statuses_for_sync = AsyncMock(return_value={})
+jira_classifier_stub.classify_resolution = AsyncMock(return_value=None)
+
+
 def _load_jira_sync():
     spec = importlib.util.spec_from_file_location(
         "utils.integrations.jira_sync",
@@ -123,6 +145,12 @@ def _reset():
     apps_db.get_app_by_id_db.return_value = None
     fake_redis.keys = []
     fake_redis.enabled = {}
+    # Classifier defaults: no enrichment. Tests that exercise the enrichment
+    # path override these via mock_obj.return_value = ... in-test.
+    jira_classifier_stub.classify_statuses_for_sync.reset_mock()
+    jira_classifier_stub.classify_statuses_for_sync.return_value = {}
+    jira_classifier_stub.classify_resolution.reset_mock()
+    jira_classifier_stub.classify_resolution.return_value = None
     os.environ.pop("NOOTO_JIRA_PLUGIN_URL", None)
     yield
 
@@ -471,6 +499,215 @@ class TestSyncUserJiraIssues:
         assert md["priority"] == "High"
         assert md["project_key"] == "PROJ"
         assert md["status_changed_at"] == "2026-04-01T00:00:00Z"
+
+
+class TestSyncClassifierIntegration:
+    """Lane B1: page-level classifier enrichment in sync_user_jira_issues."""
+
+    def _make_cached(self, actionability="self", source="llm", certainty="high"):
+        """Minimal duck-typed CachedClassification — only the 3 attrs we read."""
+        m = MagicMock()
+        m.actionability = actionability
+        m.source = source
+        m.certainty = certainty
+        return m
+
+    def test_enrichment_writes_all_four_fields_plus_cloudid(self):
+        """When classifier returns results + cloudid present, metadata gains
+        actionability + classification_source + classification_certainty +
+        resolution + cloudid."""
+        os.environ["NOOTO_JIRA_PLUGIN_URL"] = "https://plugin.example.com"
+
+        jira_classifier_stub.classify_statuses_for_sync.return_value = {
+            "In Review": self._make_cached(actionability="waiting", source="llm", certainty="high"),
+        }
+        jira_classifier_stub.classify_resolution.return_value = "completed"
+
+        body = {
+            "data": {
+                "tasks": [
+                    {
+                        "external_id": "PROJ-1",
+                        "title": "Ship",
+                        "status_type": "in_progress",
+                        "status": "In Review",
+                        "url": "https://x/PROJ-1",
+                        "cloudid": "cid-abc",
+                        "resolution_name": "Done",
+                    }
+                ]
+            }
+        }
+        client = _FakeAsyncClient(_FakeResponse(200, body))
+        _run(jira_sync.sync_user_jira_issues("uid-1", http_client=client))
+
+        # Classifier called once with the page batch
+        assert jira_classifier_stub.classify_statuses_for_sync.call_count == 1
+        call = jira_classifier_stub.classify_statuses_for_sync.call_args
+        assert call.args[0] == "uid-1"
+        assert call.args[1] == "cid-abc"
+        passed_statuses = call.args[2]
+        assert len(passed_statuses) == 1
+        assert passed_statuses[0].status_name == "In Review"
+        assert passed_statuses[0].status_category == "indeterminate"
+        assert passed_statuses[0].project_key is None  # not in task
+
+        # classify_resolution called per task with cloudid + resolution_name
+        assert jira_classifier_stub.classify_resolution.call_count == 1
+        res_call = jira_classifier_stub.classify_resolution.call_args
+        assert res_call.args[0] == "cid-abc"
+        assert res_call.args[1] == "Done"
+
+        # Metadata now contains all 5 enrichment fields
+        ext_arg = action_items_db.upsert_external_action_item.call_args.args[1]
+        md = ext_arg["metadata"]
+        assert md["actionability"] == "waiting"
+        assert md["classification_source"] == "llm"
+        assert md["classification_certainty"] == "high"
+        assert md["resolution"] == "completed"
+        assert md["cloudid"] == "cid-abc"
+        # Sanity: pre-existing fields still present
+        assert md["status"] == "In Review"
+        assert md["status_type"] == "indeterminate"
+
+    def test_empty_classifier_results_preserves_pre_change_metadata_shape(self):
+        """CRITICAL REGRESSION: classifier returns empty dict + classify_resolution
+        returns None → metadata matches pre-Lane-B1 behavior byte-for-byte
+        (except cloudid is now present, which is additive and gated on the
+        plugin emitting it)."""
+        os.environ["NOOTO_JIRA_PLUGIN_URL"] = "https://plugin.example.com"
+
+        # Empty classifier results — no enrichment.
+        jira_classifier_stub.classify_statuses_for_sync.return_value = {}
+        jira_classifier_stub.classify_resolution.return_value = None
+
+        # Same task body as the existing test_sync_metadata_populated_on_create
+        # fixture, minus cloudid (so we exercise the "old plugin contract"
+        # path — defensive shape).
+        body = {
+            "data": {
+                "tasks": [
+                    {
+                        "external_id": "PROJ-1",
+                        "title": "Ship",
+                        "status_type": "in_progress",
+                        "status": "In Review",
+                        "priority": "High",
+                        "project_key": "PROJ",
+                        "status_changed_at": "2026-04-28T14:00:00Z",
+                        "url": "https://x/PROJ-1",
+                    }
+                ]
+            }
+        }
+        client = _FakeAsyncClient(_FakeResponse(200, body))
+        _run(jira_sync.sync_user_jira_issues("uid-1", http_client=client))
+
+        ext_arg = action_items_db.upsert_external_action_item.call_args.args[1]
+        md = ext_arg["metadata"]
+        # Pre-change shape: exactly the 5 original keys, no enrichment fields,
+        # no cloudid (plugin didn't emit one). Byte-for-byte parity guard.
+        assert md == {
+            "status": "In Review",
+            "status_type": "indeterminate",
+            "priority": "High",
+            "project_key": "PROJ",
+            "status_changed_at": "2026-04-28T14:00:00Z",
+        }
+        assert "actionability" not in md
+        assert "resolution" not in md
+        assert "classification_source" not in md
+        assert "classification_certainty" not in md
+        assert "cloudid" not in md
+
+    def test_classify_resolution_called_per_task_and_merged(self):
+        """classify_resolution runs once per task; result lands in metadata.resolution."""
+        os.environ["NOOTO_JIRA_PLUGIN_URL"] = "https://plugin.example.com"
+
+        jira_classifier_stub.classify_statuses_for_sync.return_value = {}
+
+        # Different resolutions per task — verify per-task routing.
+        async def _per_task_resolution(cloudid, name):
+            if name == "Done":
+                return "completed"
+            if name == "Won't Do":
+                return "dropped"
+            return None
+
+        jira_classifier_stub.classify_resolution.side_effect = _per_task_resolution
+
+        body = {
+            "data": {
+                "tasks": [
+                    {
+                        "external_id": "PROJ-1",
+                        "title": "Shipped",
+                        "status_type": "done",
+                        "status": "Done",
+                        "url": "https://x/PROJ-1",
+                        "cloudid": "cid-abc",
+                        "resolution_name": "Done",
+                    },
+                    {
+                        "external_id": "PROJ-2",
+                        "title": "Cancelled",
+                        "status_type": "done",
+                        "status": "Done",
+                        "url": "https://x/PROJ-2",
+                        "cloudid": "cid-abc",
+                        "resolution_name": "Won't Do",
+                    },
+                ]
+            }
+        }
+        client = _FakeAsyncClient(_FakeResponse(200, body))
+        _run(jira_sync.sync_user_jira_issues("uid-1", http_client=client))
+
+        assert jira_classifier_stub.classify_resolution.call_count == 2
+
+        calls = action_items_db.upsert_external_action_item.call_args_list
+        assert len(calls) == 2
+        md0 = calls[0].args[1]["metadata"]
+        md1 = calls[1].args[1]["metadata"]
+        assert md0["resolution"] == "completed"
+        assert md1["resolution"] == "dropped"
+        # cloudid present on both (refreshable + per-task)
+        assert md0["cloudid"] == "cid-abc"
+        assert md1["cloudid"] == "cid-abc"
+
+    def test_missing_cloudid_skips_classifier_and_warns(self):
+        """tasks[0] without cloudid → classifier never called, warning logged."""
+        os.environ["NOOTO_JIRA_PLUGIN_URL"] = "https://plugin.example.com"
+
+        body = {
+            "data": {
+                "tasks": [
+                    {
+                        "external_id": "PROJ-1",
+                        "title": "No cloudid",
+                        "status_type": "todo",
+                        "status": "To Do",
+                        "url": "https://x/PROJ-1",
+                        # No cloudid — defensive shape (pre-Lane-A plugin).
+                    }
+                ]
+            }
+        }
+        client = _FakeAsyncClient(_FakeResponse(200, body))
+
+        with patch.object(jira_sync.logger, "warning") as mock_warn:
+            _run(jira_sync.sync_user_jira_issues("uid-1", http_client=client))
+
+        # Classifier never invoked
+        assert jira_classifier_stub.classify_statuses_for_sync.call_count == 0
+        assert jira_classifier_stub.classify_resolution.call_count == 0
+
+        # Warning emitted mentioning no cloudid
+        warn_messages = [str(c) for c in mock_warn.call_args_list]
+        assert any("cloudid" in m.lower() for m in warn_messages), warn_messages
+
+        # Sync still succeeded — upsert called normally
+        assert action_items_db.upsert_external_action_item.call_count == 1
 
 
 class TestIterUidsWithJiraEnabled:
