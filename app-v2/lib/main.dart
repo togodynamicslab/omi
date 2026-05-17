@@ -1,14 +1,19 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 import 'package:nooto_v2/apps/apps_provider.dart';
 import 'package:nooto_v2/apps/apps_storage.dart';
 import 'package:nooto_v2/chat/chat_provider.dart';
 import 'package:nooto_v2/chat/chat_storage.dart';
+import 'package:nooto_v2/services/intents/intent_bridge.dart';
 import 'package:nooto_v2/dev/typography_settings.dart';
 import 'package:nooto_v2/library/conversations_provider.dart';
 import 'package:nooto_v2/library/library_provider.dart';
@@ -19,6 +24,9 @@ import 'package:nooto_v2/mobile_app.dart';
 import 'package:nooto_v2/onboarding/onboarding_chat_provider.dart';
 import 'package:nooto_v2/plan/plan_guidance_provider.dart';
 import 'package:nooto_v2/plan/plan_storage.dart';
+import 'package:nooto_v2/proactive/proactive_push_prefs.dart';
+import 'package:nooto_v2/proactive/proactive_push_service.dart';
+import 'package:nooto_v2/proactive/proactive_push_storage.dart';
 import 'package:nooto_v2/providers/action_items_provider.dart';
 import 'package:nooto_v2/providers/auth_provider.dart';
 import 'package:nooto_v2/providers/locale_provider.dart';
@@ -37,6 +45,16 @@ Future<void> main() async {
   if (kEnableFirebaseAuth) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   }
+  // Timezone init for flutter_local_notifications.zonedSchedule. Needed by
+  // the chat-composer intent path that schedules timers — without this,
+  // tz.TZDateTime can't construct a local-time fire date.
+  tz.initializeTimeZones();
+  try {
+    final localZone = await FlutterTimezone.getLocalTimezone();
+    tz.setLocalLocation(tz.getLocation(localZone));
+  } catch (e) {
+    debugPrint('[main] timezone init fell back to UTC: $e');
+  }
   await Hive.initFlutter();
   await Future.wait([
     Hive.openBox<Map>(HomeBoxes.cards),
@@ -47,6 +65,8 @@ Future<void> main() async {
     Hive.openBox<Map>(AppsBoxes.prefs),
     Hive.openBox<dynamic>(PlanBoxes.prefs),
     Hive.openBox<dynamic>(OmiPendant.hiveBoxName),
+    if (kEnableProactiveRemindersPush) Hive.openBox<Map>(ProactivePushBoxes.log),
+    if (kEnableProactiveRemindersPush) Hive.openBox<dynamic>(ProactivePushPrefs.box),
   ]);
   // One-shot sweep of action-log entries from retired card kinds (today/jira-stuck).
   // Idempotent — safe to run every launch. See lib/home/home_storage.dart.
@@ -102,6 +122,14 @@ Future<void> main() async {
   if (kEnableAttentionDrivenJiraRefresh) {
     AppLifecycleObserver(apps: appsProvider, appIds: const ['nooto-jira']).attach();
   }
+  // Process-singleton ActionItemsProvider lifted out of the Provider tree
+  // so the ProactivePushService can listen to it before the first frame
+  // builds. The provider is still injected via .value below — the tree
+  // doesn't see two instances.
+  final actionItemsProvider = ActionItemsProvider(client: apiClient);
+  if (kEnableProactiveRemindersPush) {
+    ProactivePushService(actionItems: actionItemsProvider).attach();
+  }
   // Warm path: every subsequent nooto:// URL while the app is running.
   appLinksService.linkStream.listen(
     (link) {
@@ -123,12 +151,20 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => AuthChangeProvider(notificationService: notificationService)),
         ChangeNotifierProvider(create: (_) => OnboardingChatProvider()),
         ChangeNotifierProvider.value(value: localeProvider),
-        ChangeNotifierProvider(create: (_) => ActionItemsProvider(client: apiClient)),
+        ChangeNotifierProvider<ActionItemsProvider>.value(value: actionItemsProvider),
         ChangeNotifierProvider.value(value: appsProvider),
         ChangeNotifierProvider(create: (_) => LibraryProvider(client: apiClient)),
         ChangeNotifierProvider(create: (_) => ConversationsProvider(client: apiClient)),
         Provider<ChatService>.value(value: chatService),
-        ChangeNotifierProvider(create: (_) => ChatProvider(service: chatService)),
+        ChangeNotifierProvider(
+          create: (_) => ChatProvider(
+            service: chatService,
+            // ApiClient wired into the intent orchestrator so the cloud
+            // parser path can call /v2/intents/parse on devices without
+            // Apple Intelligence (iOS < 26 or AI-incompatible hardware).
+            intentBridge: IntentBridge(apiClient: apiClient),
+          ),
+        ),
         ChangeNotifierProvider(create: (_) => PlanGuidanceProvider(service: chatService)),
         ChangeNotifierProvider<TypographySettings>.value(value: typographySettings),
         ChangeNotifierProvider<PendantProvider>.value(value: pendantProvider),
