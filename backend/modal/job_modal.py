@@ -4,7 +4,8 @@ import os
 import firebase_admin
 
 from modal import Image, App, Secret, Cron
-from utils.integrations.jira_sync import sync_all_users_jira
+from utils.integrations.jira_prewarm import run_pending_prewarms_all_users
+from utils.integrations.jira_sync import _resolve_plugin_base_url, sync_all_users_jira
 from utils.other.notifications import start_cron_job
 
 if os.environ.get('SERVICE_ACCOUNT_JSON'):
@@ -47,5 +48,15 @@ async def jira_sync_cronjob():
 
     Read-only; the write path is gated separately by the per-user
     ``two_way_sync_enabled`` toggle in chat tool resolution.
+
+    Pre-warm pass runs FIRST: scans Redis for any
+    ``jira:prewarm_pending:{uid}:{cloudid}`` flag the plugin's OAuth callback
+    set, classifies that user's workflow statuses in a single batch LLM call,
+    and clears the flag. The prewarm-in-progress flag is held during this
+    pass so the subsequent sync iteration short-circuits to fallback for
+    those users (no LLM/cache races).
     """
+    plugin_base_url = _resolve_plugin_base_url()
+    if plugin_base_url:
+        await run_pending_prewarms_all_users(plugin_base_url)
     await sync_all_users_jira()
