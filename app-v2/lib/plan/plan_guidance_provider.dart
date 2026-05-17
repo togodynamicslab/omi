@@ -27,6 +27,7 @@ class PlanGuidanceProvider extends ChangeNotifier {
   PlanGuidanceStatus _status = PlanGuidanceStatus.idle;
   String? _cacheKey;
   DateTime? _cachedAt;
+  Map<String, dynamic>? _pendingForceContext;
 
   String get text => _text;
   PlanGuidanceStatus get status => _status;
@@ -46,10 +47,32 @@ class PlanGuidanceProvider extends ChangeNotifier {
     final isFresh = cached == key && cachedAt != null && DateTime.now().difference(cachedAt) < _cacheTtl;
     if (isFresh && _status == PlanGuidanceStatus.ready) return;
     if (_status == PlanGuidanceStatus.loading) return;
+    await _fetchAndStore(todayContext);
+  }
 
+  /// Force a fresh fetch, bypassing the content-key + TTL cache. If a fetch
+  /// is already in flight the new context is queued — when the in-flight call
+  /// resolves we run one more fetch with the queued context. Without this
+  /// the user's tap during a `refreshIfStale` initial-load fetch would be
+  /// silently dropped, which felt broken in dogfood.
+  Future<void> forceRefresh(Map<String, dynamic> todayContext) async {
+    if (_status == PlanGuidanceStatus.loading) {
+      _pendingForceContext = todayContext;
+      return;
+    }
+    await _fetchAndStore(todayContext);
+    final pending = _pendingForceContext;
+    if (pending != null) {
+      _pendingForceContext = null;
+      await _fetchAndStore(pending);
+    }
+  }
+
+  /// Single fetch path used by both `refreshIfStale` and `forceRefresh`.
+  /// Caller is responsible for the cache-check / in-flight guards.
+  Future<void> _fetchAndStore(Map<String, dynamic> todayContext) async {
     _status = PlanGuidanceStatus.loading;
     notifyListeners();
-
     try {
       final body = await _service.fetchPlanGuidance(
         todayContext: todayContext,
@@ -57,7 +80,7 @@ class PlanGuidanceProvider extends ChangeNotifier {
       );
       _text = body.trim();
       _status = _text.isEmpty ? PlanGuidanceStatus.idle : PlanGuidanceStatus.ready;
-      _cacheKey = key;
+      _cacheKey = _hashContext(todayContext);
       _cachedAt = DateTime.now();
     } catch (_) {
       _status = PlanGuidanceStatus.error;
