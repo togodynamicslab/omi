@@ -41,6 +41,18 @@
 	<string>Nooto can tag conversations with where they happened. Optional — you can skip this.</string>
 	<key>NSUserNotificationsUsageDescription</key>
 	<string>Nooto sends you proactive notifications when your apps and ecosystem have something to say.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Nooto adds events to your default calendar when you ask it to schedule meetings or appointments.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Nooto adds events to your default calendar when you ask it to schedule meetings or appointments.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Nooto adds reminders to your default reminders list when you ask it to remember something.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Nooto adds reminders to your default reminders list when you ask it to remember something.</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>shortcuts</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
