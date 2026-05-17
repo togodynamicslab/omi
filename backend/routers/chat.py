@@ -188,6 +188,7 @@ def send_message(
                 chat_session=chat_session,
                 context=data.context,
                 today_context=data.today_context,
+                device_context=data.device_context,
             ):
                 if chunk:
                     msg = chunk.replace("\n", "__CRLF__")

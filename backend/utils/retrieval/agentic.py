@@ -186,6 +186,7 @@ class AsyncStreamingCallback:
         `\\n\\n` SSE record separator."""
         import base64 as _b64
         import json as _json
+
         payload = {"app_id": app_id, "tool_name": tool_name, "data": data}
         encoded = _b64.b64encode(_json.dumps(payload).encode("utf-8")).decode("utf-8")
         await self.queue.put(f"tool_result: {encoded}")
@@ -536,13 +537,16 @@ async def execute_agentic_chat_stream(
     chat_session: Optional[ChatSession] = None,
     context: Optional[PageContext] = None,
     today_context: Optional[Dict[str, Any]] = None,
+    device_context: Optional[Dict[str, Any]] = None,
 ) -> AsyncGenerator[str, None]:
     """Execute an agentic chat interaction with streaming.
 
     Yields formatted chunks with "data: " or "think: " prefixes.
     """
     # Build system prompt
-    system_prompt = _get_agentic_qa_prompt(uid, app, messages, context=context, today_context=today_context)
+    system_prompt = _get_agentic_qa_prompt(
+        uid, app, messages, context=context, today_context=today_context, device_context=device_context
+    )
 
     # Get prompt metadata for tracing/versioning
     prompt_name, prompt_commit, prompt_source = None, None, None
