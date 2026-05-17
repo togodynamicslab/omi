@@ -1,467 +1,519 @@
 {
-  "@@locale": "en",
-  "appName": "Nooto",
-  "welcomeBrandLine": "Welcome to {brand}",
-  "@welcomeBrandLine": {
-    "placeholders": {
-      "brand": {
-        "type": "String"
-      }
+    "@@locale": "en",
+    "appName": "Nooto",
+    "welcomeBrandLine": "Welcome to {brand}",
+    "@welcomeBrandLine": {
+        "placeholders": {
+            "brand": {
+                "type": "String"
+            }
+        }
+    },
+    "welcomeTaglinePrefix": "Personal intelligence that turns ",
+    "welcomeTaglineEmphasis": "thought to action.",
+    "welcomeContinueWithApple": "Continue with Apple",
+    "welcomeContinueWithGoogle": "Continue with Google",
+    "welcomeWaitingForBrowser": "Waiting for browser…",
+    "welcomeAgreeFooter": "By continuing you agree to our Terms and Privacy Policy.",
+    "onboardingPromptHintTyped": "Type your answer…",
+    "onboardingPromptHintTap": "Tap an option above to continue",
+    "onboardingOpenerName": "Hey — what should I call you?",
+    "onboardingOpenerLanguage": "Nice to meet you, {name}. What language do you want me to use?",
+    "@onboardingOpenerLanguage": {
+        "placeholders": {
+            "name": {
+                "type": "String"
+            }
+        }
+    },
+    "onboardingOpenerMicrophone": "I'll need your mic to listen for what matters.",
+    "onboardingOpenerNotifications": "Mind if I ping you when something needs your attention?",
+    "onboardingOpenerBackground": "I work best if I can keep listening in the background.",
+    "onboardingOpenerLocation": "Want me to tag where things happen? Optional — feel free to skip.",
+    "onboardingOpenerDevice": "Have a Nooto device on you? We can wire it up later — pairing arrives in the next phase.",
+    "onboardingOpenerSpeechProfile": "Let me learn your voice so I can tell you apart from the rest of the world.",
+    "onboardingOpenerAcknowledge": "All set. Let's go.",
+    "onboardingSkipped": "Sure, we can do that later.",
+    "onboardingChipMoreLanguages": "More languages…",
+    "onboardingChipSkipForNow": "Skip for now",
+    "onboardingChipPairLater": "I'll pair it later",
+    "onboardingAckLetsGo": "Let's go",
+    "onboardingAckGotIt": "Got it",
+    "onboardingPermissionAllow": "Allow",
+    "onboardingPermissionPending": "Pending",
+    "onboardingPermissionGranted": "Granted",
+    "onboardingPermissionDenied": "Denied",
+    "onboardingPermissionDeniedAction": "Open settings",
+    "onboardingPermissionLabelMicrophone": "Microphone access",
+    "onboardingPermissionLabelMicrophoneHelper": "Audio is processed on your device; only the transcript leaves.",
+    "onboardingPermissionLabelNotifications": "Notification access",
+    "onboardingPermissionLabelNotificationsHelper": "Quiet, useful nudges only — never noise.",
+    "onboardingPermissionLabelBackground": "Background activity",
+    "onboardingPermissionLabelBackgroundHelper": "Lets Nooto stay alive while you're using other apps.",
+    "onboardingPermissionLabelLocation": "Location",
+    "onboardingPermissionLabelLocationHelper": "Tags conversations with where they happened. Optional.",
+    "onboardingSpeechCardTitle": "Read this aloud",
+    "onboardingSpeechCardBody": "Whenever you're ready, hold the button and read this in a normal voice for about five seconds.",
+    "onboardingSpeechCardSample": "Hi, I'm getting Nooto set up. This is what my voice sounds like in a normal room.",
+    "onboardingSpeechRecording": "Listening…",
+    "onboardingSpeechCaptured": "Voice captured ✓",
+    "onboardingSpeechSkip": "Skip for now",
+    "shellTabHome": "Home",
+    "shellTabChat": "Chat",
+    "shellTabLibrary": "Library",
+    "shellTabPlan": "Plan",
+    "shellTabApps": "Apps",
+    "shellComingSoonTitle": "{tab} arrives next",
+    "@shellComingSoonTitle": {
+        "placeholders": {
+            "tab": {
+                "type": "String"
+            }
+        }
+    },
+    "shellComingSoonBody": "This screen lands in a future phase. For now, the morning brief and today's commitments are on Home.",
+    "todayCardHeader": "Today",
+    "todayCardCountPartial": "{visible} of {total}",
+    "@todayCardCountPartial": {
+        "placeholders": {
+            "visible": {
+                "type": "int"
+            },
+            "total": {
+                "type": "int"
+            }
+        }
+    },
+    "todayCardCountFull": "{count, plural, =1{1 item} other{{count} items}}",
+    "@todayCardCountFull": {
+        "placeholders": {
+            "count": {
+                "type": "int"
+            }
+        }
+    },
+    "todayCardSeeAll": "See all",
+    "todayCardSeeAllSemantics": "See all action items, opens Plan tab",
+    "summaryTemplate": "Summary template",
+    "summarizedBy": "Summarized by {name}",
+    "@summarizedBy": {
+        "placeholders": {
+            "name": {
+                "type": "String"
+            }
+        }
+    },
+    "noSummaryForApp": "No summary available — tap to choose another app",
+    "reprocessingConversation": "Reprocessing…",
+    "reprocessFailed": "Couldn't reprocess. Try again.",
+    "chooseSummarizationApp": "Choose a summarization app",
+    "currentlyUsing": "Currently using",
+    "suggestedForThisConversation": "Suggested for this conversation",
+    "summarizedAppsSuggestedSection": "Suggested",
+    "summarizedAppsAvailableSection": "Installed",
+    "summarizedAppsEmpty": "No apps installed yet",
+    "summarizeWithApp": "Summarize with an app",
+    "pendantPillLive": "Live",
+    "@pendantPillLive": {
+        "description": "Status pill label when pendant is connected and streaming."
+    },
+    "pendantPillConnecting": "Connecting…",
+    "@pendantPillConnecting": {
+        "description": "Status pill label during initial connection or first-pair handshake."
+    },
+    "pendantPillReconnecting": "Reconnecting",
+    "@pendantPillReconnecting": {
+        "description": "Status pill label after a BLE drop while auto-reconnect is in flight."
+    },
+    "pendantPillOfflineSince": "Offline since {time}",
+    "@pendantPillOfflineSince": {
+        "description": "Status pill label after 30s with no successful reconnect.",
+        "placeholders": {
+            "time": {
+                "type": "String"
+            }
+        }
+    },
+    "pendantPillPaused": "Paused",
+    "@pendantPillPaused": {
+        "description": "Status pill label while AVAudioSession interruption is active (call, Siri, etc.)."
+    },
+    "pendantPairTitle": "Pair your pendant",
+    "@pendantPairTitle": {
+        "description": "Pairing sheet title."
+    },
+    "pendantPairConnecting": "Setting up your pendant…",
+    "@pendantPairConnecting": {
+        "description": "Pairing sheet progress message during 5-15s first-pair characteristic discovery."
+    },
+    "pendantPairIncompatible": "This pendant doesn't expose the right audio service. Make sure your firmware is up to date.",
+    "@pendantPairIncompatible": {
+        "description": "Pairing sheet error message when the device does not expose the Omi audio service."
+    },
+    "pendantPairPermissionDenied": "Bluetooth and microphone access are needed to pair.",
+    "@pendantPairPermissionDenied": {
+        "description": "Pairing sheet error message when BLE or mic permission is denied."
+    },
+    "pendantPairOpenSettings": "Open Settings",
+    "@pendantPairOpenSettings": {
+        "description": "Pairing sheet CTA that opens the OS settings app."
+    },
+    "pendantPairTryAgain": "Try again",
+    "@pendantPairTryAgain": {
+        "description": "Pairing sheet CTA shown after an incompatible-device error."
+    },
+    "pendantVoiceCardConnectTitle": "Connect your pendant",
+    "@pendantVoiceCardConnectTitle": {
+        "description": "Home voice card title shown while no pendant is paired."
+    },
+    "pendantVoiceCardConnectBody": "Tap to pair your pendant.",
+    "@pendantVoiceCardConnectBody": {
+        "description": "Home voice card body shown while no pendant is paired."
+    },
+    "pendantVoiceCardOfflineTitle": "Your pendant disconnected at {time}.",
+    "@pendantVoiceCardOfflineTitle": {
+        "description": "Home voice card title shown after the pendant has been offline for at least 5 minutes.",
+        "placeholders": {
+            "time": {
+                "type": "String"
+            }
+        }
+    },
+    "pendantVoiceCardOfflineBody": "Tap to reconnect.",
+    "@pendantVoiceCardOfflineBody": {
+        "description": "Home voice card body shown after the pendant has been offline for at least 5 minutes."
+    },
+    "pendantPausePrompt": "Pause pendant for {seconds}s while we record your voice?",
+    "@pendantPausePrompt": {
+        "description": "Sheet prompt shown when phone-mic capture is requested while pendant is live.",
+        "placeholders": {
+            "seconds": {
+                "type": "int"
+            }
+        }
+    },
+    "pendantPauseConfirm": "Pause and continue",
+    "@pendantPauseConfirm": {
+        "description": "Confirm CTA on the pause-pendant sheet."
+    },
+    "pendantOnboardingTurnText": "Pair your pendant when you're ready. Hold it near your phone so I can find it.",
+    "@pendantOnboardingTurnText": {
+        "description": "Onboarding chat turn text introducing pendant pairing after speech profile."
+    },
+    "pendantScreenTitle": "Pendant",
+    "@pendantScreenTitle": {
+        "description": "AppBar title for the dedicated pendant connection screen."
+    },
+    "pendantScreenMenuItem": "Pendant",
+    "@pendantScreenMenuItem": {
+        "description": "Kebab menu entry that opens the pendant connection screen."
+    },
+    "pendantScreenPairCta": "Pair pendant",
+    "@pendantScreenPairCta": {
+        "description": "Primary CTA on the pendant screen when no pendant is paired."
+    },
+    "pendantScreenPairHint": "Hold your pendant close.",
+    "@pendantScreenPairHint": {
+        "description": "Hint shown under the pair CTA on the pendant screen."
+    },
+    "pendantScreenConnectedHeader": "Connected",
+    "@pendantScreenConnectedHeader": {
+        "description": "Header on the pendant screen when the pendant is live."
+    },
+    "pendantScreenDisconnectCta": "Disconnect",
+    "@pendantScreenDisconnectCta": {
+        "description": "Outlined button on the pendant screen to disconnect a live pendant."
+    },
+    "pendantScreenReconnectCta": "Reconnect",
+    "@pendantScreenReconnectCta": {
+        "description": "Button on the pendant screen to reconnect when offline."
+    },
+    "pendantScreenInterruptedExplain": "Paused while another audio session is active.",
+    "@pendantScreenInterruptedExplain": {
+        "description": "Explanation shown when the pendant is in interrupted state."
+    },
+    "pendantScreenBatteryLabel": "{percent}% battery",
+    "@pendantScreenBatteryLabel": {
+        "description": "Battery percentage row label on the pendant screen.",
+        "placeholders": {
+            "percent": {
+                "type": "int"
+            }
+        }
+    },
+    "pendantScreenCodecLabel": "Codec: {codec}",
+    "@pendantScreenCodecLabel": {
+        "description": "Codec badge label on the pendant screen.",
+        "placeholders": {
+            "codec": {
+                "type": "String"
+            }
+        }
+    },
+    "settingsScreenTitle": "Settings",
+    "settingsMenuItem": "Settings",
+    "settingsDevModeHeader": "Developer Mode",
+    "settingsPermissionsLabel": "Permissions",
+    "settingsPermissionMicrophone": "Microphone",
+    "settingsPermissionBluetooth": "Bluetooth",
+    "settingsPermissionNotifications": "Notifications",
+    "settingsPermissionLocation": "Location",
+    "settingsPendantLabel": "Pendant",
+    "settingsAuthLabel": "Account",
+    "settingsAuthSignedInAs": "Signed in as {email}",
+    "@settingsAuthSignedInAs": {
+        "placeholders": {
+            "email": {
+                "type": "String"
+            }
+        }
+    },
+    "settingsAuthNotSignedIn": "Not signed in",
+    "settingsBuildLabel": "Build",
+    "settingsActionOpenIosSettings": "Open iOS Settings",
+    "settingsActionResetOnboarding": "Reset onboarding",
+    "settingsPermissionStatusGranted": "Granted",
+    "settingsPermissionStatusDenied": "Denied",
+    "settingsPermissionStatusPermanentlyDenied": "Permanently denied",
+    "settingsPermissionStatusRestricted": "Restricted",
+    "settingsPermissionStatusLimited": "Limited",
+    "settingsPermissionOpenSettingsCta": "Open Settings",
+    "pendantScreenDefaultDeviceName": "Nooto pendant",
+    "@pendantScreenDefaultDeviceName": {
+        "description": "Default device name shown in PendantScreen when info.deviceName is null"
+    },
+    "pendantCeremonySearching": "Searching.",
+    "@pendantCeremonySearching": {
+        "description": "First beat of the pendant pairing ceremony, shown while scanning for the pendant. AI-voiced first-person calm register."
+    },
+    "pendantCeremonyFound": "Found you.",
+    "@pendantCeremonyFound": {
+        "description": "Second beat of the pendant pairing ceremony, shown when a pendant has been discovered and is connecting. AI-voiced first-person calm register."
+    },
+    "pendantCeremonySettingUp": "Setting up.",
+    "@pendantCeremonySettingUp": {
+        "description": "Third beat of the pendant pairing ceremony, shown while the pendant is finalizing connection. AI-voiced first-person calm register."
+    },
+    "pendantCeremonyGreetingNamed": "Hello, {name}.",
+    "@pendantCeremonyGreetingNamed": {
+        "description": "Personalized greeting shown on the final beat of the pendant pairing ceremony, when the user's display name is available.",
+        "placeholders": {
+            "name": {
+                "type": "String",
+                "example": "Matheus"
+            }
+        }
+    },
+    "pendantCeremonyGreetingFallback": "Hello.",
+    "@pendantCeremonyGreetingFallback": {
+        "description": "Greeting shown on the final beat of the pendant pairing ceremony, when no user display name is available."
+    },
+    "pendantCeremonyTimeout": "I can't see your pendant from here. Hold it close and let's try again.",
+    "@pendantCeremonyTimeout": {
+        "description": "Failure copy shown when the pendant pairing ceremony times out without finding a pendant. AI-voiced first-person register matches the ceremony beats."
+    },
+    "pendantCeremonyBleError": "Something interrupted the connection. Let's try once more.",
+    "@pendantCeremonyBleError": {
+        "description": "Failure copy shown when a BLE error interrupts the pendant pairing ceremony mid-connect. AI-voiced first-person register matches the ceremony beats."
+    },
+    "pendantCeremonyIncompatible": "This pendant doesn't speak my language. Make sure your firmware is up to date.",
+    "@pendantCeremonyIncompatible": {
+        "description": "Failure copy shown when an incompatible pendant is detected mid-ceremony. AI-voiced first-person register matches the ceremony beats. Pre-pair incompatible (no ceremony lead-in) keeps the existing functional copy in pendantPairIncompatible."
+    },
+    "pendantCeremonyBluetoothOff": "Bluetooth's off. Turn it on in Control Center and let's try again.",
+    "@pendantCeremonyBluetoothOff": {
+        "description": "AI-voiced ceremony failure surface card shown when iOS reports the Bluetooth adapter is OFF (CBManagerStateUnknown / PoweredOff) during scan. Distinct from the generic timeout copy — directs the user to Control Center."
+    },
+    "pendantScreenBackLabel": "Back",
+    "@pendantScreenBackLabel": {
+        "description": "Generic back button label on the pendant screen, used as a TextButton.icon at the top-left of the settled-paired layout. Matches the in-constellation failure-overlay back link."
+    },
+    "inboxEmptyTitle": "Nothing here yet",
+    "@inboxEmptyTitle": {
+        "description": "Inbox empty state title"
+    },
+    "inboxEmptyDescription": "Your apps will message you here. Connect an app to get started.",
+    "@inboxEmptyDescription": {
+        "description": "Inbox empty state subtitle"
+    },
+    "inboxEmptyAction": "Browse apps",
+    "@inboxEmptyAction": {
+        "description": "Inbox empty state ghost button label"
+    },
+    "inboxErrorTitle": "Can't reach server",
+    "@inboxErrorTitle": {
+        "description": "Inbox network error title"
+    },
+    "inboxErrorRetry": "Retry",
+    "@inboxErrorRetry": {
+        "description": "Retry button label on inbox error state"
+    },
+    "inboxScreenTitle": "Inbox",
+    "@inboxScreenTitle": {
+        "description": "Inbox screen header title"
+    },
+    "inboxFilterAll": "All",
+    "@inboxFilterAll": {
+        "description": "Inbox sender filter chip label for the unfiltered (all) view"
+    },
+    "inboxBubbleCopy": "Copy",
+    "@inboxBubbleCopy": {
+        "description": "Copy action in the inbox message long-press menu"
+    },
+    "inboxBubbleShare": "Share",
+    "@inboxBubbleShare": {
+        "description": "Share action in the inbox message long-press menu"
+    },
+    "inboxBubbleCancel": "Cancel",
+    "@inboxBubbleCancel": {
+        "description": "Cancel action in the inbox message long-press menu"
+    },
+    "drawerInboxLabel": "Inbox",
+    "@drawerInboxLabel": {
+        "description": "Label for the Inbox row pinned at the top of the chat sessions drawer"
+    },
+    "settingsNotificationsLabel": "Notifications",
+    "@settingsNotificationsLabel": {
+        "description": "Notifications row label in Settings"
+    },
+    "settingsNotificationsStateOn": "On",
+    "@settingsNotificationsStateOn": {
+        "description": "Notifications enabled sub-label"
+    },
+    "settingsNotificationsStateOff": "Off — tap to enable",
+    "@settingsNotificationsStateOff": {
+        "description": "Notifications disabled sub-label"
+    },
+    "settingsNotificationsStateOpenSettings": "Open Settings to enable",
+    "@settingsNotificationsStateOpenSettings": {
+        "description": "Notifications denied at OS level — directs user to Settings"
+    },
+    "settingsCategoryAccount": "Account",
+    "@settingsCategoryAccount": {
+        "description": "Settings category label: account/sign-in/sign-out."
+    },
+    "settingsCategoryAccountDescription": "Sign-in, identity",
+    "@settingsCategoryAccountDescription": {
+        "description": "Settings category one-liner under Account (used by search match, not currently rendered as a row subtitle)."
+    },
+    "settingsCategoryPermissions": "Permissions",
+    "@settingsCategoryPermissions": {
+        "description": "Settings category label: OS permissions."
+    },
+    "settingsCategoryPermissionsDescription": "Microphone, Bluetooth, Notifications, Location",
+    "@settingsCategoryPermissionsDescription": {
+        "description": "Settings category one-liner under Permissions."
+    },
+    "settingsCategoryPendant": "Pendant",
+    "@settingsCategoryPendant": {
+        "description": "Settings category label: pendant diagnostics."
+    },
+    "settingsCategoryPendantDescription": "Connection status, codec, battery",
+    "@settingsCategoryPendantDescription": {
+        "description": "Settings category one-liner under Pendant."
+    },
+    "settingsCategoryNotifications": "Notifications",
+    "@settingsCategoryNotifications": {
+        "description": "Settings category label: notifications-as-chat toggle."
+    },
+    "settingsCategoryNotificationsDescription": "Apps and Brief alerts",
+    "@settingsCategoryNotificationsDescription": {
+        "description": "Settings category one-liner under Notifications."
+    },
+    "settingsCategoryAbout": "About",
+    "@settingsCategoryAbout": {
+        "description": "Settings category label: app info."
+    },
+    "settingsCategoryAboutDescription": "Build version, support",
+    "@settingsCategoryAboutDescription": {
+        "description": "Settings category one-liner under About."
+    },
+    "settingsCategoryDeveloper": "Developer",
+    "@settingsCategoryDeveloper": {
+        "description": "Settings category label: developer/debug surface."
+    },
+    "settingsCategoryDeveloperDescription": "Diagnostics and reset",
+    "@settingsCategoryDeveloperDescription": {
+        "description": "Settings category one-liner under Developer."
+    },
+    "settingsSearchPlaceholder": "Search settings",
+    "@settingsSearchPlaceholder": {
+        "description": "Placeholder text inside the iOS-style search field at the top of Settings."
+    },
+    "settingsSearchEmpty": "No matching settings",
+    "@settingsSearchEmpty": {
+        "description": "Empty-state copy when the Settings search query matches nothing."
+    },
+    "settingsNotificationsDescription": "Apps and Brief send proactive messages to your Inbox. Turn off to silence the device push without losing the in-app feed.",
+    "@settingsNotificationsDescription": {
+        "description": "Long-form description below the Notifications toggle on the Notifications sub-page."
+    },
+    "settingsAccountSignOut": "Sign out",
+    "@settingsAccountSignOut": {
+        "description": "Sign-out button on the Account sub-page."
+    },
+    "settingsDeveloperResetOnboarding": "Reset onboarding",
+    "@settingsDeveloperResetOnboarding": {
+        "description": "Reset onboarding button on the Developer sub-page."
+    },
+    "settingsDeveloperOpenSystemSettings": "Open iOS Settings",
+    "@settingsDeveloperOpenSystemSettings": {
+        "description": "Open system Settings shortcut button on the Developer sub-page."
+    },
+    "settingsNotificationsTestAction": "Send test notification",
+    "settingsNotificationsTestHint": "Writes a test message to your Inbox and fires an OS push (5 per hour).",
+    "settingsNotificationsTestSent": "Test notification sent. Check Inbox.",
+    "settingsNotificationsTestFailed": "Test notification failed.",
+    "refreshSummarySemantic": "Refresh summary",
+    "@refreshSummarySemantic": {
+        "description": "Accessibility label for the small refresh icon on the Home brief and Plan guidance cards"
+    },
+    "settingsCategoryNativeSync": "Native Sync",
+    "@settingsCategoryNativeSync": {
+        "description": "Settings category label for the proactive iOS Reminders push."
+    },
+    "settingsCategoryNativeSyncDescription": "Auto-push action items to iOS Reminders",
+    "@settingsCategoryNativeSyncDescription": {
+        "description": "Settings category one-liner under Native Sync."
+    },
+    "nativeSyncScreenTitle": "Native Sync",
+    "@nativeSyncScreenTitle": {
+        "description": "Title of the Native Sync sub-screen."
+    },
+    "nativeSyncEnabledLabel": "Push to iOS Reminders",
+    "@nativeSyncEnabledLabel": {
+        "description": "Master toggle label for the proactive Reminders push."
+    },
+    "nativeSyncEnabledDescription": "Nooto automatically saves high-confidence action items to your iOS Reminders app. Items you delete in Reminders are never re-pushed.",
+    "@nativeSyncEnabledDescription": {
+        "description": "Explanation of what the proactive Reminders push does."
+    },
+    "nativeSyncThresholdLabel": "Confidence threshold",
+    "@nativeSyncThresholdLabel": {
+        "description": "Label for the confidence threshold slider."
+    },
+    "nativeSyncThresholdHelp": "Lower the threshold to push more items. Items below this score stay in Nooto only.",
+    "@nativeSyncThresholdHelp": {
+        "description": "Help text under the threshold slider."
+    },
+    "nativeSyncDailyBudgetLabel": "Daily limit",
+    "@nativeSyncDailyBudgetLabel": {
+        "description": "Label for the daily push budget stepper."
+    },
+    "nativeSyncDailyBudgetHelp": "Max items pushed per day. Prevents flooding Reminders on a chatty day.",
+    "@nativeSyncDailyBudgetHelp": {
+        "description": "Help text under the daily limit stepper."
+    },
+    "nativeSyncRecentlyPushedLabel": "Recently pushed",
+    "@nativeSyncRecentlyPushedLabel": {
+        "description": "Row that opens the Recently pushed sub-screen."
+    },
+    "nativeSyncRecentlyPushedEmpty": "Nothing pushed yet",
+    "@nativeSyncRecentlyPushedEmpty": {
+        "description": "Empty state in the Recently pushed list."
+    },
+    "nativeSyncRecentlyPushedTitle": "Recently pushed",
+    "@nativeSyncRecentlyPushedTitle": {
+        "description": "Title of the Recently pushed sub-screen."
     }
-  },
-  "welcomeTaglinePrefix": "Personal intelligence that turns ",
-  "welcomeTaglineEmphasis": "thought to action.",
-  "welcomeContinueWithApple": "Continue with Apple",
-  "welcomeContinueWithGoogle": "Continue with Google",
-  "welcomeWaitingForBrowser": "Waiting for browser…",
-  "welcomeAgreeFooter": "By continuing you agree to our Terms and Privacy Policy.",
-  "onboardingPromptHintTyped": "Type your answer…",
-  "onboardingPromptHintTap": "Tap an option above to continue",
-  "onboardingOpenerName": "Hey — what should I call you?",
-  "onboardingOpenerLanguage": "Nice to meet you, {name}. What language do you want me to use?",
-  "@onboardingOpenerLanguage": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "onboardingOpenerMicrophone": "I'll need your mic to listen for what matters.",
-  "onboardingOpenerNotifications": "Mind if I ping you when something needs your attention?",
-  "onboardingOpenerBackground": "I work best if I can keep listening in the background.",
-  "onboardingOpenerLocation": "Want me to tag where things happen? Optional — feel free to skip.",
-  "onboardingOpenerDevice": "Have a Nooto device on you? We can wire it up later — pairing arrives in the next phase.",
-  "onboardingOpenerSpeechProfile": "Let me learn your voice so I can tell you apart from the rest of the world.",
-  "onboardingOpenerAcknowledge": "All set. Let's go.",
-  "onboardingSkipped": "Sure, we can do that later.",
-  "onboardingChipMoreLanguages": "More languages…",
-  "onboardingChipSkipForNow": "Skip for now",
-  "onboardingChipPairLater": "I'll pair it later",
-  "onboardingAckLetsGo": "Let's go",
-  "onboardingAckGotIt": "Got it",
-  "onboardingPermissionAllow": "Allow",
-  "onboardingPermissionPending": "Pending",
-  "onboardingPermissionGranted": "Granted",
-  "onboardingPermissionDenied": "Denied",
-  "onboardingPermissionDeniedAction": "Open settings",
-  "onboardingPermissionLabelMicrophone": "Microphone access",
-  "onboardingPermissionLabelMicrophoneHelper": "Audio is processed on your device; only the transcript leaves.",
-  "onboardingPermissionLabelNotifications": "Notification access",
-  "onboardingPermissionLabelNotificationsHelper": "Quiet, useful nudges only — never noise.",
-  "onboardingPermissionLabelBackground": "Background activity",
-  "onboardingPermissionLabelBackgroundHelper": "Lets Nooto stay alive while you're using other apps.",
-  "onboardingPermissionLabelLocation": "Location",
-  "onboardingPermissionLabelLocationHelper": "Tags conversations with where they happened. Optional.",
-  "onboardingSpeechCardTitle": "Read this aloud",
-  "onboardingSpeechCardBody": "Whenever you're ready, hold the button and read this in a normal voice for about five seconds.",
-  "onboardingSpeechCardSample": "Hi, I'm getting Nooto set up. This is what my voice sounds like in a normal room.",
-  "onboardingSpeechRecording": "Listening…",
-  "onboardingSpeechCaptured": "Voice captured ✓",
-  "onboardingSpeechSkip": "Skip for now",
-  "shellTabHome": "Home",
-  "shellTabChat": "Chat",
-  "shellTabLibrary": "Library",
-  "shellTabPlan": "Plan",
-  "shellTabApps": "Apps",
-  "shellComingSoonTitle": "{tab} arrives next",
-  "@shellComingSoonTitle": {
-    "placeholders": {
-      "tab": {
-        "type": "String"
-      }
-    }
-  },
-  "shellComingSoonBody": "This screen lands in a future phase. For now, the morning brief and today's commitments are on Home.",
-  "todayCardHeader": "Today",
-  "todayCardCountPartial": "{visible} of {total}",
-  "@todayCardCountPartial": {
-    "placeholders": {
-      "visible": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
-    }
-  },
-  "todayCardCountFull": "{count, plural, =1{1 item} other{{count} items}}",
-  "@todayCardCountFull": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "todayCardSeeAll": "See all",
-  "todayCardSeeAllSemantics": "See all action items, opens Plan tab",
-  "summaryTemplate": "Summary template",
-  "summarizedBy": "Summarized by {name}",
-  "@summarizedBy": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "noSummaryForApp": "No summary available — tap to choose another app",
-  "reprocessingConversation": "Reprocessing…",
-  "reprocessFailed": "Couldn't reprocess. Try again.",
-  "chooseSummarizationApp": "Choose a summarization app",
-  "currentlyUsing": "Currently using",
-  "suggestedForThisConversation": "Suggested for this conversation",
-  "summarizedAppsSuggestedSection": "Suggested",
-  "summarizedAppsAvailableSection": "Installed",
-  "summarizedAppsEmpty": "No apps installed yet",
-  "summarizeWithApp": "Summarize with an app",
-  "pendantPillLive": "Live",
-  "@pendantPillLive": {
-    "description": "Status pill label when pendant is connected and streaming."
-  },
-  "pendantPillConnecting": "Connecting…",
-  "@pendantPillConnecting": {
-    "description": "Status pill label during initial connection or first-pair handshake."
-  },
-  "pendantPillReconnecting": "Reconnecting",
-  "@pendantPillReconnecting": {
-    "description": "Status pill label after a BLE drop while auto-reconnect is in flight."
-  },
-  "pendantPillOfflineSince": "Offline since {time}",
-  "@pendantPillOfflineSince": {
-    "description": "Status pill label after 30s with no successful reconnect.",
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "pendantPillPaused": "Paused",
-  "@pendantPillPaused": {
-    "description": "Status pill label while AVAudioSession interruption is active (call, Siri, etc.)."
-  },
-  "pendantPairTitle": "Pair your pendant",
-  "@pendantPairTitle": {
-    "description": "Pairing sheet title."
-  },
-  "pendantPairConnecting": "Setting up your pendant…",
-  "@pendantPairConnecting": {
-    "description": "Pairing sheet progress message during 5-15s first-pair characteristic discovery."
-  },
-  "pendantPairIncompatible": "This pendant doesn't expose the right audio service. Make sure your firmware is up to date.",
-  "@pendantPairIncompatible": {
-    "description": "Pairing sheet error message when the device does not expose the Omi audio service."
-  },
-  "pendantPairPermissionDenied": "Bluetooth and microphone access are needed to pair.",
-  "@pendantPairPermissionDenied": {
-    "description": "Pairing sheet error message when BLE or mic permission is denied."
-  },
-  "pendantPairOpenSettings": "Open Settings",
-  "@pendantPairOpenSettings": {
-    "description": "Pairing sheet CTA that opens the OS settings app."
-  },
-  "pendantPairTryAgain": "Try again",
-  "@pendantPairTryAgain": {
-    "description": "Pairing sheet CTA shown after an incompatible-device error."
-  },
-  "pendantVoiceCardConnectTitle": "Connect your pendant",
-  "@pendantVoiceCardConnectTitle": {
-    "description": "Home voice card title shown while no pendant is paired."
-  },
-  "pendantVoiceCardConnectBody": "Tap to pair your pendant.",
-  "@pendantVoiceCardConnectBody": {
-    "description": "Home voice card body shown while no pendant is paired."
-  },
-  "pendantVoiceCardOfflineTitle": "Your pendant disconnected at {time}.",
-  "@pendantVoiceCardOfflineTitle": {
-    "description": "Home voice card title shown after the pendant has been offline for at least 5 minutes.",
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "pendantVoiceCardOfflineBody": "Tap to reconnect.",
-  "@pendantVoiceCardOfflineBody": {
-    "description": "Home voice card body shown after the pendant has been offline for at least 5 minutes."
-  },
-  "pendantPausePrompt": "Pause pendant for {seconds}s while we record your voice?",
-  "@pendantPausePrompt": {
-    "description": "Sheet prompt shown when phone-mic capture is requested while pendant is live.",
-    "placeholders": {
-      "seconds": {
-        "type": "int"
-      }
-    }
-  },
-  "pendantPauseConfirm": "Pause and continue",
-  "@pendantPauseConfirm": {
-    "description": "Confirm CTA on the pause-pendant sheet."
-  },
-  "pendantOnboardingTurnText": "Pair your pendant when you're ready. Hold it near your phone so I can find it.",
-  "@pendantOnboardingTurnText": {
-    "description": "Onboarding chat turn text introducing pendant pairing after speech profile."
-  },
-  "pendantScreenTitle": "Pendant",
-  "@pendantScreenTitle": {
-    "description": "AppBar title for the dedicated pendant connection screen."
-  },
-  "pendantScreenMenuItem": "Pendant",
-  "@pendantScreenMenuItem": {
-    "description": "Kebab menu entry that opens the pendant connection screen."
-  },
-  "pendantScreenPairCta": "Pair pendant",
-  "@pendantScreenPairCta": {
-    "description": "Primary CTA on the pendant screen when no pendant is paired."
-  },
-  "pendantScreenPairHint": "Hold your pendant close.",
-  "@pendantScreenPairHint": {
-    "description": "Hint shown under the pair CTA on the pendant screen."
-  },
-  "pendantScreenConnectedHeader": "Connected",
-  "@pendantScreenConnectedHeader": {
-    "description": "Header on the pendant screen when the pendant is live."
-  },
-  "pendantScreenDisconnectCta": "Disconnect",
-  "@pendantScreenDisconnectCta": {
-    "description": "Outlined button on the pendant screen to disconnect a live pendant."
-  },
-  "pendantScreenReconnectCta": "Reconnect",
-  "@pendantScreenReconnectCta": {
-    "description": "Button on the pendant screen to reconnect when offline."
-  },
-  "pendantScreenInterruptedExplain": "Paused while another audio session is active.",
-  "@pendantScreenInterruptedExplain": {
-    "description": "Explanation shown when the pendant is in interrupted state."
-  },
-  "pendantScreenBatteryLabel": "{percent}% battery",
-  "@pendantScreenBatteryLabel": {
-    "description": "Battery percentage row label on the pendant screen.",
-    "placeholders": {
-      "percent": {
-        "type": "int"
-      }
-    }
-  },
-  "pendantScreenCodecLabel": "Codec: {codec}",
-  "@pendantScreenCodecLabel": {
-    "description": "Codec badge label on the pendant screen.",
-    "placeholders": {
-      "codec": {
-        "type": "String"
-      }
-    }
-  },
-  "settingsScreenTitle": "Settings",
-  "settingsMenuItem": "Settings",
-  "settingsDevModeHeader": "Developer Mode",
-  "settingsPermissionsLabel": "Permissions",
-  "settingsPermissionMicrophone": "Microphone",
-  "settingsPermissionBluetooth": "Bluetooth",
-  "settingsPermissionNotifications": "Notifications",
-  "settingsPermissionLocation": "Location",
-  "settingsPendantLabel": "Pendant",
-  "settingsAuthLabel": "Account",
-  "settingsAuthSignedInAs": "Signed in as {email}",
-  "@settingsAuthSignedInAs": {
-    "placeholders": {
-      "email": {
-        "type": "String"
-      }
-    }
-  },
-  "settingsAuthNotSignedIn": "Not signed in",
-  "settingsBuildLabel": "Build",
-  "settingsActionOpenIosSettings": "Open iOS Settings",
-  "settingsActionResetOnboarding": "Reset onboarding",
-  "settingsPermissionStatusGranted": "Granted",
-  "settingsPermissionStatusDenied": "Denied",
-  "settingsPermissionStatusPermanentlyDenied": "Permanently denied",
-  "settingsPermissionStatusRestricted": "Restricted",
-  "settingsPermissionStatusLimited": "Limited",
-  "settingsPermissionOpenSettingsCta": "Open Settings",
-  "pendantScreenDefaultDeviceName": "Nooto pendant",
-  "@pendantScreenDefaultDeviceName": {
-    "description": "Default device name shown in PendantScreen when info.deviceName is null"
-  },
-  "pendantCeremonySearching": "Searching.",
-  "@pendantCeremonySearching": {
-    "description": "First beat of the pendant pairing ceremony, shown while scanning for the pendant. AI-voiced first-person calm register."
-  },
-  "pendantCeremonyFound": "Found you.",
-  "@pendantCeremonyFound": {
-    "description": "Second beat of the pendant pairing ceremony, shown when a pendant has been discovered and is connecting. AI-voiced first-person calm register."
-  },
-  "pendantCeremonySettingUp": "Setting up.",
-  "@pendantCeremonySettingUp": {
-    "description": "Third beat of the pendant pairing ceremony, shown while the pendant is finalizing connection. AI-voiced first-person calm register."
-  },
-  "pendantCeremonyGreetingNamed": "Hello, {name}.",
-  "@pendantCeremonyGreetingNamed": {
-    "description": "Personalized greeting shown on the final beat of the pendant pairing ceremony, when the user's display name is available.",
-    "placeholders": {
-      "name": {
-        "type": "String",
-        "example": "Matheus"
-      }
-    }
-  },
-  "pendantCeremonyGreetingFallback": "Hello.",
-  "@pendantCeremonyGreetingFallback": {
-    "description": "Greeting shown on the final beat of the pendant pairing ceremony, when no user display name is available."
-  },
-  "pendantCeremonyTimeout": "I can't see your pendant from here. Hold it close and let's try again.",
-  "@pendantCeremonyTimeout": {
-    "description": "Failure copy shown when the pendant pairing ceremony times out without finding a pendant. AI-voiced first-person register matches the ceremony beats."
-  },
-  "pendantCeremonyBleError": "Something interrupted the connection. Let's try once more.",
-  "@pendantCeremonyBleError": {
-    "description": "Failure copy shown when a BLE error interrupts the pendant pairing ceremony mid-connect. AI-voiced first-person register matches the ceremony beats."
-  },
-  "pendantCeremonyIncompatible": "This pendant doesn't speak my language. Make sure your firmware is up to date.",
-  "@pendantCeremonyIncompatible": {
-    "description": "Failure copy shown when an incompatible pendant is detected mid-ceremony. AI-voiced first-person register matches the ceremony beats. Pre-pair incompatible (no ceremony lead-in) keeps the existing functional copy in pendantPairIncompatible."
-  },
-  "pendantCeremonyBluetoothOff": "Bluetooth's off. Turn it on in Control Center and let's try again.",
-  "@pendantCeremonyBluetoothOff": {
-    "description": "AI-voiced ceremony failure surface card shown when iOS reports the Bluetooth adapter is OFF (CBManagerStateUnknown / PoweredOff) during scan. Distinct from the generic timeout copy — directs the user to Control Center."
-  },
-  "pendantScreenBackLabel": "Back",
-  "@pendantScreenBackLabel": {
-    "description": "Generic back button label on the pendant screen, used as a TextButton.icon at the top-left of the settled-paired layout. Matches the in-constellation failure-overlay back link."
-  },
-  "inboxEmptyTitle": "Nothing here yet",
-  "@inboxEmptyTitle": {
-    "description": "Inbox empty state title"
-  },
-  "inboxEmptyDescription": "Your apps will message you here. Connect an app to get started.",
-  "@inboxEmptyDescription": {
-    "description": "Inbox empty state subtitle"
-  },
-  "inboxEmptyAction": "Browse apps",
-  "@inboxEmptyAction": {
-    "description": "Inbox empty state ghost button label"
-  },
-  "inboxErrorTitle": "Can't reach server",
-  "@inboxErrorTitle": {
-    "description": "Inbox network error title"
-  },
-  "inboxErrorRetry": "Retry",
-  "@inboxErrorRetry": {
-    "description": "Retry button label on inbox error state"
-  },
-  "inboxScreenTitle": "Inbox",
-  "@inboxScreenTitle": {
-    "description": "Inbox screen header title"
-  },
-  "inboxFilterAll": "All",
-  "@inboxFilterAll": {
-    "description": "Inbox sender filter chip label for the unfiltered (all) view"
-  },
-  "inboxBubbleCopy": "Copy",
-  "@inboxBubbleCopy": {
-    "description": "Copy action in the inbox message long-press menu"
-  },
-  "inboxBubbleShare": "Share",
-  "@inboxBubbleShare": {
-    "description": "Share action in the inbox message long-press menu"
-  },
-  "inboxBubbleCancel": "Cancel",
-  "@inboxBubbleCancel": {
-    "description": "Cancel action in the inbox message long-press menu"
-  },
-  "drawerInboxLabel": "Inbox",
-  "@drawerInboxLabel": {
-    "description": "Label for the Inbox row pinned at the top of the chat sessions drawer"
-  },
-  "settingsNotificationsLabel": "Notifications",
-  "@settingsNotificationsLabel": {
-    "description": "Notifications row label in Settings"
-  },
-  "settingsNotificationsStateOn": "On",
-  "@settingsNotificationsStateOn": {
-    "description": "Notifications enabled sub-label"
-  },
-  "settingsNotificationsStateOff": "Off — tap to enable",
-  "@settingsNotificationsStateOff": {
-    "description": "Notifications disabled sub-label"
-  },
-  "settingsNotificationsStateOpenSettings": "Open Settings to enable",
-  "@settingsNotificationsStateOpenSettings": {
-    "description": "Notifications denied at OS level — directs user to Settings"
-  },
-  "settingsCategoryAccount": "Account",
-  "@settingsCategoryAccount": {
-    "description": "Settings category label: account/sign-in/sign-out."
-  },
-  "settingsCategoryAccountDescription": "Sign-in, identity",
-  "@settingsCategoryAccountDescription": {
-    "description": "Settings category one-liner under Account (used by search match, not currently rendered as a row subtitle)."
-  },
-  "settingsCategoryPermissions": "Permissions",
-  "@settingsCategoryPermissions": {
-    "description": "Settings category label: OS permissions."
-  },
-  "settingsCategoryPermissionsDescription": "Microphone, Bluetooth, Notifications, Location",
-  "@settingsCategoryPermissionsDescription": {
-    "description": "Settings category one-liner under Permissions."
-  },
-  "settingsCategoryPendant": "Pendant",
-  "@settingsCategoryPendant": {
-    "description": "Settings category label: pendant diagnostics."
-  },
-  "settingsCategoryPendantDescription": "Connection status, codec, battery",
-  "@settingsCategoryPendantDescription": {
-    "description": "Settings category one-liner under Pendant."
-  },
-  "settingsCategoryNotifications": "Notifications",
-  "@settingsCategoryNotifications": {
-    "description": "Settings category label: notifications-as-chat toggle."
-  },
-  "settingsCategoryNotificationsDescription": "Apps and Brief alerts",
-  "@settingsCategoryNotificationsDescription": {
-    "description": "Settings category one-liner under Notifications."
-  },
-  "settingsCategoryAbout": "About",
-  "@settingsCategoryAbout": {
-    "description": "Settings category label: app info."
-  },
-  "settingsCategoryAboutDescription": "Build version, support",
-  "@settingsCategoryAboutDescription": {
-    "description": "Settings category one-liner under About."
-  },
-  "settingsCategoryDeveloper": "Developer",
-  "@settingsCategoryDeveloper": {
-    "description": "Settings category label: developer/debug surface."
-  },
-  "settingsCategoryDeveloperDescription": "Diagnostics and reset",
-  "@settingsCategoryDeveloperDescription": {
-    "description": "Settings category one-liner under Developer."
-  },
-  "settingsSearchPlaceholder": "Search settings",
-  "@settingsSearchPlaceholder": {
-    "description": "Placeholder text inside the iOS-style search field at the top of Settings."
-  },
-  "settingsSearchEmpty": "No matching settings",
-  "@settingsSearchEmpty": {
-    "description": "Empty-state copy when the Settings search query matches nothing."
-  },
-  "settingsNotificationsDescription": "Apps and Brief send proactive messages to your Inbox. Turn off to silence the device push without losing the in-app feed.",
-  "@settingsNotificationsDescription": {
-    "description": "Long-form description below the Notifications toggle on the Notifications sub-page."
-  },
-  "settingsAccountSignOut": "Sign out",
-  "@settingsAccountSignOut": {
-    "description": "Sign-out button on the Account sub-page."
-  },
-  "settingsDeveloperResetOnboarding": "Reset onboarding",
-  "@settingsDeveloperResetOnboarding": {
-    "description": "Reset onboarding button on the Developer sub-page."
-  },
-  "settingsDeveloperOpenSystemSettings": "Open iOS Settings",
-  "@settingsDeveloperOpenSystemSettings": {
-    "description": "Open system Settings shortcut button on the Developer sub-page."
-  },
-  "settingsNotificationsTestAction": "Send test notification",
-  "settingsNotificationsTestHint": "Writes a test message to your Inbox and fires an OS push (5 per hour).",
-  "settingsNotificationsTestSent": "Test notification sent. Check Inbox.",
-  "settingsNotificationsTestFailed": "Test notification failed."
 }
