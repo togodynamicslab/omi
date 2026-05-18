@@ -146,18 +146,17 @@ void main() {
     });
   });
 
-  group('CRITICAL regression: pre-change snapshot', () {
-    test('3 items, all null actionability → payload matches the pre-change shape byte-for-byte', () {
-      // Three known items: one overdue plan, one stuck Jira (no actionability),
-      // one plain plan with no due date. This is the exact shape today's
-      // backend produces before the classifier rolls out — output MUST be
-      // identical to the pre-change behavior.
+  group('Contract: stuck_jira requires explicit self classification', () {
+    test('unclassified Jira item (no actionability) is EXCLUDED from stuck_jira', () {
+      // Behavior change (2026-05-17 user feedback): pre-classifier Jira items
+      // were dominating focal recommendations because they defaulted to "self"
+      // via null. New contract: only items EXPLICITLY classified as
+      // actionability=="self" can surface in stuck_jira. Unclassified items
+      // (legacy, pre-cloudid sync, classifier failed) wait for classification
+      // before competing for focal attention. Non-Jira plan items are unaffected.
       final now = _nowFixture();
-      // NOTE: ExternalSource.daysAtStatus reads DateTime.now() (NOT the test's
-      // `now` fixture). Subtract from real now so the asserted age is stable.
       final realNow = DateTime.now();
       final statusChangedAt = realNow.subtract(const Duration(days: 5));
-      final expectedAgeInDays = DateTime.now().difference(statusChangedAt).inDays;
       final items = <ActionItem>[
         _planItem(id: 'plan-1', title: 'Plan the week').copyWith(dueAt: now.subtract(const Duration(hours: 14))),
         ActionItem(
@@ -177,20 +176,40 @@ void main() {
       final ctx = buildTodayContext(items, now: now);
 
       final overdueDueAt = now.subtract(const Duration(hours: 14)).toUtc().toIso8601String();
-      final expected = <String, dynamic>{
-        'overdue': [
-          {'id': 'plan-1', 'title': 'Plan the week', 'due_at': overdueDueAt, 'source': 'transcript'},
-        ],
-        'due_soon': <Map<String, dynamic>>[],
-        'stuck_jira': [
-          {'id': 'WPNG-2951', 'title': 'CSV import', 'age_in_days': expectedAgeInDays, 'source': 'jira'},
-        ],
-        'plan_remaining_count': 3,
-        // NOTE: no waiting_on_others_count key — that's the contract.
-      };
-
-      expect(ctx, equals(expected));
+      // Plan items still flow through overdue/due_soon by due_at — unchanged.
+      expect(ctx['overdue'], [
+        {'id': 'plan-1', 'title': 'Plan the week', 'due_at': overdueDueAt, 'source': 'transcript'},
+      ]);
+      expect((ctx['due_soon'] as List), isEmpty);
+      // Jira item with null actionability is NO LONGER in stuck_jira.
+      expect((ctx['stuck_jira'] as List), isEmpty);
+      expect(ctx['plan_remaining_count'], 3);
       expect(ctx.containsKey('waiting_on_others_count'), isFalse);
+    });
+
+    test('explicitly self-classified Jira item DOES appear in stuck_jira', () {
+      final now = _nowFixture();
+      final realNow = DateTime.now();
+      final statusChangedAt = realNow.subtract(const Duration(days: 5));
+      final items = <ActionItem>[
+        ActionItem(
+          id: 'WPNG-SELF',
+          description: 'On my plate, stuck',
+          completed: false,
+          externalSource: ExternalSource(
+            source: 'jira',
+            externalId: 'WPNG-SELF',
+            url: 'https://x.atlassian.net/browse/WPNG-SELF',
+            metadata: {
+              'actionability': 'self',
+              'status_changed_at': statusChangedAt.toUtc().toIso8601String(),
+            },
+          ),
+        ),
+      ];
+      final ctx = buildTodayContext(items, now: now);
+      expect((ctx['stuck_jira'] as List).length, 1);
+      expect(ctx['plan_remaining_count'], 1);
     });
   });
 

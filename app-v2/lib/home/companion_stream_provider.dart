@@ -547,6 +547,14 @@ Map<String, dynamic> buildTodayContext(Iterable<ActionItem> items, {required Dat
     }
     final ext = item.externalSource;
     if (ext != null && ext.source == 'jira') {
+      // Jira items only surface in stuck_jira when EXPLICITLY classified as
+      // self-actor. Items with null actionability (pre-classifier sync, or
+      // legacy items without cloudid metadata) are treated as needs-
+      // classification — not focal-eligible — to prevent unclassified noise
+      // from dominating the focal recommendation. Plain non-Jira plan items
+      // are unaffected; they flow through overdue/due_soon via user-set
+      // due dates, not via stuck calculation.
+      if (actionability != 'self') continue;
       final days = ext.daysAtStatus;
       if (days != null && days >= _stuckThresholdDays) {
         stuckJira.add({'id': ext.externalId, 'title': item.description, 'age_in_days': days, 'source': 'jira'});
