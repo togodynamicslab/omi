@@ -63,7 +63,7 @@ void main() {
         _itemWithActionability(id: 'JIRA-2', title: 'In Review', actionability: 'waiting'),
       ], now: _nowFixture());
       expect(ctx['plan_remaining_count'], 0);
-      expect(ctx['waiting_on_others_count'], 1);
+      expect(ctx.containsKey('waiting_on_others_count'), isFalse);
     });
   });
 
@@ -73,7 +73,7 @@ void main() {
         _itemWithActionability(id: 'JIRA-3', title: 'Blocked on Legal', actionability: 'blocked'),
       ], now: _nowFixture());
       expect(ctx['plan_remaining_count'], 0);
-      expect(ctx['waiting_on_others_count'], 1);
+      expect(ctx.containsKey('waiting_on_others_count'), isFalse);
     });
   });
 
@@ -207,7 +207,7 @@ void main() {
       ];
       final ctx = buildTodayContext(items, now: _nowFixture());
       expect(ctx['plan_remaining_count'], 2);
-      expect(ctx['waiting_on_others_count'], 4);
+      expect(ctx.containsKey('waiting_on_others_count'), isFalse);
     });
   });
 
@@ -232,7 +232,7 @@ void main() {
       final ctx = buildTodayContext(items, now: now);
       expect((ctx['overdue'] as List), isEmpty);
       expect(ctx['plan_remaining_count'], 1); // just S1
-      expect(ctx['waiting_on_others_count'], 1); // just B-overdue
+      expect(ctx.containsKey('waiting_on_others_count'), isFalse); // just B-overdue
     });
 
     test('waiting item due in 2h does NOT appear in due_soon list', () {
@@ -253,7 +253,7 @@ void main() {
       ];
       final ctx = buildTodayContext(items, now: now);
       expect((ctx['due_soon'] as List), isEmpty);
-      expect(ctx['waiting_on_others_count'], 1);
+      expect(ctx.containsKey('waiting_on_others_count'), isFalse);
     });
 
     test('blocked Jira stuck for 7 days does NOT appear in stuck_jira list', () {
@@ -278,7 +278,7 @@ void main() {
       ];
       final ctx = buildTodayContext(items, now: _nowFixture());
       expect((ctx['stuck_jira'] as List), isEmpty);
-      expect(ctx['waiting_on_others_count'], 1);
+      expect(ctx.containsKey('waiting_on_others_count'), isFalse);
     });
 
     test('regression: null actionability + overdue STILL flows into overdue (preserves pre-change behavior)', () {

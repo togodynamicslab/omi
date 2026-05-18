@@ -516,15 +516,14 @@ Map<String, dynamic> buildTodayContext(Iterable<ActionItem> items, {required Dat
     final offPlate = actionability == 'waiting' || actionability == 'blocked';
     if (offPlate) {
       waitingOnOthersCount++;
-    } else {
-      planRemainingCount++;
+      // Off-plate items (user-overridden as waiting/blocked) are excluded
+      // entirely from the brief's context. The user said "this is not on me"
+      // — surfacing it at all (even as a count) leaks noise into the focal
+      // recommendation. Counts are not emitted to the brief; if a UI surface
+      // wants them, it can recompute from the same items list independently.
+      continue;
     }
-    // Off-plate items (user-overridden as waiting/blocked) are excluded from
-    // the focal-item candidates the brief picks from. The user said "this is
-    // not on me" — surfacing it as something to act on contradicts the override.
-    // Items with null actionability (non-Jira or unclassified Jira) still flow
-    // through the chip lists per today's behavior.
-    if (offPlate) continue;
+    planRemainingCount++;
     final due = item.dueAt;
     if (due != null) {
       if (due.isBefore(now)) {
@@ -555,14 +554,16 @@ Map<String, dynamic> buildTodayContext(Iterable<ActionItem> items, {required Dat
     }
     // Otherwise: counted in plan_remaining_count but not surfaced as a chip.
   }
+  // waitingOnOthersCount intentionally NOT emitted — the brief should never
+  // narrate items the user explicitly bucketed as off-plate. The variable is
+  // retained for future telemetry / non-LLM UI counters if needed.
+  // ignore: unused_local_variable
+  final _ = waitingOnOthersCount;
   return {
     'overdue': overdue,
     'due_soon': dueSoon,
     'stuck_jira': stuckJira,
     'plan_remaining_count': planRemainingCount,
-    // Additive — emit only when non-zero so old prompt readers / payload
-    // consumers don't trip on a missing/zero key.
-    if (waitingOnOthersCount > 0) 'waiting_on_others_count': waitingOnOthersCount,
   };
 }
 
