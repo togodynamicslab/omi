@@ -12,6 +12,7 @@ import 'package:nooto_v2/home/home_storage.dart';
 import 'package:nooto_v2/providers/action_items_provider.dart';
 import 'package:nooto_v2/services/auth_service.dart';
 import 'package:nooto_v2/services/brief_service.dart';
+import 'package:nooto_v2/services/email_triage_service.dart';
 
 /// Coalesce window for brief invalidation after `ActionItemsProvider` notifies.
 /// A flapping Jira poll (sub-minute cadence) would otherwise burn one LLM call
@@ -44,9 +45,11 @@ class CompanionStreamProvider extends ChangeNotifier {
     required CompanionSignals signals,
     required ActionItemsProvider actionItems,
     BriefService? briefService,
+    EmailTriageService? emailTriageService,
   }) : _signals = signals,
        _actionItems = actionItems,
-       _briefService = briefService ?? BriefService() {
+       _briefService = briefService ?? BriefService(),
+       _emailTriageService = emailTriageService ?? EmailTriageService() {
     _actionItems.addListener(_onActionItemsChanged);
     _init();
   }
@@ -54,11 +57,21 @@ class CompanionStreamProvider extends ChangeNotifier {
   final CompanionSignals _signals;
   final ActionItemsProvider _actionItems;
   final BriefService _briefService;
+  final EmailTriageService _emailTriageService;
   final List<CompanionCard> _cards = [];
   bool _ready = false;
   bool _briefInFlight = false;
   bool _disposed = false;
   Timer? _briefRefreshDebounce;
+
+  // Email-triage state, parallel to brief. Held in-memory only — unlike the
+  // brief, triage doesn't get a Hive box because the report is meant to be
+  // fresh ("what's in your inbox right now") and a stale cache would mislead.
+  // First-mount fetch + pull-to-refresh are the two entry points.
+  EmailTriageResult? _triage;
+  bool _triageInFlight = false;
+  Object? _triageError;
+  Timer? _triageRefreshDebounce;
 
   void _onActionItemsChanged() {
     // Card list re-runs synchronously — generator output may shift (e.g. the
@@ -72,6 +85,9 @@ class CompanionStreamProvider extends ChangeNotifier {
     // items done in a sweep). Coalesce to one re-fetch after the dust
     // settles. Visible to user via the "synthesized Nh ago" timestamp.
     _scheduleBriefRefresh();
+    // Triage shares the "context probably changed" signal — when the user
+    // sweeps action items, their inbox state is likely also stale-on-screen.
+    _scheduleTriageRefresh();
   }
 
   void _scheduleBriefRefresh() {
@@ -80,6 +96,21 @@ class CompanionStreamProvider extends ChangeNotifier {
       if (_disposed) return;
       _invalidateAndRefetchBrief();
     });
+  }
+
+  void _scheduleTriageRefresh() {
+    _triageRefreshDebounce?.cancel();
+    _triageRefreshDebounce = Timer(_briefDebounce, () {
+      if (_disposed) return;
+      _invalidateAndRefetchTriage();
+    });
+  }
+
+  Future<void> _invalidateAndRefetchTriage() async {
+    // No persistent cache for triage; just kick the fetch. The in-flight
+    // guard inside the fetch handles overlapping calls.
+    if (_disposed) return;
+    await _kickOffEmailTriage();
   }
 
   Future<void> _invalidateAndRefetchBrief() async {
@@ -96,6 +127,7 @@ class CompanionStreamProvider extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _briefRefreshDebounce?.cancel();
+    _triageRefreshDebounce?.cancel();
     _actionItems.removeListener(_onActionItemsChanged);
     super.dispose();
   }
@@ -107,6 +139,16 @@ class CompanionStreamProvider extends ChangeNotifier {
   /// affordance spinner on `MorningBriefCard` so the user gets immediate
   /// feedback that their tap registered.
   bool get briefInFlight => _briefInFlight;
+
+  /// Latest email-triage result, or null if no successful fetch yet.
+  EmailTriageResult? get triage => _triage;
+
+  /// True while a triage LLM fetch is in flight.
+  bool get triageInFlight => _triageInFlight;
+
+  /// Last triage fetch error (non-null until a subsequent success clears it).
+  /// Drives the "Inbox check failed." render state on [EmailTriageCard].
+  Object? get triageError => _triageError;
 
   Box<Map> get _cardsBox => Hive.box<Map>(HomeBoxes.cards);
   Box<Map> get _actionsBox => Hive.box<Map>(HomeBoxes.actions);
@@ -125,7 +167,11 @@ class CompanionStreamProvider extends ChangeNotifier {
       SchedulerBinding.instance.addPostFrameCallback((_) {
         unawaited(_actionItems.kickOffIfNeeded());
       });
+      // Brief + triage fetch in parallel on first mount — they're
+      // independent agent calls and serializing them would double the
+      // user's wait for the second card to populate.
       unawaited(_kickOffMorningBrief());
+      unawaited(_kickOffEmailTriage());
     } catch (e, st) {
       debugPrint('[CompanionStream] init failed: $e\n$st');
       // Fail-soft: empty stream, no crash. User sees only the welcome
@@ -285,6 +331,33 @@ class CompanionStreamProvider extends ChangeNotifier {
     }
   }
 
+  /// Fetches the email triage report from the agent backend. In-memory only —
+  /// no Hive cache, because triage freshness is the product (a stale "what's
+  /// in your inbox" reads as a lie). The in-flight guard prevents overlapping
+  /// calls; errors stick to `_triageError` so the card can render a quiet
+  /// "Inbox check failed." until the next refresh.
+  Future<void> _kickOffEmailTriage() async {
+    if (_triageInFlight) return;
+    _triageInFlight = true;
+    if (!_disposed) notifyListeners();
+    try {
+      final result = await _emailTriageService.fetchEmailTriage(displayName: _displayNameForBrief());
+      if (_disposed) return;
+      // Service has already validated non-empty + trimmed the output text.
+      _triage = result;
+      _triageError = null;
+    } on EmailTriageException catch (e) {
+      debugPrint('[CompanionStream] triage fetch failed: ${e.message}');
+      if (!_disposed) _triageError = e;
+    } catch (e) {
+      debugPrint('[CompanionStream] triage fetch failed: $e');
+      if (!_disposed) _triageError = e;
+    } finally {
+      _triageInFlight = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
   /// Display-name resolution for the brief request `context.user.display_name`.
   /// Prefers the onboarding signal (`preferredName`), falls back to the Firebase
   /// user's displayName, then to a polite generic. The string is purely
@@ -436,6 +509,16 @@ class CompanionStreamProvider extends ChangeNotifier {
     await _invalidateAndRefetchBrief();
   }
 
+  /// User-initiated triage refresh. Mirrors [forceRefreshBrief]: cancels any
+  /// pending debounce (set by action-item notifies) and fetches directly,
+  /// so the pull-to-refresh path never races the auto-refresh path into a
+  /// duplicate LLM call.
+  Future<void> forceRefreshEmailTriage() async {
+    if (_disposed) return;
+    _triageRefreshDebounce?.cancel();
+    await _invalidateAndRefetchTriage();
+  }
+
   /// Records an action and removes the card from the active stream. Dismissed
   /// cards stay suppressed via `_isDismissed`; snoozed cards re-emerge once
   /// `now > until`.
@@ -542,12 +625,7 @@ Map<String, dynamic> buildTodayContext(Iterable<ActionItem> items, {required Dat
   // retained for future telemetry / non-LLM UI counters if needed.
   // ignore: unused_local_variable
   final _ = waitingOnOthersCount;
-  return {
-    'overdue': overdue,
-    'due_soon': dueSoon,
-    'stuck_jira': stuckJira,
-    'plan_remaining_count': planRemainingCount,
-  };
+  return {'overdue': overdue, 'due_soon': dueSoon, 'stuck_jira': stuckJira, 'plan_remaining_count': planRemainingCount};
 }
 
 /// Defensive read of `metadata.actionability` written by the backend Jira

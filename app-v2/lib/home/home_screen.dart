@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:nooto_v2/home/cards/connect_pendant_voice_card.dart';
+import 'package:nooto_v2/home/cards/email_triage_card.dart';
+import 'package:nooto_v2/home/cards/morning_brief_card.dart';
 import 'package:nooto_v2/home/companion_card.dart';
 import 'package:nooto_v2/home/companion_stream_provider.dart';
 import 'package:nooto_v2/home/home_nav.dart';
@@ -113,7 +115,12 @@ class _CardList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: context.read<CompanionStreamProvider>().forceRefreshBrief,
+      onRefresh: () {
+        // Brief + triage refresh run in parallel — they're independent agent
+        // calls and serializing would double the user-perceived pull wait.
+        final stream = context.read<CompanionStreamProvider>();
+        return Future.wait([stream.forceRefreshBrief(), stream.forceRefreshEmailTriage()]);
+      },
       color: AppColors.brandPrimary,
       backgroundColor: AppColors.backgroundSecondary,
       child: cards.isEmpty ? const _PullableEmpty() : _PopulatedCardList(cards: cards),
@@ -124,6 +131,14 @@ class _CardList extends StatelessWidget {
 /// Populated card list, scrollable with always-on physics so the parent
 /// `RefreshIndicator` can capture the pull gesture even when content is
 /// shorter than the viewport.
+///
+/// Brief and triage are independent items in the stream — neither's visibility
+/// is gated on the other. The brief sits in the provider-managed `cards` list
+/// (with its existing `_isContextEmpty` gate). The triage's visibility is
+/// computed here from `CompanionStreamProvider` so an empty triage doesn't
+/// leave a phantom separator gap in the ListView: hidden when no fetch has
+/// been kicked off yet (`triage == null && !inFlight && !hasError`), shown
+/// in every other state.
 class _PopulatedCardList extends StatelessWidget {
   const _PopulatedCardList({required this.cards});
 
@@ -131,17 +146,49 @@ class _PopulatedCardList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(
-        AppStyles.spacingL,
-        AppStyles.spacingS,
-        AppStyles.spacingL,
-        AppStyles.spacingXL,
-      ),
-      itemCount: cards.length,
-      separatorBuilder: (_, _) => const SizedBox(height: AppStyles.spacingL),
-      itemBuilder: (context, i) => cards[i].render(context),
+    return Selector<CompanionStreamProvider, bool>(
+      selector: (_, p) => !(p.triage == null && !p.triageInFlight && p.triageError == null),
+      builder: (context, triageVisible, _) {
+        // Flatten into sibling items so brief and triage are NOT nested under
+        // a shared Column — each is an independent list slot. Triage slots in
+        // right after the brief (if both visible), preserving the two-voice-
+        // moment rhythm; if brief is hidden, triage floats to the top.
+        // Between brief and triage we want `spacingXL` (the natural rhythm
+        // for two distinct voice moments per DESIGN.md). ListView.separated
+        // already inserts `spacingL` between every pair of items, so we add a
+        // top-pad widget that contributes the remaining `spacingXL - spacingL`
+        // visually attached to the triage card.
+        final items = <Widget>[];
+        var briefSeen = false;
+        for (final card in cards) {
+          items.add(card.render(context));
+          if (card is MorningBriefCard && triageVisible) {
+            briefSeen = true;
+            items.add(
+              const Padding(
+                padding: EdgeInsets.only(top: AppStyles.spacingXL - AppStyles.spacingL),
+                child: EmailTriageCard(),
+              ),
+            );
+          }
+        }
+        if (triageVisible && !briefSeen) {
+          // Brief absent — surface triage at the top of the stream.
+          items.insert(0, const EmailTriageCard());
+        }
+        return ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            AppStyles.spacingL,
+            AppStyles.spacingS,
+            AppStyles.spacingL,
+            AppStyles.spacingXL,
+          ),
+          itemCount: items.length,
+          separatorBuilder: (_, _) => const SizedBox(height: AppStyles.spacingL),
+          itemBuilder: (context, i) => items[i],
+        );
+      },
     );
   }
 }
@@ -270,15 +317,10 @@ class _AskNootoButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppStyles.touchTargetMinimum / 2),
               border: Border.all(color: AppColors.brandPrimary.withValues(alpha: 0.3)),
             ),
-            child: const Icon(
-              Icons.auto_awesome,
-              size: 18,
-              color: AppColors.brandPrimary,
-            ),
+            child: const Icon(Icons.auto_awesome, size: 18, color: AppColors.brandPrimary),
           ),
         ),
       ),
     );
   }
 }
-
