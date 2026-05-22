@@ -4,8 +4,24 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
-	<key>GIDClientID</key>
-	<string>1060764816205-i0hf8fsqc7rqebvah1eefnvgdrh8kcrb.apps.googleusercontent.com</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Nooto V2</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>nooto_v2</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -29,58 +45,36 @@
 			</array>
 		</dict>
 	</array>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Nooto needs your microphone to capture a short voice sample during onboarding so it can recognize you later.</string>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Nooto previews live transcription on the connected pendant screen so you can see what's being heard.</string>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Nooto needs Bluetooth to connect to your Omi pendant and stream audio for your AI companion.</string>
-	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Nooto uses Bluetooth to communicate with your Omi pendant.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Nooto can tag conversations with where they happened. Optional — you can skip this.</string>
-	<key>NSUserNotificationsUsageDescription</key>
-	<string>Nooto sends you proactive notifications when your apps and ecosystem have something to say.</string>
-	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Nooto adds events to your default calendar when you ask it to schedule meetings or appointments.</string>
-	<key>NSCalendarsUsageDescription</key>
-	<string>Nooto adds events to your default calendar when you ask it to schedule meetings or appointments.</string>
-	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>Nooto adds reminders to your default reminders list when you ask it to remember something.</string>
-	<key>NSRemindersUsageDescription</key>
-	<string>Nooto adds reminders to your default reminders list when you ask it to remember something.</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GIDClientID</key>
+	<string>1060764816205-i0hf8fsqc7rqebvah1eefnvgdrh8kcrb.apps.googleusercontent.com</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>shortcuts</string>
 	</array>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>audio</string>
-		<string>bluetooth-central</string>
-		<string>remote-notification</string>
-	</array>
-	<key>CFBundleDevelopmentRegion</key>
-	<string>$(DEVELOPMENT_LANGUAGE)</string>
-	<key>CFBundleDisplayName</key>
-	<string>Nooto V2</string>
-	<key>CFBundleExecutable</key>
-	<string>$(EXECUTABLE_NAME)</string>
-	<key>CFBundleIdentifier</key>
-	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
-	<key>CFBundleInfoDictionaryVersion</key>
-	<string>6.0</string>
-	<key>CFBundleName</key>
-	<string>nooto_v2</string>
-	<key>CFBundlePackageType</key>
-	<string>APPL</string>
-	<key>CFBundleShortVersionString</key>
-	<string>$(FLUTTER_BUILD_NAME)</string>
-	<key>CFBundleSignature</key>
-	<string>????</string>
-	<key>CFBundleVersion</key>
-	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Nooto needs Bluetooth to connect to your Omi pendant and stream audio for your AI companion.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Nooto uses Bluetooth to communicate with your Omi pendant.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Nooto adds events to your default calendar when you ask it to schedule meetings or appointments.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Nooto adds events to your default calendar when you ask it to schedule meetings or appointments.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Nooto can tag conversations with where they happened. Optional — you can skip this.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Nooto needs your microphone to capture a short voice sample during onboarding so it can recognize you later.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Nooto adds reminders to your default reminders list when you ask it to remember something.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Nooto adds reminders to your default reminders list when you ask it to remember something.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Nooto previews live transcription on the connected pendant screen so you can see what's being heard.</string>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>Nooto sends you proactive notifications when your apps and ecosystem have something to say.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -104,6 +98,12 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>bluetooth-central</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

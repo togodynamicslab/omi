@@ -10,7 +10,8 @@ import 'package:nooto_v2/home/cards/welcome_card.dart';
 import 'package:nooto_v2/home/companion_card.dart';
 import 'package:nooto_v2/home/home_storage.dart';
 import 'package:nooto_v2/providers/action_items_provider.dart';
-import 'package:nooto_v2/services/chat_service.dart';
+import 'package:nooto_v2/services/auth_service.dart';
+import 'package:nooto_v2/services/brief_service.dart';
 
 /// Coalesce window for brief invalidation after `ActionItemsProvider` notifies.
 /// A flapping Jira poll (sub-minute cadence) would otherwise burn one LLM call
@@ -42,17 +43,17 @@ class CompanionStreamProvider extends ChangeNotifier {
   CompanionStreamProvider({
     required CompanionSignals signals,
     required ActionItemsProvider actionItems,
-    required ChatService chatService,
+    BriefService? briefService,
   }) : _signals = signals,
        _actionItems = actionItems,
-       _chatService = chatService {
+       _briefService = briefService ?? BriefService() {
     _actionItems.addListener(_onActionItemsChanged);
     _init();
   }
 
   final CompanionSignals _signals;
   final ActionItemsProvider _actionItems;
-  final ChatService _chatService;
+  final BriefService _briefService;
   final List<CompanionCard> _cards = [];
   bool _ready = false;
   bool _briefInFlight = false;
@@ -246,19 +247,17 @@ class CompanionStreamProvider extends ChangeNotifier {
     }
 
     _briefInFlight = true;
+    notifyListeners();
     try {
-      final body = await _chatService.fetchBrief(prompt: _briefPrompt, todayContext: todayContext);
+      final brief = await _briefService.fetchMorningBrief(displayName: _displayNameForBrief());
       if (_disposed) return;
-      final trimmed = body.trim();
+      final trimmed = brief.text.trim();
       if (trimmed.isEmpty) {
         _emitFallbackBrief(dateKey, todayContext);
         return;
       }
       if (_looksLikeBackendError(trimmed)) {
-        debugPrint(
-          '[CompanionStream] brief returned backend fallback, '
-          'not caching: $trimmed',
-        );
+        debugPrint('[CompanionStream] brief returned backend fallback, not caching: $trimmed');
         _emitFallbackBrief(dateKey, todayContext);
         return;
       }
@@ -267,20 +266,41 @@ class CompanionStreamProvider extends ChangeNotifier {
         dateKey: dateKey,
         greeting: _greetingFor(_signals.preferredName),
         body: trimmed,
-        generatedAt: DateTime.now(),
+        generatedAt: brief.synthesizedAt,
       );
       await _briefBox.put(dateKey, card.toJson());
       if (_disposed) return;
       _replaceOrEmit(card);
       _persist();
       notifyListeners();
+    } on BriefException catch (e) {
+      debugPrint('[CompanionStream] brief fetch failed: ${e.message}');
+      if (!_disposed) _emitFallbackBrief(dateKey, todayContext);
     } catch (e) {
       debugPrint('[CompanionStream] brief fetch failed: $e');
       if (!_disposed) _emitFallbackBrief(dateKey, todayContext);
     } finally {
       _briefInFlight = false;
+      if (!_disposed) notifyListeners();
     }
   }
+
+  /// Display-name resolution for the brief request `context.user.display_name`.
+  /// Prefers the onboarding signal (`preferredName`), falls back to the Firebase
+  /// user's displayName, then to a polite generic. The string is purely
+  /// addressed-to-the-user material; the backend uses it in the greeting line.
+  String _displayNameForBrief() {
+    final preferred = _signals.preferredName?.trim();
+    if (preferred != null && preferred.isNotEmpty) return preferred;
+    final fb = _firebaseDisplayName?.trim();
+    if (fb != null && fb.isNotEmpty) return fb;
+    return 'You';
+  }
+
+  /// Overrideable in tests; in production reads from FirebaseAuth via the
+  /// shared AuthService. Lookup is synchronous because FirebaseAuth caches
+  /// the current user in memory.
+  String? get _firebaseDisplayName => AuthService.instance.currentUser?.displayName;
 
   /// On generator failure (LLM throws, returns empty, returns the backend
   /// error sentinel), render a plain non-coordinated brief: a descriptive
@@ -324,51 +344,6 @@ class CompanionStreamProvider extends ChangeNotifier {
   Map<String, dynamic> _buildTodayContext() => buildTodayContext(_actionItems.items, now: DateTime.now());
 
   bool _isContextEmpty(Map<String, dynamic> ctx) => isTodayContextEmpty(ctx);
-
-  /// Voice-and-grammar contract for the brief generator. Drives the
-  /// chip-rich coordinator output the new Home depends on. Updated 2026-05-05
-  /// per the brief-as-coordinator redesign.
-  static const String _briefPrompt =
-      "You are Nooto, a calm chief-of-staff briefing the user on today. The "
-      "<today_context> system block names the user's overdue items, due-soon "
-      "items, stuck Jira tickets, and plan remaining count. Synthesize a "
-      "brief in at most 2 sentences that NAMES the actionable items inline.\n"
-      "\n"
-      "Voice rules (hard):\n"
-      "- Descriptive, not imperative. State facts. Do not coach, lecture, "
-      "or moralize.\n"
-      "- Forbidden phrases: 'you missed it', 'drowning', 'knock it out', "
-      "'you'll keep', 'still drowning'. Any second-person imperative is wrong.\n"
-      "- Bad example: 'Yesterday was empty. You missed task #3 — knock it out "
-      "or you'll keep drowning.' (Scolding. Imperative. Forbidden.)\n"
-      "- Good example: 'Today: 1 overdue (<plan id=\"plan-1\"/>) and 3 stuck "
-      "Jira tickets (<ticket id=\"WPNG-2951\"/>, <ticket id=\"WPNG-3402\"/>, "
-      "<ticket id=\"WPNG-3415\"/>).' (Facts. Inline chips. Forward-looking.)\n"
-      "\n"
-      "Inline chip emission:\n"
-      "- Reference action items with the self-closing tag "
-      "<plan id=\"X\" title=\"Y\"/>. X is the id from today_context.overdue[].id "
-      "or today_context.due_soon[].id; Y is the matching .title (verbatim, no "
-      "rephrasing, no quotes inside).\n"
-      "- Reference Jira tickets with <ticket id=\"WPNG-X\" title=\"Y\"/>. X is "
-      "the id from today_context.stuck_jira[].id; Y is the matching .title.\n"
-      "- The title attribute is REQUIRED on every tag — it's the human-readable "
-      "fallback the renderer uses when the chip can't resolve to a live item.\n"
-      "- Never invent ids. Use only ids present in today_context.\n"
-      "- Do NOT put extra whitespace around tags inside parentheses. Write "
-      "`(<ticket id=\"A\"/>, <ticket id=\"B\"/>)` not `( <ticket id=\"A\"/> , <ticket id=\"B\"/> )`. "
-      "Treat tags as words: punctuation hugs them.\n"
-      "\n"
-      "Chip cap (priority order — keep at most 4 chips total):\n"
-      "1. overdue (highest)\n"
-      "2. due_soon (next 4h)\n"
-      "3. stuck_jira (oldest first)\n"
-      "4. plan refs (lowest)\n"
-      "Items beyond the cap collapse to a count phrase: '…and N more stuck' "
-      "or 'and N more overdue'. Keep the prose grammatical.\n"
-      "\n"
-      "If today_context.plan_remaining_count is large (>5) and few chips are "
-      "shown, append 'N items still on this week's plan.' as a closing fact.";
 
   String _greetingFor(String? name) {
     final hour = DateTime.now().hour;
