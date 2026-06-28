@@ -38,13 +38,28 @@ static ssize_t button_data_read_characteristic(struct bt_conn *conn,
                                                uint16_t len,
                                                uint16_t offset);
 
+static void gesture_ccc_changed_handler(const struct bt_gatt_attr *attr, uint16_t value);
+static ssize_t gesture_config_write(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+                                    const void *buf, uint16_t len, uint16_t offset, uint8_t flags);
+static ssize_t gesture_command_write(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+                                     const void *buf, uint16_t len, uint16_t offset, uint8_t flags);
+
 static struct bt_uuid_128 button_uuid =
     BT_UUID_INIT_128(BT_UUID_128_ENCODE(0x23BA7924, 0x0000, 0x1000, 0x7450, 0x346EAC492E92));
 static struct bt_uuid_128 button_characteristic_data_uuid =
     BT_UUID_INIT_128(BT_UUID_128_ENCODE(0x23BA7925, 0x0000, 0x1000, 0x7450, 0x346EAC492E92));
+// Gesture service chars (reconstructed to match the app + engineer DFU):
+//   23BA7926 gesture token (NOTIFY), 23BA7927 config (WRITE), 23BA7928 command (WRITE)
+static struct bt_uuid_128 gesture_event_uuid =
+    BT_UUID_INIT_128(BT_UUID_128_ENCODE(0x23BA7926, 0x0000, 0x1000, 0x7450, 0x346EAC492E92));
+static struct bt_uuid_128 gesture_config_uuid =
+    BT_UUID_INIT_128(BT_UUID_128_ENCODE(0x23BA7927, 0x0000, 0x1000, 0x7450, 0x346EAC492E92));
+static struct bt_uuid_128 gesture_command_uuid =
+    BT_UUID_INIT_128(BT_UUID_128_ENCODE(0x23BA7928, 0x0000, 0x1000, 0x7450, 0x346EAC492E92));
 
 static struct bt_gatt_attr button_service_attr[] = {
     BT_GATT_PRIMARY_SERVICE(&button_uuid),
+    // [1/2] 23BA7925 Button State — READ + NOTIFY (press/release/tap)
     BT_GATT_CHARACTERISTIC(&button_characteristic_data_uuid.uuid,
                            BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
                            BT_GATT_PERM_READ,
@@ -52,9 +67,35 @@ static struct bt_gatt_attr button_service_attr[] = {
                            NULL,
                            NULL),
     BT_GATT_CCC(button_ccc_config_changed_handler, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
+    // [3/4] 23BA7926 Gesture Token — NOTIFY ([0x10, count, clicks...])
+    BT_GATT_CHARACTERISTIC(&gesture_event_uuid.uuid,
+                           BT_GATT_CHRC_NOTIFY,
+                           BT_GATT_PERM_NONE,
+                           NULL,
+                           NULL,
+                           NULL),
+    BT_GATT_CCC(gesture_ccc_changed_handler, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
+    // [5] 23BA7927 Config — WRITE (3× uint16 LE: short_max, inter_click, power_hold)
+    BT_GATT_CHARACTERISTIC(&gesture_config_uuid.uuid,
+                           BT_GATT_CHRC_WRITE,
+                           BT_GATT_PERM_WRITE,
+                           NULL,
+                           gesture_config_write,
+                           NULL),
+    // [6] 23BA7928 Command — WRITE (0x01 haptic / 0x02 led / 0x03 mute / 0x04 power)
+    BT_GATT_CHARACTERISTIC(&gesture_command_uuid.uuid,
+                           BT_GATT_CHRC_WRITE,
+                           BT_GATT_PERM_WRITE,
+                           NULL,
+                           gesture_command_write,
+                           NULL),
 };
 
 static struct bt_gatt_service button_service = BT_GATT_SERVICE(button_service_attr);
+
+// Index of the 23BA7926 gesture-token VALUE attr in button_service_attr (for
+// bt_gatt_notify): [0]=svc [1]=7925 val [2]=7925 ccc [3]=7926 val.
+#define GESTURE_EVENT_ATTR_INDEX 3
 
 static void button_ccc_config_changed_handler(const struct bt_gatt_attr *attr, uint16_t value)
 {
@@ -162,12 +203,87 @@ static inline void notify_long_tap()
     }
 }
 
+// ── Gesture token (23BA7926) + config (23BA7927) + command (23BA7928) ───────
+
+#define GESTURE_TOKEN_VERSION 0x10
+#define GESTURE_MAX_CLICKS 8
+
+// Configurable thresholds (RAM only — no NVS; the app re-sends every connect).
+// Defaults match the firmware spec (600 / 800 / 10000).
+static uint16_t cfg_short_max_ms = 600;    // click < this = SHORT, >= and < power = LONG
+static uint16_t cfg_inter_click_ms = 800;  // silence that closes a click sequence
+static uint16_t cfg_power_hold_ms = 10000; // hold >= this = local power off
+
+// In-progress click sequence (each entry 0=SHORT, 1=LONG).
+static uint8_t gesture_clicks[GESTURE_MAX_CLICKS];
+static uint8_t gesture_click_count = 0;
+
+static void gesture_ccc_changed_handler(const struct bt_gatt_attr *attr, uint16_t value)
+{
+    if (value == BT_GATT_CCC_NOTIFY) {
+        LOG_INF("Client subscribed for gesture tokens");
+    }
+}
+
+// Emit one completed gesture sequence as [0x10, count, click0, click1, ...].
+static void notify_gesture_token(void)
+{
+    if (gesture_click_count == 0 || gesture_click_count > GESTURE_MAX_CLICKS) {
+        return;
+    }
+    uint8_t payload[2 + GESTURE_MAX_CLICKS];
+    payload[0] = GESTURE_TOKEN_VERSION;
+    payload[1] = gesture_click_count;
+    for (uint8_t i = 0; i < gesture_click_count; i++) {
+        payload[2 + i] = gesture_clicks[i] ? 1 : 0;
+    }
+    LOG_INF("Gesture token: %u clicks", gesture_click_count);
+    struct bt_conn *conn = get_current_connection();
+    if (conn != NULL) {
+        bt_gatt_notify(conn, &button_service.attrs[GESTURE_EVENT_ATTR_INDEX], payload,
+                       2 + gesture_click_count);
+    }
+}
+
+// True when a completed sequence is exactly N short clicks (e.g. 5-tap = power off).
+static bool gesture_is_n_short(uint8_t n)
+{
+    if (gesture_click_count != n) {
+        return false;
+    }
+    for (uint8_t i = 0; i < n; i++) {
+        if (gesture_clicks[i] != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Mute = pause the DMIC so the audio characteristic goes silent (mic stays
+// initialized, so unmute is instant). Forward-declared bool defined with the
+// command handler. Declared here so the command handler (below) can call it.
+static bool s_muted;
+static void gesture_set_mute(bool on)
+{
+    if (on == s_muted) {
+        return;
+    }
+    s_muted = on;
+    if (on) {
+        mic_pause();
+    } else {
+        mic_resume();
+    }
+    LOG_INF("Mic %s", on ? "muted" : "unmuted");
+}
+
 #define BUTTON_PRESSED 1
 #define BUTTON_RELEASED 0
 
 #define TAP_THRESHOLD 300     // 300 ms for single tap
 #define DOUBLE_TAP_WINDOW 600 // 600 ms maximum for double-tap
-#define LONG_PRESS_TIME 3000  // 3000 ms for long press (power off)
+#define LONG_PRESS_TIME 3000  // (legacy; power-off now uses cfg_power_hold_ms)
+#define GESTURE_POWEROFF_TAPS 5 // 5 short taps → power off
 
 typedef enum {
     BUTTON_EVENT_NONE,
@@ -192,6 +308,44 @@ void check_button_level(struct k_work *work_item)
     u_int8_t btn_state = was_pressed ? BUTTON_PRESSED : BUTTON_RELEASED;
 
     ButtonEvent event = BUTTON_EVENT_NONE;
+
+    // ── Gesture sequence accumulator (parallel to the legacy tap FSM) ───────
+    // Independent of the button-state notifications below (which the app uses
+    // for hold-to-talk). On each press→release we append one click (SHORT/LONG
+    // by cfg_short_max_ms); after cfg_inter_click_ms of silence the sequence
+    // completes → emit the 0x10 token and run 5-tap power-off. Uses its own ms
+    // clock (gseq_*) so the legacy FSM's current_time resets don't disturb it.
+    static bool gseq_prev_pressed = false;
+    static uint32_t gseq_press_start_ms = 0;
+    static uint32_t gseq_last_release_ms = 0;
+    // Absolute monotonic ms — NOT derived from current_time, which the legacy
+    // FSM resets to 0 on release (that would corrupt our inter-click deltas).
+    uint32_t now_ms = (uint32_t)k_uptime_get();
+
+    if (btn_state == BUTTON_PRESSED && !gseq_prev_pressed) {
+        gseq_press_start_ms = now_ms;
+    } else if (btn_state == BUTTON_RELEASED && gseq_prev_pressed) {
+        uint32_t dur = now_ms - gseq_press_start_ms;
+        // Ignore a hold long enough to be the power-hold (handled elsewhere).
+        if (dur < cfg_power_hold_ms && gesture_click_count < GESTURE_MAX_CLICKS) {
+            gesture_clicks[gesture_click_count++] = (dur >= cfg_short_max_ms) ? 1 : 0;
+        }
+        gseq_last_release_ms = now_ms;
+    }
+    gseq_prev_pressed = (btn_state == BUTTON_PRESSED);
+
+    // Sequence completes after inter-click silence (and not while held).
+    if (gesture_click_count > 0 && btn_state == BUTTON_RELEASED &&
+        (now_ms - gseq_last_release_ms) >= cfg_inter_click_ms) {
+        if (gesture_is_n_short(GESTURE_POWEROFF_TAPS)) {
+            LOG_INF("5-tap → power off");
+            gesture_click_count = 0;
+            turnoff_all();
+            return;
+        }
+        notify_gesture_token();
+        gesture_click_count = 0;
+    }
 
     // Debouncing pressed state
     if (btn_state == BUTTON_PRESSED && !btn_is_pressed) {
@@ -226,8 +380,11 @@ void check_button_level(struct k_work *work_item)
         }
     }
 
-    // Check for long press
-    if (btn_is_pressed && (current_time - btn_press_start_time) * BUTTON_CHECK_INTERVAL >= LONG_PRESS_TIME) {
+    // Check for long press → power off. Uses the configurable power-hold
+    // (default 10s, per the gesture spec) NOT the old hardcoded 3s: a 3s
+    // power-off would fire mid hold-to-talk (the app holds the button to talk).
+    if (btn_is_pressed &&
+        (current_time - btn_press_start_time) * BUTTON_CHECK_INTERVAL >= cfg_power_hold_ms) {
         event = BUTTON_EVENT_LONG_PRESS;
     }
 
@@ -284,6 +441,94 @@ static ssize_t button_data_read_characteristic(struct bt_conn *conn,
     LOG_INF("button_data_read_characteristic");
     LOG_PRINTK("was_pressed: %d\n", final_button_state[0]);
     return bt_gatt_attr_read(conn, attr, buf, len, offset, &final_button_state, sizeof(final_button_state));
+}
+
+// 23BA7927 Config write: 6 bytes = 3× uint16 LE [short_max, inter_click, power_hold].
+// Validation mirrors the spec: short_max in (0, power_hold). Held in RAM only.
+static ssize_t gesture_config_write(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+                                    const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
+{
+    ARG_UNUSED(conn);
+    ARG_UNUSED(attr);
+    ARG_UNUSED(flags);
+    if (offset != 0) {
+        return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
+    }
+    if (len != 6) {
+        return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
+    }
+    const uint8_t *b = buf;
+    uint16_t short_max = (uint16_t)(b[0] | (b[1] << 8));
+    uint16_t inter_click = (uint16_t)(b[2] | (b[3] << 8));
+    uint16_t power_hold = (uint16_t)(b[4] | (b[5] << 8));
+    if (short_max == 0 || short_max >= power_hold) {
+        LOG_WRN("Gesture config rejected: short_max=%u power_hold=%u", short_max, power_hold);
+        return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
+    }
+    cfg_short_max_ms = short_max;
+    cfg_inter_click_ms = inter_click;
+    cfg_power_hold_ms = power_hold;
+    LOG_INF("Gesture config: short=%u inter=%u power=%u", short_max, inter_click, power_hold);
+    return len;
+}
+
+// 23BA7928 Command write: opcode + args.
+//   0x01 HAPTIC : + uint16 LE duration ms
+//   0x02 LED    : + R,G,B (0..100; we map >0 → channel on)
+//   0x03 MUTE   : + mode (0 unmute / 1 mute / 2 toggle)
+//   0x04 POWER  : power off the device (companion to the 5-tap gesture)
+static ssize_t gesture_command_write(struct bt_conn *conn, const struct bt_gatt_attr *attr,
+                                     const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
+{
+    ARG_UNUSED(conn);
+    ARG_UNUSED(attr);
+    ARG_UNUSED(flags);
+    if (offset != 0) {
+        return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
+    }
+    if (len < 1) {
+        return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
+    }
+    const uint8_t *b = buf;
+    switch (b[0]) {
+    case 0x01: { // HAPTIC
+        if (len < 3) {
+            return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
+        }
+        uint16_t ms = (uint16_t)(b[1] | (b[2] << 8));
+#ifdef CONFIG_OMI_ENABLE_HAPTIC
+        play_haptic_milli(ms);
+#else
+        ARG_UNUSED(ms);
+#endif
+        break;
+    }
+    case 0x02: { // LED r,g,b (0..100). Our driver is on/off per channel.
+        if (len < 4) {
+            return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
+        }
+        set_led_red(b[1] > 0);
+        set_led_green(b[2] > 0);
+        set_led_blue(b[3] > 0);
+        break;
+    }
+    case 0x03: { // MUTE 0/1/2
+        if (len < 2) {
+            return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
+        }
+        bool want = (b[1] == 2) ? !s_muted : (b[1] == 1);
+        gesture_set_mute(want);
+        break;
+    }
+    case 0x04: // POWER OFF
+        LOG_INF("Power off via Device Command 0x04");
+        turnoff_all();
+        break;
+    default:
+        LOG_WRN("Unknown command opcode 0x%02x", b[0]);
+        return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
+    }
+    return len;
 }
 
 static struct gpio_callback button_cb_data;
