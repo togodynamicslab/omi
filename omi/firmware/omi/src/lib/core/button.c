@@ -348,10 +348,9 @@ void check_button_level(struct k_work *work_item)
     // Sequence completes after inter-click silence (and not while held).
     if (gesture_click_count > 0 && btn_state == BUTTON_RELEASED &&
         (now_ms - gseq_last_release_ms) >= cfg_inter_click_ms) {
-        bool poweroff = gesture_is_n_short(GESTURE_POWEROFF_TAPS);
-        gesture_click_count = 0;
-        if (poweroff) {
+        if (gesture_is_n_short(GESTURE_POWEROFF_TAPS)) {
             LOG_INF("5-tap -> power off");
+            gesture_click_count = 0;
             // Defer to a dedicated work item: turnoff_all() does ~4s of blocking
             // k_msleep + transport/mic/watchdog teardown, which must NOT run on
             // the 25Hz button-poll context (it would starve the poll and can
@@ -360,7 +359,11 @@ void check_button_level(struct k_work *work_item)
             k_work_submit(&poweroff_work);
             return;
         }
+        // Emit the token FIRST, then reset — notify_gesture_token() reads
+        // gesture_click_count, so zeroing it before the notify (the v2 bug)
+        // silently dropped every non-power-off token (taps stopped working).
         notify_gesture_token();
+        gesture_click_count = 0;
     }
 
     // Debouncing pressed state
