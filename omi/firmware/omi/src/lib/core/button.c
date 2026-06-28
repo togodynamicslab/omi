@@ -93,10 +93,6 @@ static struct bt_gatt_attr button_service_attr[] = {
 
 static struct bt_gatt_service button_service = BT_GATT_SERVICE(button_service_attr);
 
-// Index of the 23BA7926 gesture-token VALUE attr in button_service_attr (for
-// bt_gatt_notify): [0]=svc [1]=7925 val [2]=7925 ccc [3]=7926 val.
-#define GESTURE_EVENT_ATTR_INDEX 3
-
 static void button_ccc_config_changed_handler(const struct bt_gatt_attr *attr, uint16_t value)
 {
     if (value == BT_GATT_CCC_NOTIFY) {
@@ -251,8 +247,11 @@ static void notify_gesture_token(void)
     LOG_INF("Gesture token: %u clicks", gesture_click_count);
     struct bt_conn *conn = get_current_connection();
     if (conn != NULL) {
-        bt_gatt_notify(conn, &button_service.attrs[GESTURE_EVENT_ATTR_INDEX], payload,
-                       2 + gesture_click_count);
+        // Find the 23BA7926 attribute by UUID rather than a hardcoded index —
+        // a wrong index silently no-ops the notify (the taps-stopped bug). This
+        // matches whatever offset the macro expansion produced.
+        bt_gatt_notify_uuid(conn, &gesture_event_uuid.uuid, button_service.attrs, payload,
+                            2 + gesture_click_count);
     }
 }
 
