@@ -225,6 +225,17 @@ static void gesture_ccc_changed_handler(const struct bt_gatt_attr *attr, uint16_
     }
 }
 
+// Power-off must run OFF the button-poll context (turnoff_all does ~4s of
+// blocking teardown). A dedicated work item on the system workqueue gives it a
+// clean thread that runs to completion + sys_poweroff(). Used by the 5-tap
+// gesture and the 0x04 Device Command.
+static void poweroff_work_handler(struct k_work *work)
+{
+    ARG_UNUSED(work);
+    turnoff_all();
+}
+static K_WORK_DEFINE(poweroff_work, poweroff_work_handler);
+
 // Emit one completed gesture sequence as [0x10, count, click0, click1, ...].
 static void notify_gesture_token(void)
 {
@@ -337,14 +348,19 @@ void check_button_level(struct k_work *work_item)
     // Sequence completes after inter-click silence (and not while held).
     if (gesture_click_count > 0 && btn_state == BUTTON_RELEASED &&
         (now_ms - gseq_last_release_ms) >= cfg_inter_click_ms) {
-        if (gesture_is_n_short(GESTURE_POWEROFF_TAPS)) {
-            LOG_INF("5-tap → power off");
-            gesture_click_count = 0;
-            turnoff_all();
+        bool poweroff = gesture_is_n_short(GESTURE_POWEROFF_TAPS);
+        gesture_click_count = 0;
+        if (poweroff) {
+            LOG_INF("5-tap -> power off");
+            // Defer to a dedicated work item: turnoff_all() does ~4s of blocking
+            // k_msleep + transport/mic/watchdog teardown, which must NOT run on
+            // the 25Hz button-poll context (it would starve the poll and can
+            // wedge before sys_poweroff). Scheduling it onto the system workqueue
+            // gives it a clean thread to run to completion + sys_poweroff().
+            k_work_submit(&poweroff_work);
             return;
         }
         notify_gesture_token();
-        gesture_click_count = 0;
     }
 
     // Debouncing pressed state
@@ -381,12 +397,10 @@ void check_button_level(struct k_work *work_item)
     }
 
     // Check for long press → power off. Uses the configurable power-hold
-    // (default 10s, per the gesture spec) NOT the old hardcoded 3s: a 3s
-    // power-off would fire mid hold-to-talk (the app holds the button to talk).
-    if (btn_is_pressed &&
-        (current_time - btn_press_start_time) * BUTTON_CHECK_INTERVAL >= cfg_power_hold_ms) {
-        event = BUTTON_EVENT_LONG_PRESS;
-    }
+    // NOTE: long-press → power-off is INTENTIONALLY REMOVED. The app uses a held
+    // button for press-and-hold-to-talk (hold while speaking), and a spoken
+    // message can run long — a hold-based power-off would cut it off mid-sentence.
+    // Power-off is now the 5-tap gesture (S,S,S,S,S) only, handled above.
 
     // Single tap
     if (event == BUTTON_EVENT_SINGLE_TAP) {
@@ -401,13 +415,6 @@ void check_button_level(struct k_work *work_item)
         LOG_INF("double tap detected\n");
         btn_last_event = event;
         notify_double_tap();
-    }
-
-    // Long press, one time event
-    if (event == BUTTON_EVENT_LONG_PRESS && btn_last_event != BUTTON_EVENT_LONG_PRESS) {
-        LOG_INF("long press detected\n");
-        btn_last_event = event;
-        turnoff_all();
     }
 
     // Releases, one time event
@@ -520,9 +527,9 @@ static ssize_t gesture_command_write(struct bt_conn *conn, const struct bt_gatt_
         gesture_set_mute(want);
         break;
     }
-    case 0x04: // POWER OFF
+    case 0x04: // POWER OFF (deferred to the system workqueue, not this GATT context)
         LOG_INF("Power off via Device Command 0x04");
-        turnoff_all();
+        k_work_submit(&poweroff_work);
         break;
     default:
         LOG_WRN("Unknown command opcode 0x%02x", b[0]);
