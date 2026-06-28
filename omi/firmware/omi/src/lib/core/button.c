@@ -77,6 +77,19 @@ static bool was_pressed = false;
 
 void check_button_level(struct k_work *work_item);
 
+// Dedicated work-queue for button polling. Previously button_work ran on the
+// SHARED system workqueue, which storage.c also uses — and a long, cooperative
+// SD-card storage work item would run to completion without yielding, starving
+// the 25 Hz button poll so presses were silently missed (the device appeared to
+// "stop sending button events"). Giving the button its own thread (higher
+// cooperative priority than storage) guarantees the poll keeps running
+// regardless of storage load, with or without offline storage enabled.
+#define BUTTON_WORKQ_STACK_SIZE 1024
+#define BUTTON_WORKQ_PRIORITY   K_PRIO_COOP(2) // above the system workqueue / storage
+K_THREAD_STACK_DEFINE(button_workq_stack, BUTTON_WORKQ_STACK_SIZE);
+static struct k_work_q button_workq;
+static bool button_workq_started = false;
+
 K_WORK_DELAYABLE_DEFINE(button_work, check_button_level);
 
 #define DEFAULT_STATE 0
@@ -256,7 +269,9 @@ void check_button_level(struct k_work *work_item)
         current_button_state = GRACE;
     }
 
-    k_work_reschedule(&button_work, K_MSEC(BUTTON_CHECK_INTERVAL));
+    // Reschedule onto the dedicated button work-queue (never the shared system
+    // one — see button_workq above) so storage can't starve the poll.
+    k_work_reschedule_for_queue(&button_workq, &button_work, K_MSEC(BUTTON_CHECK_INTERVAL));
     return 0;
 }
 
@@ -335,7 +350,21 @@ int button_init()
 
 void activate_button_work()
 {
-    k_work_schedule(&button_work, K_MSEC(BUTTON_CHECK_INTERVAL));
+    // Start the dedicated button work-queue on first call (idempotent). Running
+    // the poll on its OWN thread — not the shared system workqueue that storage.c
+    // hogs — is the core fix for the button going silent under storage load.
+    if (!button_workq_started) {
+        k_work_queue_init(&button_workq);
+        k_work_queue_start(&button_workq, button_workq_stack,
+                           K_THREAD_STACK_SIZEOF(button_workq_stack),
+                           BUTTON_WORKQ_PRIORITY, NULL);
+        k_thread_name_set(&button_workq.thread, "button_workq");
+        button_workq_started = true;
+    }
+    // Use reschedule (not schedule) so this is a safe, idempotent re-arm: if the
+    // poll work item is somehow no longer pending, this revives it; if pending,
+    // it's a no-op. Called at boot AND on every (re)connect.
+    k_work_reschedule_for_queue(&button_workq, &button_work, K_MSEC(BUTTON_CHECK_INTERVAL));
 }
 
 void register_button_service()

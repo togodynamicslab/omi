@@ -532,6 +532,13 @@ static void _transport_connected(struct bt_conn *conn, uint8_t err)
     update_data_length(current_connection);
     update_mtu(current_connection);
 
+    // Re-arm the button poll on every (re)connect. The work item is armed once
+    // at boot and self-reschedules, but under load it can stop pending and then
+    // never recovers — leaving the button silent until a power-cycle. Re-arming
+    // here (activate_button_work uses k_work_reschedule, so it's idempotent)
+    // guarantees press/release events keep flowing after reconnects.
+    activate_button_work();
+
     is_connected = true;
 }
 
