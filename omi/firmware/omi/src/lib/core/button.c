@@ -339,6 +339,11 @@ void check_button_level(struct k_work *work_item)
 
     if (btn_state == BUTTON_PRESSED && !gseq_prev_pressed) {
         gseq_press_start_ms = now_ms;
+        // Real-time button-DOWN (value 4) for press-and-hold-to-talk: the app
+        // arms its hold timer on this. The legacy FSM only ever emitted release
+        // (5)/tap, never press (4), so hold-to-talk never started on our
+        // reconstructed firmware. Emit it here on the press edge.
+        notify_press();
     } else if (btn_state == BUTTON_RELEASED && gseq_prev_pressed) {
         uint32_t dur = now_ms - gseq_press_start_ms;
         // Ignore a hold long enough to be the power-hold (handled elsewhere).
@@ -346,6 +351,8 @@ void check_button_level(struct k_work *work_item)
             gesture_clicks[gesture_click_count++] = (dur >= cfg_short_max_ms) ? 1 : 0;
         }
         gseq_last_release_ms = now_ms;
+        // Real-time button-UP (value 5) so the app ends the hold + acts on it.
+        notify_unpress();
     }
     gseq_prev_pressed = (btn_state == BUTTON_PRESSED);
 
