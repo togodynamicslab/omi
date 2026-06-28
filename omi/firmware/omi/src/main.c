@@ -139,6 +139,16 @@ void set_led_state()
     bool blue = false;
     bool red = false;
 
+    // Muted takes priority over the connection/charging color: solid red =
+    // "mic off / off air". Without this, the 1Hz LED refresh overwrote the
+    // app's mute-LED command every second (it only blinked red, never latched).
+    if (is_muted()) {
+        set_led_green(false);
+        set_led_blue(false);
+        set_led_red(true);
+        return;
+    }
+
     if (is_charging) {
 #ifdef CONFIG_OMI_ENABLE_BATTERY
         // Solid green if battery is full (>= BATTERY_FULL_THRESHOLD_PERCENT)

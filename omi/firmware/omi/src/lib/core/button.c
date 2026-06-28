@@ -287,6 +287,11 @@ static void gesture_set_mute(bool on)
     LOG_INF("Mic %s", on ? "muted" : "unmuted");
 }
 
+bool is_muted(void)
+{
+    return s_muted;
+}
+
 #define BUTTON_PRESSED 1
 #define BUTTON_RELEASED 0
 
